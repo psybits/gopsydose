@@ -53,7 +53,7 @@ func otherError(filename string, err error) {
 }
 
 func VerbosePrint(prstr string, verbose bool) {
-	if verbose == true {
+	if verbose {
 		fmt.Println(prstr)
 	}
 }
@@ -105,7 +105,7 @@ func InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool, verbose 
 	}
 
 	path := setdir + "/" + source_set_filename
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) || recreate == true {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) || recreate {
 		fmt.Println("Initialising config file:", path)
 		file, err := os.Create(path)
 		if err != nil {
@@ -117,7 +117,10 @@ func InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool, verbose 
 			errorCantChmodConfig(path, err)
 		}
 
-		file.WriteString(string(mcfg))
+		_, err = file.WriteString(string(mcfg))
+		if err != nil {
+			errorCantCreateConfig(path, err)
+		}
 
 		err = file.Close()
 		if err != nil {
@@ -194,7 +197,7 @@ func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
 	}
 
 	path := setdir + "/" + set_filename
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) || recreate == true {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) || recreate {
 		fmt.Println("Initialising config file:", path)
 		file, err := os.Create(path)
 		if err != nil {
@@ -206,7 +209,10 @@ func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
 			errorCantChmodConfig(path, err)
 		}
 
-		file.WriteString(string(mcfg))
+		_, err = file.WriteString(string(mcfg))
+		if err != nil {
+			errorCantCreateConfig(path, err)
+		}
 
 		err = file.Close()
 		if err != nil {

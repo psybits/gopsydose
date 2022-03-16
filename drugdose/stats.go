@@ -3,48 +3,54 @@ package drugdose
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// In minutes
 type TimeTill struct {
-	TimeTillOnset    float32
-	TimeTillComeup   float32
-	TimeTillPeak     float32
-	TimeTillOffset   float32
+	// In seconds
+	TimeTillOnset  int64
+	TimeTillComeup int64
+	TimeTillPeak   int64
+	TimeTillOffset int64
+	// Percentage of completion
 	TotalCompleteMin float32
 	TotalCompleteMax float32
-	StartDose        int64
-	EnDose           int64
-	Timezone         string
+	// In unix time
+	StartDose int64
+	EnDose    int64
 }
 
-func convertToMinutes(units string, min *float32, max *float32) {
+func convertToSeconds(units string, min *float32, max *float32) {
 	if units == "hours" || units == "h" {
+		*min *= 60 * 60
+		*max *= 60 * 60
+	} else if units == "minutes" || units == "m" {
 		*min *= 60
 		*max *= 60
-	} else if units == "seconds" || units == "s" {
-		*min /= 60
-		*max /= 60
 	}
 
 }
 
 func getAverage(first float32, second float32) float32 {
-	return (first + second) / 2
+	if first+second != 0 {
+		return (first + second) / 2
+	} else {
+		return 0
+	}
 }
 
-func calcTimeTill(timetill *float32, diff float32, average ...float32) {
+func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 	*timetill = 0
 	var total float32 = 0
 	for _, v := range average {
 		total += v
 	}
-	if diff < total {
-		*timetill = total - diff
+	if float32(diff) < total {
+		*timetill = int64(math.Round(float64(total - float32(diff))))
 	}
 }
 
@@ -59,7 +65,7 @@ func GetTimes(path string, username string, source string, getid int, printit bo
 	}
 	defer db.Close()
 
-	commonSelect := "select timeOfDoseStart,timeOfDoseEnd,drugName,dose,drugRoute,timezone "
+	commonSelect := "select timeOfDoseStart,timeOfDoseEnd,drugName,dose,drugRoute "
 
 	queryVars := []interface{}{username}
 	stmtTxt := commonSelect +
@@ -84,9 +90,8 @@ func GetTimes(path string, username string, source string, getid int, printit bo
 	var drugName string
 	var dose float32
 	var drugRoute string
-	var timezone string
 	for rows.Next() {
-		err = rows.Scan(&starTime, &endTime, &drugName, &dose, &drugRoute, &timezone)
+		err = rows.Scan(&starTime, &endTime, &drugName, &dose, &drugRoute)
 		if err != nil {
 			fmt.Println(err)
 			return nil
@@ -153,11 +158,11 @@ func GetTimes(path string, username string, source string, getid int, printit bo
 		return nil
 	}
 
-	convertToMinutes(onsetUnits, &onsetMin, &onsetMax)
-	convertToMinutes(comeUpUnits, &comeUpMin, &comeUpMax)
-	convertToMinutes(peakUnits, &peakMin, &peakMax)
-	convertToMinutes(offsetUnits, &offsetMin, &offsetMax)
-	convertToMinutes(totalDurUnits, &totalDurMin, &totalDurMax)
+	convertToSeconds(onsetUnits, &onsetMin, &onsetMax)
+	convertToSeconds(comeUpUnits, &comeUpMin, &comeUpMax)
+	convertToSeconds(peakUnits, &peakMin, &peakMax)
+	convertToSeconds(offsetUnits, &offsetMin, &offsetMax)
+	convertToSeconds(totalDurUnits, &totalDurMin, &totalDurMax)
 
 	curTime := time.Now().Unix()
 	var useLoggedTime int64
@@ -203,19 +208,17 @@ func GetTimes(path string, username string, source string, getid int, printit bo
 
 	timeTill := TimeTill{}
 
-	var getDiffSinceLastLog float32
-	getDiffSinceLastLog = (float32(curTime) - float32(useLoggedTime)) / 60
+	getDiffSinceLastLog := curTime - useLoggedTime
 
-	timeTill.TotalCompleteMin = 1
-	if getDiffSinceLastLog < totalDurMin {
-		timeTill.TotalCompleteMin = getDiffSinceLastLog / totalDurMin
+	timeTill.TotalCompleteMin = 1 //100%
+	if float32(getDiffSinceLastLog) < totalDurMin {
+		timeTill.TotalCompleteMin = float32(getDiffSinceLastLog) / totalDurMin
 	}
 
-	timeTill.TotalCompleteMax = 1
-	if getDiffSinceLastLog < totalDurMax {
-		timeTill.TotalCompleteMax = getDiffSinceLastLog / totalDurMax
+	timeTill.TotalCompleteMax = 1 //100%
+	if float32(getDiffSinceLastLog) < totalDurMax {
+		timeTill.TotalCompleteMax = float32(getDiffSinceLastLog) / totalDurMax
 	}
-
 	onsetAvg := getAverage(onsetMin, onsetMax)
 	comeupAvg := getAverage(comeUpMin, comeUpMax)
 	peakAvg := getAverage(peakMin, peakMax)
@@ -239,10 +242,9 @@ func GetTimes(path string, username string, source string, getid int, printit bo
 
 	timeTill.StartDose = starTime
 	timeTill.EnDose = endTime
-	timeTill.Timezone = timezone
 
-	if printit == true {
-		location, err := time.LoadLocation(timezone)
+	if printit {
+		location, err := time.LoadLocation("Local")
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -250,46 +252,45 @@ func GetTimes(path string, username string, source string, getid int, printit bo
 		fmt.Println("Warning: All data in here is approximations based on averages.")
 		fmt.Println("Please don't let that influence the experience too much!")
 		fmt.Println()
-		fmt.Println("Times are according to the logged timezone.")
 		fmt.Printf("Start Dose:\t%s (%d)\n", time.Unix(int64(starTime), 0).In(location), starTime)
 		if endTime != 0 {
 			fmt.Printf("End Dose:\t%s (%d)\n", time.Unix(int64(endTime), 0).In(location), endTime)
 			if useLoggedTime != endTime {
-				fmt.Printf("Offset End:\t%s (%d)\n", time.Unix(int64(useLoggedTime), 0).In(location),
-					useLoggedTime)
+				fmt.Printf("Offset End:\t%s (%d)\n",
+					time.Unix(int64(useLoggedTime), 0).In(location), useLoggedTime)
 			}
 		}
 		fmt.Printf("Current Time:\t%s (%d)\n", time.Unix(curTime, 0).In(location), curTime)
-
+		fmt.Printf("Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
 		fmt.Println()
 
 		fmt.Printf("Drug:\t%s\n", drugName)
 
-		fmt.Printf("Total:\tMin: %g%% (of %g minutes) ; Max: %g%% (of %g minutes)\n",
-			timeTill.TotalCompleteMin*100,
-			totalDurMin,
-			timeTill.TotalCompleteMax*100,
-			totalDurMax)
+		fmt.Printf("Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
+			int(timeTill.TotalCompleteMin*100),
+			int(math.Round(float64(totalDurMin)/60)),
+			int(timeTill.TotalCompleteMax*100),
+			int(math.Round(float64(totalDurMax)/60)))
 
 		fmt.Println("Time left in minutes")
-		fmt.Printf("Total:\tMin: %g ; Max: %g\n",
-			totalDurMin-(timeTill.TotalCompleteMin*totalDurMin),
-			totalDurMax-(timeTill.TotalCompleteMax*totalDurMax))
+		fmt.Printf("Total:\tMin: %d ; Max: %d\n",
+			int(math.Round(float64((totalDurMin-(timeTill.TotalCompleteMin*totalDurMin))/60))),
+			int(math.Round(float64((totalDurMax-(timeTill.TotalCompleteMax*totalDurMax))/60))))
 
 		if onsetAvg != 0 {
-			fmt.Printf("Onset:\t%g (average)\n", timeTill.TimeTillOnset)
+			fmt.Printf("Onset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOnset)/60)))
 		}
 
 		if comeupAvg != 0 {
-			fmt.Printf("Comeup:\t%g (average)\n", timeTill.TimeTillComeup)
+			fmt.Printf("Comeup:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillComeup/60))))
 		}
 
 		if peakAvg != 0 {
-			fmt.Printf("Peak:\t%g (average)\n", timeTill.TimeTillPeak)
+			fmt.Printf("Peak:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillPeak/60))))
 		}
 
 		if offsetAvg != 0 {
-			fmt.Printf("Offset:\t%g (average)\n", timeTill.TimeTillOffset)
+			fmt.Printf("Offset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOffset/60))))
 		}
 	}
 

@@ -39,11 +39,6 @@ func errorCantCreateDB(filePath string, err error) {
 	exitProgram()
 }
 
-func errorCantInitDB(filePath string, err error) {
-	fmt.Println("Error initialising DB:", filePath+":", err)
-	exitProgram()
-}
-
 func errorCantOpenDB(filePath string, err error) {
 	fmt.Println("Error opening DB:", filePath+":", err)
 	exitProgram()
@@ -57,7 +52,6 @@ type UserLog struct {
 	Dose      string
 	DoseUnits string
 	DrugRoute string
-	Timezone  string
 }
 
 type DrugInfo struct {
@@ -87,7 +81,6 @@ type DrugInfo struct {
 	TotalDurMax   float32
 	TotalDurUnits string
 	TimeOfFetch   int
-	Timezone      string
 }
 
 func xtrastmt(col string, logical string) string {
@@ -192,7 +185,7 @@ func RemoveSingleDrugInfoDB(source string, drug string, path string) bool {
 	drug = MatchDrugName(drug)
 
 	ret := checkIfExistsDB("drugName", source, path, nil, drug)
-	if ret == false {
+	if !ret {
 		fmt.Println("No such drug in info DB:", drug)
 		return false
 	}
@@ -222,7 +215,11 @@ func RemoveSingleDrugInfoDB(source string, drug string, path string) bool {
 		return false
 	}
 
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("RemoveSingleDrugInfoDB: tx.Commit():", err)
+		return false
+	}
 
 	fmt.Println("Data removed from info DB successfully.")
 
@@ -254,11 +251,7 @@ func CheckDBTables(path string) bool {
 		tableList = append(tableList, name)
 	}
 
-	if len(tableList) == 0 {
-		return false
-	}
-
-	return true
+	return len(tableList) != 0
 }
 
 func CleanDB(path string) bool {
@@ -299,7 +292,11 @@ func CleanDB(path string) bool {
 		}
 	}
 
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("CleanDB: tx.Commit():", err)
+		return false
+	}
 
 	fmt.Println("\nAll tables removed from DB.")
 
@@ -335,14 +332,13 @@ func AddToInfoDB(source string, subs Substances, path string) bool {
 		"peakMin, peakMax, peakUnits, " +
 		"offsetMin, offsetMax, offsetUnits, " +
 		"totalDurMin, totalDurMax, totalDurUnits, " +
-		"timeOfFetch, timezone) " +
-		"values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		"timeOfFetch) " +
+		"values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		fmt.Println("AddToInfoDB: tx.Prepare():", err)
 		return false
 	}
 	defer stmt.Close()
-	timezname, _ := time.Now().Zone()
 	for i := 0; i < len(subs); i++ {
 		if len(subs[i].Roas) != 0 {
 			for o := 0; o < len(subs[i].Roas); o++ {
@@ -361,8 +357,7 @@ func AddToInfoDB(source string, subs Substances, path string) bool {
 					subs[i].Roas[o].Duration.Peak.Units, subs[i].Roas[o].Duration.Offset.Min,
 					subs[i].Roas[o].Duration.Offset.Max, subs[i].Roas[o].Duration.Offset.Units,
 					subs[i].Roas[o].Duration.Total.Min, subs[i].Roas[o].Duration.Total.Max,
-					subs[i].Roas[o].Duration.Total.Units, time.Now().Unix(),
-					timezname)
+					subs[i].Roas[o].Duration.Total.Units, time.Now().Unix())
 				if err != nil {
 					fmt.Println("AddToInfoDB: stmt.Exec():", err)
 					return false
@@ -372,7 +367,11 @@ func AddToInfoDB(source string, subs Substances, path string) bool {
 			fmt.Println("FetchPsyWiki: No roas for:", subs[i])
 		}
 	}
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("AddToInfoDB: tx.Commit():", err)
+		return false
+	}
 
 	return true
 }
@@ -417,8 +416,7 @@ func InitDrugDB(source string, path string) bool {
 		"totalDurMin real," +
 		"totalDurMax real," +
 		"totalDurUnits text COLLATE NOCASE," +
-		"timeOfFetch integer," +
-		"timezone text);"
+		"timeOfFetch integer);"
 
 	_, err = db.Exec(initDBsql)
 	if err != nil {
@@ -433,7 +431,6 @@ func InitDrugDB(source string, path string) bool {
 		"dose real," +
 		"doseUnits text COLLATE NOCASE," +
 		"drugRoute text COLLATE NOCASE," +
-		"timezone text," +
 		"primary key (timeOfDoseStart, username));"
 
 	_, err = db.Exec(initDBsql)
@@ -506,12 +503,12 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 		av.CalcGotUnits()
 		units = "unit"
 		dose = av.GotUnits()
-		fmt.Println("Converted alcohol ml and perc to:", dose, "units.")
+		fmt.Println("Converted alcohol ml", av.UserSet.Milliliters, "and perc", perc, "to:", dose, "units.")
 	}
 
 	xtrs := [2]string{xtrastmt("drugRoute", "and"), xtrastmt("doseUnits", "and")}
 	ret := checkIfExistsDB("drugName", source, path, xtrs[:], drug, route, units)
-	if ret == false {
+	if !ret {
 		fmt.Println("Combo of Drug, Route and Units doesn't exist in local DB:",
 			drug+", "+route+", "+units)
 		return false
@@ -533,7 +530,7 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 
 	if int16(count) >= cfg.MaxLogsPerUser {
 		diff := count - int(cfg.MaxLogsPerUser)
-		if cfg.AutoRemove == true {
+		if cfg.AutoRemove {
 			RemoveLogs(path, user, diff+1, true, 0)
 		} else {
 			fmt.Println("User:", user, "has reached the maximum entries per user:", cfg.MaxLogsPerUser,
@@ -550,21 +547,24 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	}
 
 	stmt, err := tx.Prepare("insert into userLogs" +
-		" (timeOfDoseStart, username, timeOfDoseEnd, drugName, dose, doseUnits, drugRoute, timezone) " +
-		"values(?, ?, ?, ?, ?, ?, ?, ?)")
+		" (timeOfDoseStart, username, timeOfDoseEnd, drugName, dose, doseUnits, drugRoute) " +
+		"values(?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
 	defer stmt.Close()
 
-	timezname, _ := time.Now().Zone()
-	_, err = stmt.Exec(time.Now().Unix(), user, 0, drug, dose, units, route, timezname)
+	_, err = stmt.Exec(time.Now().Unix(), user, 0, drug, dose, units, route)
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
 
 	fmt.Println("Dose logged successfully!")
 
@@ -585,15 +585,21 @@ func GetLogs(num int, user string, all bool, path string, printit bool) []UserLo
 	defer db.Close()
 
 	var endstmt string
-	if all == true {
+	if all {
 		endstmt = ""
 	} else {
 		endstmt = " limit " + numstr
 	}
 
-	rows, err := db.Query("select * from userLogs where username = ? order by timeOfDoseStart desc"+endstmt, user)
+	orientation := "asc"
+	if num > 0 {
+		orientation = "desc"
+	}
+
+	rows, err := db.Query("select * from userLogs where username = ? order by timeOfDoseStart "+
+		orientation+endstmt, user)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("GetLogs() Query:", err)
 		return nil
 	}
 	defer rows.Close()
@@ -602,16 +608,19 @@ func GetLogs(num int, user string, all bool, path string, printit bool) []UserLo
 	for rows.Next() {
 		tempul := UserLog{}
 		err = rows.Scan(&tempul.StartTime, &tempul.Username, &tempul.EndTime, &tempul.DrugName,
-			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute, &tempul.Timezone)
+			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("GetLogs() Scan:", err)
 			return nil
 		}
-		location, err := time.LoadLocation(tempul.Timezone)
+
+		location, err := time.LoadLocation("Local")
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("GetLogs() LoadLocation:", err)
+			return nil
 		}
-		if printit == true {
+
+		if printit {
 			fmt.Printf("Start:\t%s (%d) < ID\n",
 				time.Unix(int64(tempul.StartTime), 0).In(location), tempul.StartTime)
 			if tempul.EndTime != 0 {
@@ -629,10 +638,12 @@ func GetLogs(num int, user string, all bool, path string, printit bool) []UserLo
 	}
 	err = rows.Err()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("GetLogs() rows.Err():", err)
 		return nil
 	}
-
+	if len(userlogs) == 0 {
+		return nil
+	}
 	return userlogs
 }
 
@@ -668,17 +679,17 @@ func GetLocalInfo(drug string, source string, path string, printit bool) []DrugI
 			&tempdrinfo.ComeUpUnits, &tempdrinfo.PeakMin, &tempdrinfo.PeakMax,
 			&tempdrinfo.PeakUnits, &tempdrinfo.OffsetMin, &tempdrinfo.OffsetMax,
 			&tempdrinfo.OffsetUnits, &tempdrinfo.TotalDurMin, &tempdrinfo.TotalDurMax,
-			&tempdrinfo.TotalDurUnits, &tempdrinfo.TimeOfFetch, &tempdrinfo.Timezone)
+			&tempdrinfo.TotalDurUnits, &tempdrinfo.TimeOfFetch)
 		if err != nil {
 			fmt.Println(err)
 			return nil
 		}
-		location, err := time.LoadLocation(tempdrinfo.Timezone)
+		location, err := time.LoadLocation("Local")
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		if printit == true {
+		if printit {
 			fmt.Println("Drug:", tempdrinfo.DrugName, ";", "Route:", tempdrinfo.DrugRoute)
 			fmt.Println("---Dosages---")
 			fmt.Printf("Threshold: %g\n", tempdrinfo.Threshold)
@@ -744,7 +755,7 @@ func RemoveLogs(path string, username string, amount int, reverse bool, remID in
 	stmtStr := ("delete from userLogs where username = ?")
 	if amount != 0 {
 		direction := "desc"
-		if reverse == true {
+		if reverse {
 			direction = "asc"
 		}
 
@@ -753,7 +764,7 @@ func RemoveLogs(path string, username string, amount int, reverse bool, remID in
 			"order by timeOfDoseStart %s limit %d)",
 			direction, amount)
 	} else if remID != 0 {
-		stmtStr = fmt.Sprintf("delete from userLogs where timeOfDoseStart = ? AND username = ?")
+		stmtStr = "delete from userLogs where timeOfDoseStart = ? AND username = ?"
 	}
 	stmt, err := tx.Prepare(stmtStr)
 	if err != nil {
@@ -771,7 +782,11 @@ func RemoveLogs(path string, username string, amount int, reverse bool, remID in
 		return false
 	}
 
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("RemoveLogs: tx.Commit():", err)
+		return false
+	}
 
 	fmt.Println("Data removed from info DB successfully.")
 
@@ -819,7 +834,11 @@ func SetEndTime(path string, username string, id int) bool {
 		return false
 	}
 
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("SetEndTime: tx.Commit():", err)
+		return false
+	}
 
 	fmt.Println("End time set for entry.")
 

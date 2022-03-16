@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/psybits/gopsydose/drugdose"
 )
 
@@ -50,8 +52,112 @@ var (
 		"\nfiles have been initialised")
 	stopOnDbInit = flag.Bool("stop-on-db-init", false, "stops the program once the DB file has"+
 		"\nbeen created and initialised, if it doesn't exists already")
-	verbose = flag.Bool("verbose", false, "print extra information")
+	verbose  = flag.Bool("verbose", false, "print extra information")
+	remember = flag.Bool("remember", false, "remember last dose config")
+	forget   = flag.Bool("forget", false, "forget the last set remember config")
 )
+
+type rememberConfig struct {
+	User  string
+	Drug  string
+	Route string
+	Units string
+	Perc  float64
+	Api   string
+}
+
+func rememberDoseConfig(user string, drug string, route string,
+	units string, perc float64, api string, path string) bool {
+
+	newConfig := rememberConfig{
+		User:  user,
+		Drug:  drug,
+		Route: route,
+		Units: units,
+		Perc:  perc,
+		Api:   api,
+	}
+
+	b, err := toml.Marshal(newConfig)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	path = path + "/remember.toml"
+	fmt.Println("Writing to remember file:", path)
+	file, err := os.Create(path)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	err = file.Chmod(0600)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	_, err = file.WriteString(string(b))
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	err = file.Close()
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	return true
+}
+
+func readRememberConfig(path string) *rememberConfig {
+	path = path + "/remember.toml"
+	_, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+
+	file, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+
+	if len(file) == 0 {
+		fmt.Println("Config is empty.")
+		return nil
+	}
+
+	cfg := &rememberConfig{}
+
+	err = toml.Unmarshal(file, cfg)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+
+	return cfg
+}
+
+func forgetConfig(path string) bool {
+	gotCfg := readRememberConfig(path)
+	if gotCfg == nil {
+		fmt.Println("Problem with reading remember config.")
+		return false
+	}
+
+	path = path + "/remember.toml"
+
+	os.Remove(path)
+
+	fmt.Println("Removed file:", path)
+	fmt.Println("Forgot config.")
+
+	return true
+}
 
 func main() {
 	flag.Usage = func() {
@@ -78,7 +184,7 @@ func main() {
 	}
 
 	ret := setcfg.InitSettings(*recreateSettings, *verbose)
-	if ret == false {
+	if !ret {
 		drugdose.VerbosePrint("Settings weren't initialised.", *verbose)
 	}
 
@@ -86,18 +192,38 @@ func main() {
 
 	gotsrc := drugdose.InitSourceStruct(gotsetcfg.UseAPI, *apiUrl)
 	ret = drugdose.InitSourceSettings(gotsrc, *recreateSources, *verbose)
-	if ret == false {
+	if !ret {
 		drugdose.VerbosePrint("Sources file wasn't initialised.", *verbose)
 	}
 
 	gotsrcData := drugdose.GetSourceData()
 
-	if *getDirs == true {
+	if *getDirs {
 		fmt.Println("DB Dir:", gotsetcfg.DBDir)
 		fmt.Println("Settings Dir:", drugdose.InitSettingsDir())
 	}
 
-	if *stopOnCfgInit == true {
+	if *forget {
+		ret := forgetConfig(drugdose.InitSettingsDir())
+		if !ret {
+			fmt.Println("Couldn't forget remember config, because of an error.")
+		}
+	}
+
+	if *drugargdose != 0 && *drugname == "none" {
+		remCfg := readRememberConfig(drugdose.InitSettingsDir())
+		if remCfg != nil {
+			fmt.Println("Remembering from config.")
+			*forUser = remCfg.User
+			*drugname = remCfg.Drug
+			*drugroute = remCfg.Route
+			*drugunits = remCfg.Units
+			*drugperc = remCfg.Perc
+			*apiName = remCfg.Api
+		}
+	}
+
+	if *stopOnCfgInit {
 		os.Exit(0)
 	}
 
@@ -106,12 +232,12 @@ func main() {
 	if path != "" {
 		ret = drugdose.CheckDBTables(path)
 	}
-	if path == "" || ret == false {
+	if path == "" || !ret {
 		if path == "" {
 			path = drugdose.InitFileStructure(gotsetcfg.DBDir, "default")
 		}
 		ret = drugdose.InitDrugDB(gotsetcfg.UseAPI, path)
-		if ret == false {
+		if !ret {
 			fmt.Println("DB didn't get initialised, because of an error, exiting.")
 			os.Exit(1)
 		}
@@ -119,20 +245,20 @@ func main() {
 
 	drugdose.VerbosePrint("Using DB: "+path, *verbose)
 
-	if *cleanDB == true {
+	if *cleanDB {
 		ret := drugdose.CleanDB(path)
-		if ret == false {
+		if !ret {
 			fmt.Println("DB couldn't be cleaned, because of an error.")
 		}
 	}
 
-	if *stopOnDbInit == true {
+	if *stopOnDbInit {
 		os.Exit(0)
 	}
 
 	if *removeDrug != "none" {
 		ret := drugdose.RemoveSingleDrugInfoDB(gotsetcfg.UseAPI, *removeDrug, path)
-		if ret == false {
+		if !ret {
 			fmt.Println("Failed to remove single drug from info DB:", *removeDrug)
 		}
 	}
@@ -148,14 +274,14 @@ func main() {
 		remAmount = *removeNew
 	}
 
-	if *cleanLogs == true || remAmount != 0 || *removeID != 0 {
+	if *cleanLogs || remAmount != 0 || *removeID != 0 {
 		ret := drugdose.RemoveLogs(path, *forUser, remAmount, revRem, *removeID)
-		if ret != true {
+		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
 		}
 	}
 
-	if *getAll == true {
+	if *getAll {
 		ret := drugdose.GetLogs(0, *forUser, true, path, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
@@ -169,14 +295,14 @@ func main() {
 
 	if *localInfoDrug != "none" {
 		locinfo := drugdose.GetLocalInfo(*localInfoDrug, gotsetcfg.UseAPI, path, true)
-		if locinfo == nil || len(locinfo) == 0 {
+		if len(locinfo) == 0 {
 			fmt.Println("Couldn't get local DB info, because of an error, for drug:", *drugname)
 		}
 	}
 
-	if *setEndTime == true || *setEndID != 0 {
+	if *setEndTime || *setEndID != 0 {
 		ret := drugdose.SetEndTime(path, *forUser, *setEndID)
-		if ret == false {
+		if !ret {
 			fmt.Println("Couldn't set end time, because of an error.")
 		}
 	}
@@ -185,7 +311,7 @@ func main() {
 		*drugroute != "none" ||
 		*drugargdose != 0 ||
 		*drugunits != "none" ||
-		*dontLog == true {
+		*dontLog {
 
 		if *drugname == "none" {
 			fmt.Println("No drug name specified, checkout: gopsydose -help")
@@ -214,18 +340,27 @@ func main() {
 		if cli != nil {
 			if gotsetcfg.UseAPI == "psychonautwiki" {
 				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli, path)
-				if ret == false {
+				if !ret {
 					fmt.Println("Didn't fetch anything.")
 				}
 			} else {
 				fmt.Println("No valid API selected:", gotsetcfg.UseAPI)
 				os.Exit(1)
 			}
-			if *dontLog != true {
+
+			if *remember {
+				ret = rememberDoseConfig(*forUser, *drugname, *drugroute,
+					*drugunits, *drugperc, *apiName, drugdose.InitSettingsDir())
+				if !ret {
+					fmt.Println("Couldn't remember config, because of an error.")
+				}
+			}
+
+			if !*dontLog {
 				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc),
 					path, *apiName)
-				if ret == false {
+				if !ret {
 					fmt.Println("Dose wasn't logged.")
 				}
 			}
@@ -235,7 +370,7 @@ func main() {
 		}
 	}
 
-	if *getTimes == true || *getTimesID != 0 {
+	if *getTimes || *getTimesID != 0 {
 		times := drugdose.GetTimes(path, *forUser, gotsetcfg.UseAPI, *getTimesID, true)
 		if times == nil {
 			fmt.Println("Times couldn't be retrieved because of an error.")

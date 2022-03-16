@@ -69,7 +69,7 @@ func (cfg *Config) InitGraphqlClient(api string) *graphql.Client {
 		api = default_api
 	}
 
-	if cfg.AutoFetch == false {
+	if !cfg.AutoFetch {
 		fmt.Println("Automatic fetching is disabled, returning.")
 		return nil
 	}
@@ -79,7 +79,7 @@ func (cfg *Config) InitGraphqlClient(api string) *graphql.Client {
 }
 
 func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graphql.Client, path string) bool {
-	if cfg.AutoFetch == false {
+	if !cfg.AutoFetch {
 		fmt.Println("Automatic fetching is disabled, returning.")
 		return false
 	}
@@ -90,7 +90,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 	}
 
 	ret := checkIfExistsDB("drugName", "psychonautwiki", path, nil, drugname)
-	if ret == true {
+	if ret {
 		fmt.Println("Drug already in DB, returning.")
 		return false
 	}
@@ -113,7 +113,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 
 	if len(q.Substances) != 0 {
 		ret := AddToInfoDB("psychonautwiki", q.Substances, path)
-		if ret == false {
+		if !ret {
 			fmt.Println("Data couldn't be added to info DB, because of an error.")
 			return false
 		}
