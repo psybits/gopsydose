@@ -16,8 +16,8 @@ import (
 	"github.com/powerjungle/goalconvert/alconvert"
 )
 
-const db_dir = "dddb"
-const db_name = "dRdb.db"
+const db_dir = "GPD"
+const db_name = "gpd.db"
 const default_source = "psychonautwiki"
 const default_username = "defaultUser"
 

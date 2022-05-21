@@ -81,7 +81,7 @@ func InitSettingsDir() string {
 		fmt.Println(err)
 		return ""
 	}
-	configdir = configdir + "/gpdset"
+	configdir = configdir + "/GPD"
 	if _, err := os.Stat(configdir); errors.Is(err, os.ErrNotExist) {
 		err = os.Mkdir(configdir, 0700)
 		if err != nil {
@@ -170,6 +170,14 @@ func InitSettingsStruct(maxulogs int16, source string,
 			fmt.Println(err)
 			return nil
 		}
+
+		path := home + "/.local/share"
+
+		_, err = os.Stat(path)
+		if err == nil {
+			home = path
+		}
+
 		dbdir = home + "/" + db_dir
 	}
 
