@@ -4,8 +4,8 @@ release:
 builds:
   -
     main: .
-    id: "linux-cli"
-    binary: gopsydose-cli
+    id: "linux-CLI"
+    binary: dose
     env:
       - CGO_ENABLED=1
     goos:
@@ -18,8 +18,8 @@ builds:
       - -w
   -
     main: .
-    id: "win-64-cli"
-    binary: gopsydose-cli
+    id: "win-64-CLI"
+    binary: dose
     env:
       - CGO_ENABLED=1
       - CC=x86_64-w64-mingw32-gcc
@@ -32,8 +32,8 @@ builds:
       - -w
   -
     main: .
-    id: "win-32-cli"
-    binary: gopsydose-cli
+    id: "win-32-CLI"
+    binary: dose
     env:
       - CGO_ENABLED=1
       - CC=i686-w64-mingw32-gcc
