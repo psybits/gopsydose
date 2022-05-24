@@ -10,7 +10,6 @@ import (
 
 	"database/sql"
 
-	"github.com/hasura/go-graphql-client"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/powerjungle/goalconvert/alconvert"
@@ -303,7 +302,7 @@ func CleanDB(path string) bool {
 	return true
 }
 
-func AddToInfoDB(source string, subs Substances, path string) bool {
+func AddToInfoDB(source string, subs []DrugInfo, path string) bool {
 	if source == "default" {
 		source = default_source
 	}
@@ -340,31 +339,37 @@ func AddToInfoDB(source string, subs Substances, path string) bool {
 	}
 	defer stmt.Close()
 	for i := 0; i < len(subs); i++ {
-		if len(subs[i].Roas) != 0 {
-			for o := 0; o < len(subs[i].Roas); o++ {
-				subs[i].Roas[o].Dose.Units = MatchGraphqlUnits(subs[i].Roas[o].Dose.Units)
-				fmt.Println(subs[i].Roas[o])
-				_, err = stmt.Exec(subs[i].Name, subs[i].Roas[o].Name,
-					subs[i].Roas[o].Dose.Threshold,
-					subs[i].Roas[o].Dose.Light.Min, subs[i].Roas[o].Dose.Light.Max,
-					subs[i].Roas[o].Dose.Common.Min, subs[i].Roas[o].Dose.Common.Max,
-					subs[i].Roas[o].Dose.Strong.Min, subs[i].Roas[o].Dose.Strong.Max,
-					subs[i].Roas[o].Dose.Units,
-					subs[i].Roas[o].Duration.Onset.Min, subs[i].Roas[o].Duration.Onset.Max,
-					subs[i].Roas[o].Duration.Onset.Units, subs[i].Roas[o].Duration.Comeup.Min,
-					subs[i].Roas[o].Duration.Comeup.Max, subs[i].Roas[o].Duration.Comeup.Units,
-					subs[i].Roas[o].Duration.Peak.Min, subs[i].Roas[o].Duration.Peak.Max,
-					subs[i].Roas[o].Duration.Peak.Units, subs[i].Roas[o].Duration.Offset.Min,
-					subs[i].Roas[o].Duration.Offset.Max, subs[i].Roas[o].Duration.Offset.Units,
-					subs[i].Roas[o].Duration.Total.Min, subs[i].Roas[o].Duration.Total.Max,
-					subs[i].Roas[o].Duration.Total.Units, time.Now().Unix())
-				if err != nil {
-					fmt.Println("AddToInfoDB: stmt.Exec():", err)
-					return false
-				}
-			}
-		} else {
-			fmt.Println("FetchPsyWiki: No roas for:", subs[i])
+		subs[i].DoseUnits = MatchUnits(subs[i].DoseUnits)
+		_, err = stmt.Exec(
+			subs[i].DrugName,
+			subs[i].DrugRoute,
+			subs[i].Threshold,
+			subs[i].LowDoseMin,
+			subs[i].LowDoseMax,
+			subs[i].MediumDoseMin,
+			subs[i].MediumDoseMax,
+			subs[i].HighDoseMin,
+			subs[i].HighDoseMax,
+			subs[i].DoseUnits,
+			subs[i].OnsetMin,
+			subs[i].OnsetMax,
+			subs[i].OnsetUnits,
+			subs[i].ComeUpMin,
+			subs[i].ComeUpMax,
+			subs[i].ComeUpUnits,
+			subs[i].PeakMin,
+			subs[i].PeakMax,
+			subs[i].PeakUnits,
+			subs[i].OffsetMin,
+			subs[i].OffsetMax,
+			subs[i].OffsetUnits,
+			subs[i].TotalDurMin,
+			subs[i].TotalDurMax,
+			subs[i].TotalDurUnits,
+			time.Now().Unix())
+		if err != nil {
+			fmt.Println("AddToInfoDB: stmt.Exec():", err)
+			return false
 		}
 	}
 	err = tx.Commit()
@@ -469,8 +474,8 @@ func MatchDrugRoute(drugroute string) string {
 	return matches[drugroute]
 }
 
-func MatchGraphqlUnits(units graphql.String) graphql.String {
-	matches := map[graphql.String]graphql.String{
+func MatchUnits(units string) string {
+	matches := map[string]string{
 		"µg": "ug",
 	}
 
