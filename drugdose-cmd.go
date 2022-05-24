@@ -408,7 +408,7 @@ func main() {
 	if *localInfoDrug != "none" {
 		locinfo := drugdose.GetLocalInfo(*localInfoDrug, gotsetcfg.UseAPI, path, true)
 		if len(locinfo) == 0 {
-			fmt.Println("Couldn't get local DB info, because of an error, for drug:", *drugname)
+			fmt.Println("Couldn't get local DB info, because of an error, for drug:", *localInfoDrug)
 		}
 	}
 
