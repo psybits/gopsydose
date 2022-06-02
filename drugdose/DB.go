@@ -506,9 +506,9 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 		av.UserSet.Milliliters = float32(dose)
 		av.UserSet.Percent = float32(perc)
 		av.CalcGotUnits()
-		units = "unit"
-		dose = av.GotUnits()
-		fmt.Println("Converted alcohol ml", av.UserSet.Milliliters, "and perc", perc, "to:", dose, "units.")
+		units = "mL EtOH"
+		dose = av.GotUnits() * 10
+		fmt.Println("Converted alcohol ml", av.UserSet.Milliliters, "and perc", perc, "to:", dose, "mL EtOH.")
 	}
 
 	xtrs := [2]string{xtrastmt("drugRoute", "and"), xtrastmt("doseUnits", "and")}
