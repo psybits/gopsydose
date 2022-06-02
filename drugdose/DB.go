@@ -501,14 +501,35 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	drug = MatchDrugName(drug)
 	route = MatchDrugRoute(route)
 
-	if strings.ToLower(drug) == "alcohol" && perc != 0 {
+	if perc != 0 {
+		var new_units string
+
+		if strings.ToLower(drug) == "alcohol" && units == "ml" {
+			new_units = "mL EtOH"
+		}
+
+		if strings.ToLower(drug) == "cannabis" && units == "mg" {
+			new_units = "mg (THC)"
+		}
+
 		av := alconvert.NewAV()
 		av.UserSet.Milliliters = float32(dose)
 		av.UserSet.Percent = float32(perc)
 		av.CalcGotUnits()
-		units = "mL EtOH"
 		dose = av.GotUnits() * 10
-		fmt.Println("Converted alcohol ml", av.UserSet.Milliliters, "and perc", perc, "to:", dose, "mL EtOH.")
+
+		if len(new_units) == 0 {
+			new_units = units
+		}
+
+		fmt.Println("Calculated for",
+			drug, ":",
+			perc, "%",
+			"of",
+			av.UserSet.Milliliters, units,
+			"to be:", dose, new_units)
+
+		units = new_units
 	}
 
 	xtrs := [2]string{xtrastmt("drugRoute", "and"), xtrastmt("doseUnits", "and")}
