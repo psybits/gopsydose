@@ -78,7 +78,7 @@ func (cfg *Config) InitGraphqlClient(api string) *graphql.Client {
 	return client
 }
 
-func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graphql.Client, path string) bool {
+func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graphql.Client, driver string, path string) bool {
 	if !cfg.AutoFetch {
 		fmt.Println("Automatic fetching is disabled, returning.")
 		return false
@@ -89,7 +89,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 		drugname = matchedDrugName
 	}
 
-	ret := checkIfExistsDB("drugName", "psychonautwiki", path, nil, drugname)
+	ret := checkIfExistsDB("drugName", "psychonautwiki", driver, path, nil, drugname)
 	if ret {
 		fmt.Println("Drug already in DB, returning.")
 		return false
@@ -157,7 +157,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 		}
 
 		if len(InfoDrug) != 0 {
-			ret := AddToInfoDB("psychonautwiki", InfoDrug, path)
+			ret := AddToInfoDB("psychonautwiki", InfoDrug, driver, path)
 			if !ret {
 				fmt.Println("Data couldn't be added to info DB, because of an error.")
 				return false

@@ -54,12 +54,12 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 	}
 }
 
-func GetTimes(path string, username string, source string, getid int, printit bool) *TimeTill {
+func GetTimes(driver string, path string, username string, source string, getid int, printit bool) *TimeTill {
 	if username == "default" {
 		username = default_username
 	}
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}

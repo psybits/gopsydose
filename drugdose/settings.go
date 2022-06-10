@@ -18,6 +18,8 @@ type Config struct {
 	AutoFetch      bool
 	DBDir          string
 	AutoRemove     bool
+	DBDriver       string
+	MySQLAccess    string
 }
 
 const psychonautwiki_api = "api.psychonautwiki.org"
@@ -187,6 +189,8 @@ func InitSettingsStruct(maxulogs int16, source string,
 		AutoFetch:      autofetch,
 		DBDir:          dbdir,
 		AutoRemove:     autoremove,
+		DBDriver:       "sqlite3",
+		MySQLAccess:    "user:password@tcp(127.0.0.1:3306)/database",
 	}
 
 	return &initConf

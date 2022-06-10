@@ -10,6 +10,7 @@ import (
 
 	"database/sql"
 
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/powerjungle/goalconvert/alconvert"
@@ -86,8 +87,10 @@ func xtrastmt(col string, logical string) string {
 	return logical + " " + col + " = ?"
 }
 
-func checkIfExistsDB(col string, table string, path string, xtrastmt []string, values ...interface{}) bool {
-	db, err := sql.Open("sqlite3", path)
+func checkIfExistsDB(col string, table string, driver string,
+	path string, xtrastmt []string, values ...interface{}) bool {
+
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
@@ -100,7 +103,7 @@ func checkIfExistsDB(col string, table string, path string, xtrastmt []string, v
 		}
 	}
 
-	// Note, this doesn't cause an SQL injection, because we're not taking col and table from an user input.
+	// NOTE: this doesn't cause an SQL injection, because we're not taking col and table from an user input.
 	stmt, err := db.Prepare(stmtstr)
 	if err != nil {
 		fmt.Println("SQL error in prepare for check if exists:", err)
@@ -114,7 +117,7 @@ func checkIfExistsDB(col string, table string, path string, xtrastmt []string, v
 		if errors.Is(err, sql.ErrNoRows) {
 			return false
 		}
-		fmt.Println("Check if exists received weird error:", err)
+		fmt.Println("checkIfExistsDB: received weird error:", err)
 		return false
 	}
 
@@ -176,20 +179,20 @@ func CheckDBFileStruct(dbdir string, dbname string, verbose bool) string {
 }
 
 // Remove all entries of a single drug from the local info DB, instead of deleting the whole DB.
-func RemoveSingleDrugInfoDB(source string, drug string, path string) bool {
+func RemoveSingleDrugInfoDB(source string, drug string, driver string, path string) bool {
 	if source == "default" {
 		source = default_source
 	}
 
 	drug = MatchDrugName(drug)
 
-	ret := checkIfExistsDB("drugName", source, path, nil, drug)
+	ret := checkIfExistsDB("drugName", source, driver, path, nil, drug)
 	if !ret {
-		fmt.Println("No such drug in info DB:", drug)
+		fmt.Println("No such drug in info database:", drug)
 		return false
 	}
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
@@ -225,14 +228,26 @@ func RemoveSingleDrugInfoDB(source string, drug string, path string) bool {
 	return true
 }
 
-func CheckDBTables(path string) bool {
-	db, err := sql.Open("sqlite3", path)
+func getTableNamesQuery(driver string, path string) string {
+	var queryStr string
+	if driver == "sqlite3" {
+		queryStr = "SELECT name FROM sqlite_schema WHERE type='table'"
+	} else if driver == "mysql" {
+		dbName := strings.Split(path, "/")
+		queryStr = "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + dbName[1] + "'"
+	}
+	return queryStr
+}
+
+func CheckDBTables(driver string, path string) bool {
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
 	defer db.Close()
 
-	rows, err := db.Query("SELECT name FROM sqlite_schema WHERE type='table'")
+	queryStr := getTableNamesQuery(driver, path)
+	rows, err := db.Query(queryStr)
 	if err != nil {
 		fmt.Println(err)
 		return false
@@ -253,14 +268,15 @@ func CheckDBTables(path string) bool {
 	return len(tableList) != 0
 }
 
-func CleanDB(path string) bool {
-	db, err := sql.Open("sqlite3", path)
+func CleanDB(driver string, path string) bool {
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
 	defer db.Close()
 
-	rows, err := db.Query("SELECT name FROM sqlite_schema WHERE type='table'")
+	queryStr := getTableNamesQuery(driver, path)
+	rows, err := db.Query(queryStr)
 	if err != nil {
 		fmt.Println(err)
 		return false
@@ -302,12 +318,12 @@ func CleanDB(path string) bool {
 	return true
 }
 
-func AddToInfoDB(source string, subs []DrugInfo, path string) bool {
+func AddToInfoDB(source string, subs []DrugInfo, driver string, path string) bool {
 	if source == "default" {
 		source = default_source
 	}
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
@@ -384,20 +400,37 @@ func AddToInfoDB(source string, subs []DrugInfo, path string) bool {
 // Returns true if successful and false otherwise
 // Creates the database
 // source - the name of the db, a.k.a. the source of the drug information
-func InitDrugDB(source string, path string) bool {
+func InitDrugDB(source string, driver string, path string) bool {
 	if source == "default" {
 		source = default_source
 	}
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
 	defer db.Close()
 
-	initDBsql := "create table " + source + " (id integer not null primary key," +
-		"drugName text COLLATE NOCASE," +
-		"drugRoute text COLLATE NOCASE," +
+	caseInsensitive := ""
+	if driver == "sqlite3" {
+		caseInsensitive = "COLLATE NOCASE"
+	}
+
+	var priKeyTextType string
+	if driver == "sqlite3" {
+		priKeyTextType = "text"
+	} else if driver == "mysql" {
+		priKeyTextType = "varchar(255)"
+	}
+
+	autoIncr := ""
+	if driver == "mysql" {
+		autoIncr = "AUTO_INCREMENT"
+	}
+
+	initDBsql := "create table " + source + " (id integer not null " + autoIncr + " primary key," +
+		"drugName text " + caseInsensitive + "," +
+		"drugRoute text " + caseInsensitive + "," +
 		"threshold real," +
 		"lowDoseMin real," +
 		"lowDoseMax real," +
@@ -405,22 +438,22 @@ func InitDrugDB(source string, path string) bool {
 		"mediumDoseMax real," +
 		"highDoseMin real," +
 		"highDoseMax real," +
-		"doseUnits text COLLATE NOCASE," +
+		"doseUnits text " + caseInsensitive + "," +
 		"onsetMin real," +
 		"onsetMax real," +
-		"onsetUnits text COLLATE NOCASE," +
+		"onsetUnits text " + caseInsensitive + "," +
 		"comeUpMin real," +
 		"comeUpMax real," +
-		"comeUpUnits text COLLATE NOCASE," +
+		"comeUpUnits text " + caseInsensitive + "," +
 		"peakMin real," +
 		"peakMax real," +
-		"peakUnits text COLLATE NOCASE," +
+		"peakUnits text " + caseInsensitive + "," +
 		"offsetMin real," +
 		"offsetMax real," +
-		"offsetUnits text COLLATE NOCASE," +
+		"offsetUnits text " + caseInsensitive + "," +
 		"totalDurMin real," +
 		"totalDurMax real," +
-		"totalDurUnits text COLLATE NOCASE," +
+		"totalDurUnits text " + caseInsensitive + "," +
 		"timeOfFetch integer);"
 
 	_, err = db.Exec(initDBsql)
@@ -430,12 +463,12 @@ func InitDrugDB(source string, path string) bool {
 	}
 
 	initDBsql = "create table userLogs (timeOfDoseStart integer not null," +
-		"username text not null," +
-		"timeOfDoseEnd integer," +
-		"drugName text COLLATE NOCASE," +
-		"dose real," +
-		"doseUnits text COLLATE NOCASE," +
-		"drugRoute text COLLATE NOCASE," +
+		"username " + priKeyTextType + " not null," +
+		"timeOfDoseEnd integer not null," +
+		"drugName text " + caseInsensitive + " not null," +
+		"dose real not null," +
+		"doseUnits text " + caseInsensitive + " not null," +
+		"drugRoute text " + caseInsensitive + " not null," +
 		"primary key (timeOfDoseStart, username));"
 
 	_, err = db.Exec(initDBsql)
@@ -488,7 +521,7 @@ func MatchUnits(units string) string {
 
 func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	dose float32, units string, perc float32,
-	path string, source string) bool {
+	driver string, path string, source string) bool {
 
 	if source == "default" {
 		source = default_source
@@ -533,14 +566,14 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	}
 
 	xtrs := [2]string{xtrastmt("drugRoute", "and"), xtrastmt("doseUnits", "and")}
-	ret := checkIfExistsDB("drugName", source, path, xtrs[:], drug, route, units)
+	ret := checkIfExistsDB("drugName", source, driver, path, xtrs[:], drug, route, units)
 	if !ret {
 		fmt.Println("Combo of Drug, Route and Units doesn't exist in local DB:",
 			drug+", "+route+", "+units)
 		return false
 	}
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
@@ -557,7 +590,7 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	if int16(count) >= cfg.MaxLogsPerUser {
 		diff := count - int(cfg.MaxLogsPerUser)
 		if cfg.AutoRemove {
-			RemoveLogs(path, user, diff+1, true, 0)
+			RemoveLogs(driver, path, user, diff+1, true, 0)
 		} else {
 			fmt.Println("User:", user, "has reached the maximum entries per user:", cfg.MaxLogsPerUser,
 				"; Not logging.")
@@ -597,14 +630,14 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	return true
 }
 
-func GetLogs(num int, user string, all bool, path string, printit bool) []UserLog {
+func GetLogs(num int, user string, all bool, driver string, path string, printit bool) []UserLog {
 	if user == "default" {
 		user = default_username
 	}
 
 	numstr := strconv.Itoa(num)
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
@@ -673,14 +706,20 @@ func GetLogs(num int, user string, all bool, path string, printit bool) []UserLo
 	return userlogs
 }
 
-func GetLocalInfo(drug string, source string, path string, printit bool) []DrugInfo {
+func GetLocalInfo(drug string, source string, driver string, path string, printit bool) []DrugInfo {
 	if source == "default" {
 		source = default_source
 	}
 
 	drug = MatchDrugName(drug)
 
-	db, err := sql.Open("sqlite3", path)
+	ret := checkIfExistsDB("drugName", source, driver, path, nil, drug)
+	if !ret {
+		fmt.Println("No such drug in info database:", drug)
+		return nil
+	}
+
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
@@ -761,16 +800,55 @@ func GetLocalInfo(drug string, source string, path string, printit bool) []DrugI
 	return infoDrug
 }
 
-func RemoveLogs(path string, username string, amount int, reverse bool, remID int) bool {
+func RemoveLogs(driver string, path string, username string, amount int, reverse bool, remID int) bool {
 	if username == "default" {
 		username = default_username
 	}
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
 	defer db.Close()
+
+	stmtStr := "delete from userLogs where username = ?"
+	if amount != 0 {
+		direction := "desc"
+		if reverse {
+			direction = "asc"
+		}
+
+		selectStr := fmt.Sprintf("select timeOfDoseStart from userLogs where username = ? "+
+			"order by timeOfDoseStart %s limit %d", direction, amount)
+
+		rows, err := db.Query(selectStr, username)
+		if err != nil {
+			fmt.Println("Error Select for RemoveLogs():", err)
+			return false
+		}
+
+		var gotTimeOfDose []int
+		var tempTimes int
+
+		for rows.Next() {
+			err = rows.Scan(&tempTimes)
+			if err != nil {
+				fmt.Println("Error scanning Select for RemoveLogs():", err)
+				return false
+			}
+			gotTimeOfDose = append(gotTimeOfDose, tempTimes)
+		}
+
+		concatTimes := ""
+		for i := 0; i < len(gotTimeOfDose); i++ {
+			concatTimes = concatTimes + strconv.Itoa(gotTimeOfDose[i]) + ","
+		}
+		concatTimes = strings.TrimSuffix(concatTimes, ",")
+
+		stmtStr = "delete from userLogs where timeOfDoseStart in (" + concatTimes + ")"
+	} else if remID != 0 {
+		stmtStr = "delete from userLogs where timeOfDoseStart = ? AND username = ?"
+	}
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -778,28 +856,16 @@ func RemoveLogs(path string, username string, amount int, reverse bool, remID in
 		return false
 	}
 
-	stmtStr := ("delete from userLogs where username = ?")
-	if amount != 0 {
-		direction := "desc"
-		if reverse {
-			direction = "asc"
-		}
-
-		stmtStr = fmt.Sprintf("delete from userLogs where timeOfDoseStart in "+
-			"(select timeOfDoseStart from userLogs where username == ? "+
-			"order by timeOfDoseStart %s limit %d)",
-			direction, amount)
-	} else if remID != 0 {
-		stmtStr = "delete from userLogs where timeOfDoseStart = ? AND username = ?"
-	}
 	stmt, err := tx.Prepare(stmtStr)
 	if err != nil {
 		fmt.Println("RemoveLogs: tx.Prepare():", err)
 		return false
 	}
 	defer stmt.Close()
-	if remID != 0 && amount == 0 {
+	if remID != 0 {
 		_, err = stmt.Exec(remID, username)
+	} else if amount != 0 {
+		_, err = stmt.Exec()
 	} else {
 		_, err = stmt.Exec(username)
 	}
@@ -819,16 +885,37 @@ func RemoveLogs(path string, username string, amount int, reverse bool, remID in
 	return true
 }
 
-func SetEndTime(path string, username string, id int) bool {
+func SetEndTime(driver string, path string, username string, id int, customTime int) bool {
 	if username == "default" {
 		username = default_username
 	}
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
 	}
 	defer db.Close()
+
+	endStmt := "order by timeOfDoseStart desc"
+	if id != 0 {
+		endStmt = "and timeOfDoseStart = ?"
+	}
+
+	selectStr := fmt.Sprintf("select timeOfDoseStart from userLogs where username = ? "+"%s limit 1",
+		endStmt)
+
+	var gotTimeOfDose int
+
+	if id != 0 {
+		err = db.QueryRow(selectStr, username, id).Scan(&gotTimeOfDose)
+	} else {
+		err = db.QueryRow(selectStr, username).Scan(&gotTimeOfDose)
+	}
+
+	if err != nil {
+		fmt.Println("Error Select for SetEndTime:", err)
+		return false
+	}
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -836,13 +923,15 @@ func SetEndTime(path string, username string, id int) bool {
 		return false
 	}
 
-	endStmt := "order by timeOfDoseStart desc"
-	if id != 0 {
-		endStmt = "and timeOfDoseStart = ?"
+	var theTime int
+	if customTime != 0 {
+		theTime = customTime
+	} else {
+		theTime = int(time.Now().Unix())
 	}
-	stmtStr := fmt.Sprintf("update userLogs set timeOfDoseEnd = %d where timeOfDoseStart in "+
-		"(select timeOfDoseStart from userLogs where username == ? "+
-		"%s limit 1)", time.Now().Unix(), endStmt)
+
+	stmtStr := fmt.Sprintf("update userLogs set timeOfDoseEnd = %d where timeOfDoseStart = ?",
+		theTime)
 
 	stmt, err := tx.Prepare(stmtStr)
 	if err != nil {
@@ -850,11 +939,8 @@ func SetEndTime(path string, username string, id int) bool {
 		return false
 	}
 	defer stmt.Close()
-	if id != 0 {
-		_, err = stmt.Exec(username, id)
-	} else {
-		_, err = stmt.Exec(username)
-	}
+	_, err = stmt.Exec(gotTimeOfDose)
+
 	if err != nil {
 		fmt.Println("SetEndTime: stmt.Exec():", err)
 		return false

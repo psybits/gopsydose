@@ -3,6 +3,7 @@ module github.com/psybits/gopsydose
 go 1.17
 
 require (
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/hasura/go-graphql-client v0.7.0
 	github.com/mattn/go-sqlite3 v1.14.13
 	github.com/pelletier/go-toml/v2 v2.0.1

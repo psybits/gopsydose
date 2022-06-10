@@ -46,20 +46,27 @@ var (
 		0,
 		"set the end time on a log ID, use -get-all to get the ID")
 
+	setCustomEndTime = flag.Int(
+		"set-end-time-custom",
+		0,
+		"set the end time in unix seconds, for last log\n"+
+			"or if you add -set-end-id, for a particular log\n"+
+			"this is in case you forgot to set it in time")
+
 	forUser = flag.String(
 		"user",
 		"default",
 		"log for a specific user, for example if you're looking\nafter a friend")
 
-	getLast = flag.Int(
-		"get-last",
+	getLogsLast = flag.Int(
+		"get-logs-last",
 		0,
-		"print the last N number of logs")
+		"print the last N number of logs for the current user")
 
-	getAll = flag.Bool(
-		"get-all",
+	getLogs = flag.Bool(
+		"get-logs",
 		false,
-		"print all logs")
+		"print all logs for the current user")
 
 	apiName = flag.String(
 		"apiname",
@@ -167,6 +174,21 @@ var (
 		"forget",
 		false,
 		"forget the last set remember config")
+
+	dbDriver = flag.String(
+		"DBDriver",
+		"configfile",
+		"use mysql or sqlite3 as DB driver")
+
+	mysqlAccess = flag.String(
+		"MySQLAccess",
+		"none",
+		"user:password@tcp(127.0.0.1:3306)/database")
+
+	dbDriverInfo = flag.Bool(
+		"DBDriverInfo",
+		false,
+		"show info about the current configured database driver")
 )
 
 type rememberConfig struct {
@@ -302,6 +324,13 @@ func main() {
 
 	gotsetcfg := drugdose.GetSettings()
 
+	if *dbDriver == "configfile" {
+		*dbDriver = gotsetcfg.DBDriver
+		*mysqlAccess = gotsetcfg.MySQLAccess
+	}
+
+	db_Driver := *dbDriver
+
 	gotsrc := drugdose.InitSourceStruct(gotsetcfg.UseAPI, *apiUrl)
 	ret = drugdose.InitSourceSettings(gotsrc, *recreateSources, *verbose)
 	if !ret {
@@ -336,42 +365,65 @@ func main() {
 	}
 
 	if *stopOnCfgInit {
+		fmt.Println("Stopping after config file initialization.")
 		os.Exit(0)
 	}
 
-	path := drugdose.CheckDBFileStruct(gotsetcfg.DBDir, "default", *verbose)
-	ret = false
-	if path != "" {
-		ret = drugdose.CheckDBTables(path)
-	}
-	if path == "" || !ret {
-		if path == "" {
-			path = drugdose.InitFileStructure(gotsetcfg.DBDir, "default")
+	var path string
+	if db_Driver == "sqlite3" {
+		path = drugdose.CheckDBFileStruct(gotsetcfg.DBDir, "default", *verbose)
+		ret = false
+
+		if path != "" {
+			ret = drugdose.CheckDBTables(db_Driver, path)
 		}
-		ret = drugdose.InitDrugDB(gotsetcfg.UseAPI, path)
+
+		if path == "" || !ret {
+			if path == "" {
+				path = drugdose.InitFileStructure(gotsetcfg.DBDir, "default")
+			}
+			ret = drugdose.InitDrugDB(gotsetcfg.UseAPI, db_Driver, path)
+			if !ret {
+				fmt.Println("Database didn't get initialised, because of an error, exiting.")
+				os.Exit(1)
+			}
+		}
+	} else if db_Driver == "mysql" {
+		path = *mysqlAccess
+		ret = drugdose.CheckDBTables(db_Driver, path)
 		if !ret {
-			fmt.Println("DB didn't get initialised, because of an error, exiting.")
-			os.Exit(1)
+			ret = drugdose.InitDrugDB(gotsetcfg.UseAPI, db_Driver, path)
+			if !ret {
+				fmt.Println("Database didn't get initialised, because of an error, exiting.")
+				os.Exit(1)
+			}
 		}
+	} else {
+		fmt.Println("No proper driver selected. Choose sqlite3 or mysql!")
+		os.Exit(1)
 	}
 
-	drugdose.VerbosePrint("Using DB: "+path, *verbose)
+	if *dbDriverInfo {
+		fmt.Println("Using database driver:", db_Driver)
+		fmt.Println("Database path:", path)
+	}
 
 	if *cleanDB {
-		ret := drugdose.CleanDB(path)
+		ret := drugdose.CleanDB(db_Driver, path)
 		if !ret {
-			fmt.Println("DB couldn't be cleaned, because of an error.")
+			fmt.Println("Database couldn't be cleaned, because of an error.")
 		}
 	}
 
 	if *stopOnDbInit {
+		fmt.Println("Stopping after database initialization.")
 		os.Exit(0)
 	}
 
 	if *removeDrug != "none" {
-		ret := drugdose.RemoveSingleDrugInfoDB(gotsetcfg.UseAPI, *removeDrug, path)
+		ret := drugdose.RemoveSingleDrugInfoDB(gotsetcfg.UseAPI, *removeDrug, db_Driver, path)
 		if !ret {
-			fmt.Println("Failed to remove single drug from info DB:", *removeDrug)
+			fmt.Println("Failed to remove single drug from info database:", *removeDrug)
 		}
 	}
 
@@ -387,33 +439,33 @@ func main() {
 	}
 
 	if *cleanLogs || remAmount != 0 || *removeID != 0 {
-		ret := drugdose.RemoveLogs(path, *forUser, remAmount, revRem, *removeID)
+		ret := drugdose.RemoveLogs(db_Driver, path, *forUser, remAmount, revRem, *removeID)
 		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
 		}
 	}
 
-	if *getAll {
-		ret := drugdose.GetLogs(0, *forUser, true, path, true)
+	if *getLogs {
+		ret := drugdose.GetLogs(0, *forUser, true, db_Driver, path, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
-	} else if *getLast != 0 {
-		ret := drugdose.GetLogs(*getLast, *forUser, false, path, true)
+	} else if *getLogsLast != 0 {
+		ret := drugdose.GetLogs(*getLogsLast, *forUser, false, db_Driver, path, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
 	}
 
 	if *localInfoDrug != "none" {
-		locinfo := drugdose.GetLocalInfo(*localInfoDrug, gotsetcfg.UseAPI, path, true)
+		locinfo := drugdose.GetLocalInfo(*localInfoDrug, gotsetcfg.UseAPI, db_Driver, path, true)
 		if len(locinfo) == 0 {
-			fmt.Println("Couldn't get local DB info, because of an error, for drug:", *localInfoDrug)
+			fmt.Println("Couldn't get database info for drug:", *localInfoDrug)
 		}
 	}
 
-	if *setEndTime || *setEndID != 0 {
-		ret := drugdose.SetEndTime(path, *forUser, *setEndID)
+	if *setEndTime || *setEndID != 0 || *setCustomEndTime != 0 {
+		ret := drugdose.SetEndTime(db_Driver, path, *forUser, *setEndID, *setCustomEndTime)
 		if !ret {
 			fmt.Println("Couldn't set end time, because of an error.")
 		}
@@ -451,7 +503,7 @@ func main() {
 		cli := gotsetcfg.InitGraphqlClient(gotsrcData[gotsetcfg.UseAPI].ApiUrl)
 		if cli != nil {
 			if gotsetcfg.UseAPI == "psychonautwiki" {
-				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli, path)
+				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli, db_Driver, path)
 				if !ret {
 					fmt.Println("Didn't fetch anything.")
 				}
@@ -471,7 +523,7 @@ func main() {
 			if !*dontLog {
 				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc),
-					path, *apiName)
+					db_Driver, path, *apiName)
 				if !ret {
 					fmt.Println("Dose wasn't logged.")
 				}
@@ -483,7 +535,7 @@ func main() {
 	}
 
 	if *getTimes || *getTimesID != 0 {
-		times := drugdose.GetTimes(path, *forUser, gotsetcfg.UseAPI, *getTimesID, true)
+		times := drugdose.GetTimes(db_Driver, path, *forUser, gotsetcfg.UseAPI, *getTimesID, true)
 		if times == nil {
 			fmt.Println("Times couldn't be retrieved because of an error.")
 		}
