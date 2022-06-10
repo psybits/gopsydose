@@ -33,17 +33,17 @@ when the dosing has ended:
 
 `gopsydose -set-end-time`
 
+This will set when you finished your dose for the last log.
+
 If you're consuming something at once like
 [LSD](https://en.wikipedia.org/wiki/Lysergic_acid_diethylamide) or
 [Psilocybin mushrooms](https://en.wikipedia.org/wiki/Psilocybin_mushroom) or
 anything else, there's no need for the
 `-set-end-time` command. Just continue without doing it.
 
-This will set when you finished your dose for the last log.
+To see the last dose: `gopsydose -get-logs-last 1`
 
-To see the last dose: `gopsydose -get-last 1`
-
-To see all dosages: `gopsydose -get-all`
+To see all dosages: `gopsydose -get-logs`
 
 To see the progress of your last dosage: `gopsydose -get-times`
 
@@ -206,12 +206,22 @@ Whether to fetch info from an API when logging. If set to false the
 source table needs to be manually filled using other tools.
 
 #### DBDir
+This is relevant to sqlite.
+
 The directory where the database file will be created. If changing this,
-don't forget to check the old directory for any left files!
+don't forget to check the old directory for any files left!
 
 #### AutoRemove
 If set to true, will remove the oldest log when adding a new one, if the
 `MaxLogsPerUser` limit is reached, without telling the user.
+
+#### DBDriver
+Which database driver to use. Current options are "sqlite3" or "mysql".
+
+#### MySQLAccess
+Credentials to access a MySQL database.
+
+Example: user:password@tcp(127.0.0.1:3306)/database
 
 ### gpd-sources.toml
 
