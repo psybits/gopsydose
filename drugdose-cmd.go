@@ -68,6 +68,11 @@ var (
 		false,
 		"print all logs for the current user")
 
+	getLogsID = flag.Int64(
+		"get-logs-id",
+		0,
+		"get a specific ID only from the logs")
+
 	apiName = flag.String(
 		"apiname",
 		"default",
@@ -145,7 +150,7 @@ var (
 		false,
 		"get the times till onset, comeup, etc.\naccording to the current time")
 
-	getTimesID = flag.Int(
+	getTimesID = flag.Int64(
 		"get-times-id",
 		0,
 		"get the times for a specific log id")
@@ -446,12 +451,17 @@ func main() {
 	}
 
 	if *getLogs {
-		ret := drugdose.GetLogs(0, *forUser, true, db_Driver, path, true)
+		ret := drugdose.GetLogs(0, 0, *forUser, true, db_Driver, path, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
 	} else if *getLogsLast != 0 {
-		ret := drugdose.GetLogs(*getLogsLast, *forUser, false, db_Driver, path, true)
+		ret := drugdose.GetLogs(*getLogsLast, 0, *forUser, false, db_Driver, path, true)
+		if ret == nil {
+			fmt.Println("No logs could be returned.")
+		}
+	} else if *getLogsID != 0 {
+		ret := drugdose.GetLogs(0, *getLogsID, *forUser, false, db_Driver, path, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}

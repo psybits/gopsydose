@@ -45,11 +45,11 @@ func errorCantOpenDB(filePath string, err error) {
 }
 
 type UserLog struct {
-	StartTime int
+	StartTime int64
 	Username  string
-	EndTime   int
+	EndTime   int64
 	DrugName  string
-	Dose      string
+	Dose      float32
 	DoseUnits string
 	DrugRoute string
 }
@@ -80,7 +80,7 @@ type DrugInfo struct {
 	TotalDurMin   float32
 	TotalDurMax   float32
 	TotalDurUnits string
-	TimeOfFetch   int
+	TimeOfFetch   int64
 }
 
 func xtrastmt(col string, logical string) string {
@@ -413,24 +413,11 @@ func InitDrugDB(source string, driver string, path string) bool {
 
 	caseInsensitive := ""
 	if driver == "sqlite3" {
-		caseInsensitive = "COLLATE NOCASE"
+		caseInsensitive = " COLLATE NOCASE "
 	}
 
-	var priKeyTextType string
-	if driver == "sqlite3" {
-		priKeyTextType = "text"
-	} else if driver == "mysql" {
-		priKeyTextType = "varchar(255)"
-	}
-
-	autoIncr := ""
-	if driver == "mysql" {
-		autoIncr = "AUTO_INCREMENT"
-	}
-
-	initDBsql := "create table " + source + " (id integer not null " + autoIncr + " primary key," +
-		"drugName text " + caseInsensitive + "," +
-		"drugRoute text " + caseInsensitive + "," +
+	initDBsql := "create table " + source + " (drugName varchar(255)" + caseInsensitive + "not null," +
+		"drugRoute varchar(255)" + caseInsensitive + "not null," +
 		"threshold real," +
 		"lowDoseMin real," +
 		"lowDoseMax real," +
@@ -438,23 +425,24 @@ func InitDrugDB(source string, driver string, path string) bool {
 		"mediumDoseMax real," +
 		"highDoseMin real," +
 		"highDoseMax real," +
-		"doseUnits text " + caseInsensitive + "," +
+		"doseUnits text" + caseInsensitive + "," +
 		"onsetMin real," +
 		"onsetMax real," +
-		"onsetUnits text " + caseInsensitive + "," +
+		"onsetUnits text" + caseInsensitive + "," +
 		"comeUpMin real," +
 		"comeUpMax real," +
-		"comeUpUnits text " + caseInsensitive + "," +
+		"comeUpUnits text" + caseInsensitive + "," +
 		"peakMin real," +
 		"peakMax real," +
-		"peakUnits text " + caseInsensitive + "," +
+		"peakUnits text" + caseInsensitive + "," +
 		"offsetMin real," +
 		"offsetMax real," +
-		"offsetUnits text " + caseInsensitive + "," +
+		"offsetUnits text" + caseInsensitive + "," +
 		"totalDurMin real," +
 		"totalDurMax real," +
-		"totalDurUnits text " + caseInsensitive + "," +
-		"timeOfFetch integer);"
+		"totalDurUnits text" + caseInsensitive + "," +
+		"timeOfFetch bigint not null," +
+		"primary key (drugName, drugRoute));"
 
 	_, err = db.Exec(initDBsql)
 	if err != nil {
@@ -462,9 +450,11 @@ func InitDrugDB(source string, driver string, path string) bool {
 		return false
 	}
 
-	initDBsql = "create table userLogs (timeOfDoseStart integer not null," +
-		"username " + priKeyTextType + " not null," +
-		"timeOfDoseEnd integer not null," +
+	fmt.Println("Created: '" + source + "' table for drug info in database.")
+
+	initDBsql = "create table userLogs (timeOfDoseStart bigint not null," +
+		"username varchar(255) not null," +
+		"timeOfDoseEnd bigint not null," +
 		"drugName text " + caseInsensitive + " not null," +
 		"dose real not null," +
 		"doseUnits text " + caseInsensitive + " not null," +
@@ -477,7 +467,7 @@ func InitDrugDB(source string, driver string, path string) bool {
 		return false
 	}
 
-	fmt.Println("Initialised Drug Info DB; source name:", source)
+	fmt.Println("Created: 'userLogs' table in database.")
 
 	return true
 }
@@ -630,7 +620,7 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	return true
 }
 
-func GetLogs(num int, user string, all bool, driver string, path string, printit bool) []UserLog {
+func GetLogs(num int, id int64, user string, all bool, driver string, path string, printit bool) []UserLog {
 	if user == "default" {
 		user = default_username
 	}
@@ -655,8 +645,13 @@ func GetLogs(num int, user string, all bool, driver string, path string, printit
 		orientation = "desc"
 	}
 
-	rows, err := db.Query("select * from userLogs where username = ? order by timeOfDoseStart "+
-		orientation+endstmt, user)
+	var rows *sql.Rows
+	if id == 0 {
+		rows, err = db.Query("select * from userLogs where username = ? order by timeOfDoseStart "+
+			orientation+endstmt, user)
+	} else {
+		rows, err = db.Query("select * from userLogs where username = ? and timeOfDoseStart = ?", user, id)
+	}
 	if err != nil {
 		fmt.Println("GetLogs() Query:", err)
 		return nil
@@ -687,7 +682,7 @@ func GetLogs(num int, user string, all bool, driver string, path string, printit
 					time.Unix(int64(tempul.EndTime), 0).In(location), tempul.EndTime)
 			}
 			fmt.Printf("Drug:\t%s\n", tempul.DrugName)
-			fmt.Printf("Dose:\t%s %s\n", tempul.Dose, tempul.DoseUnits)
+			fmt.Printf("Dose:\t%f %s\n", tempul.Dose, tempul.DoseUnits)
 			fmt.Printf("Route:\t%s\n", tempul.DrugRoute)
 			fmt.Printf("User:\t%s\n", tempul.Username)
 			fmt.Println("=========================")
