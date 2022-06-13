@@ -726,11 +726,10 @@ func GetLocalInfo(drug string, source string, driver string, path string, printi
 		return nil
 	}
 	defer rows.Close()
-	var id int
 	infoDrug := []DrugInfo{}
 	for rows.Next() {
 		tempdrinfo := DrugInfo{}
-		err := rows.Scan(&id, &tempdrinfo.DrugName, &tempdrinfo.DrugRoute,
+		err := rows.Scan(&tempdrinfo.DrugName, &tempdrinfo.DrugRoute,
 			&tempdrinfo.Threshold,
 			&tempdrinfo.LowDoseMin, &tempdrinfo.LowDoseMax, &tempdrinfo.MediumDoseMin,
 			&tempdrinfo.MediumDoseMax, &tempdrinfo.HighDoseMin, &tempdrinfo.HighDoseMax,
