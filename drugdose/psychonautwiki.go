@@ -66,7 +66,7 @@ type Substances []struct {
 
 func (cfg *Config) InitGraphqlClient(api string) *graphql.Client {
 	if api == "default" {
-		api = default_api
+		api = defaultAPI
 	}
 
 	if !cfg.AutoFetch {

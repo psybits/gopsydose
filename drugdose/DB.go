@@ -10,16 +10,19 @@ import (
 
 	"database/sql"
 
+	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
+
+	// SQLite driver needed for sql module
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/powerjungle/goalconvert/alconvert"
 )
 
-const db_dir = "GPD"
-const db_name = "gpd.db"
-const default_source = "psychonautwiki"
-const default_username = "defaultUser"
+const dbDir = "GPD"
+const dbName = "gpd.db"
+const defaultSource = "psychonautwiki"
+const defaultUsername = "defaultUser"
 
 // Encryption should be done by default unless specified not to by the user from the settings
 // But first the official implementation for encryption has to be done in the sqlite module
@@ -124,14 +127,14 @@ func checkIfExistsDB(col string, table string, driver string,
 	return true
 }
 
-// Creates the basic file structure for the database, this should be run only once
+// InitFileStructure creates the basic file structure for the database, this should be run only once
 func InitFileStructure(dbdir string, dbname string) string {
 	if dbdir == "default" {
-		dbdir = db_dir
+		dbdir = dbDir
 	}
 
 	if dbname == "default" {
-		dbname = db_name
+		dbname = dbName
 	}
 
 	err := os.Mkdir(dbdir, 0700)
@@ -140,48 +143,48 @@ func InitFileStructure(dbdir string, dbname string) string {
 		exitProgram()
 	}
 
-	db_file_locat := dbdir + "/" + dbname
+	dbFileLocat := dbdir + "/" + dbname
 
-	file, err := os.Create(db_file_locat)
+	file, err := os.Create(dbFileLocat)
 	if err != nil {
-		errorCantCreateDB(db_file_locat, err)
+		errorCantCreateDB(dbFileLocat, err)
 	}
 
 	err = file.Close()
 	if err != nil {
-		errorCantCloseDB(db_file_locat, err)
+		errorCantCloseDB(dbFileLocat, err)
 	}
 
 	fmt.Println("Initialised the file structure")
 
-	return db_file_locat
+	return dbFileLocat
 }
 
-// Returns true if the file structure is already created, false otherwise
+// CheckDBFileStruct Returns true if the file structure is already created, false otherwise
 // Checks whether the db directory and minimum amount of files exist with the proper names in it
 func CheckDBFileStruct(dbdir string, dbname string, verbose bool) string {
 	if dbname == "default" {
-		dbname = db_name
+		dbname = dbName
 	}
 
-	db_file_locat := dbdir + "/" + dbname
+	dbFileLocat := dbdir + "/" + dbname
 
-	if _, err := os.Stat(db_file_locat); err == nil {
-		VerbosePrint(db_file_locat+": Exists", verbose)
+	if _, err := os.Stat(dbFileLocat); err == nil {
+		VerbosePrint(dbFileLocat+": Exists", verbose)
 	} else if errors.Is(err, os.ErrNotExist) {
-		fmt.Println(db_file_locat+": Doesn't seem to exist:", err)
+		fmt.Println(dbFileLocat+": Doesn't seem to exist:", err)
 		return ""
 	} else {
 		panic(err)
 	}
 
-	return db_file_locat
+	return dbFileLocat
 }
 
-// Remove all entries of a single drug from the local info DB, instead of deleting the whole DB.
+// RemoveSingleDrugInfoDB Remove all entries of a single drug from the local info DB, instead of deleting the whole DB.
 func RemoveSingleDrugInfoDB(source string, drug string, driver string, path string) bool {
 	if source == "default" {
-		source = default_source
+		source = defaultSource
 	}
 
 	drug = MatchDrugName(drug)
@@ -320,7 +323,7 @@ func CleanDB(driver string, path string) bool {
 
 func AddToInfoDB(source string, subs []DrugInfo, driver string, path string) bool {
 	if source == "default" {
-		source = default_source
+		source = defaultSource
 	}
 
 	db, err := sql.Open(driver, path)
@@ -397,12 +400,12 @@ func AddToInfoDB(source string, subs []DrugInfo, driver string, path string) boo
 	return true
 }
 
-// Returns true if successful and false otherwise
+// InitDrugDB Returns true if successful and false otherwise
 // Creates the database
 // source - the name of the db, a.k.a. the source of the drug information
 func InitDrugDB(source string, driver string, path string) bool {
 	if source == "default" {
-		source = default_source
+		source = defaultSource
 	}
 
 	db, err := sql.Open(driver, path)
@@ -514,25 +517,25 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	driver string, path string, source string) bool {
 
 	if source == "default" {
-		source = default_source
+		source = defaultSource
 	}
 
 	if user == "default" {
-		user = default_username
+		user = defaultUsername
 	}
 
 	drug = MatchDrugName(drug)
 	route = MatchDrugRoute(route)
 
 	if perc != 0 {
-		var new_units string
+		var newUnits string
 
 		if strings.ToLower(drug) == "alcohol" && units == "ml" {
-			new_units = "mL EtOH"
+			newUnits = "mL EtOH"
 		}
 
 		if strings.ToLower(drug) == "cannabis" && units == "mg" {
-			new_units = "mg (THC)"
+			newUnits = "mg (THC)"
 		}
 
 		av := alconvert.NewAV()
@@ -541,8 +544,8 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 		av.CalcGotUnits()
 		dose = av.GotUnits() * 10
 
-		if len(new_units) == 0 {
-			new_units = units
+		if len(newUnits) == 0 {
+			newUnits = units
 		}
 
 		fmt.Println("Calculated for",
@@ -550,9 +553,9 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 			perc, "%",
 			"of",
 			av.UserSet.Milliliters, units,
-			"to be:", dose, new_units)
+			"to be:", dose, newUnits)
 
-		units = new_units
+		units = newUnits
 	}
 
 	xtrs := [2]string{xtrastmt("drugRoute", "and"), xtrastmt("doseUnits", "and")}
@@ -622,7 +625,7 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 
 func GetLogs(num int, id int64, user string, all bool, driver string, path string, printit bool) []UserLog {
 	if user == "default" {
-		user = default_username
+		user = defaultUsername
 	}
 
 	numstr := strconv.Itoa(num)
@@ -703,7 +706,7 @@ func GetLogs(num int, id int64, user string, all bool, driver string, path strin
 
 func GetLocalInfo(drug string, source string, driver string, path string, printit bool) []DrugInfo {
 	if source == "default" {
-		source = default_source
+		source = defaultSource
 	}
 
 	drug = MatchDrugName(drug)
@@ -796,7 +799,7 @@ func GetLocalInfo(drug string, source string, driver string, path string, printi
 
 func RemoveLogs(driver string, path string, username string, amount int, reverse bool, remID int) bool {
 	if username == "default" {
-		username = default_username
+		username = defaultUsername
 	}
 
 	db, err := sql.Open(driver, path)
@@ -881,7 +884,7 @@ func RemoveLogs(driver string, path string, username string, amount int, reverse
 
 func SetEndTime(driver string, path string, username string, id int, customTime int) bool {
 	if username == "default" {
-		username = default_username
+		username = defaultUsername
 	}
 
 	db, err := sql.Open(driver, path)

@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	// SQLite driver needed for sql module, present in DB.go
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -36,9 +37,9 @@ func convertToSeconds(units string, min *float32, max *float32) {
 func getAverage(first float32, second float32) float32 {
 	if first+second != 0 {
 		return (first + second) / 2
-	} else {
-		return 0
 	}
+
+	return 0
 }
 
 func calcTimeTill(timetill *int64, diff int64, average ...float32) {
@@ -54,7 +55,7 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 
 func GetTimes(driver string, path string, username string, source string, getid int64, printit bool) *TimeTill {
 	if username == "default" {
-		username = default_username
+		username = defaultUsername
 	}
 
 	gotLogs := GetLogs(1, getid, username, false, driver, path, false)[0]

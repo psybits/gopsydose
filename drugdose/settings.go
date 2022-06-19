@@ -9,7 +9,7 @@ import (
 )
 
 type SourceConfig struct {
-	ApiUrl string
+	APIURL string
 }
 
 type Config struct {
@@ -22,12 +22,12 @@ type Config struct {
 	MySQLAccess    string
 }
 
-const psychonautwiki_api = "api.psychonautwiki.org"
+const psychonautwikiAPI = "api.psychonautwiki.org"
 
-const default_api = psychonautwiki_api
+const defaultAPI = psychonautwikiAPI
 
-const source_set_filename = "gpd-sources.toml"
-const set_filename = "gpd-settings.toml"
+const sourceSetFilename = "gpd-sources.toml"
+const setFilename = "gpd-settings.toml"
 
 func errorCantCreateConfig(filename string, err error) {
 	fmt.Println("Error, can't create config file:", filename, ";", err)
@@ -62,16 +62,16 @@ func VerbosePrint(prstr string, verbose bool) {
 
 func InitSourceStruct(source string, api string) *map[string]SourceConfig {
 	if source == "default" {
-		source = default_source
+		source = defaultSource
 	}
 
 	if api == "default" {
-		api = default_api
+		api = defaultAPI
 	}
 
 	newcfg := map[string]SourceConfig{
 		source: {
-			ApiUrl: api,
+			APIURL: api,
 		},
 	}
 	return &newcfg
@@ -106,7 +106,7 @@ func InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool, verbose 
 		return false
 	}
 
-	path := setdir + "/" + source_set_filename
+	path := setdir + "/" + sourceSetFilename
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) || recreate {
 		fmt.Println("Initialising config file:", path)
 		file, err := os.Create(path)
@@ -143,7 +143,7 @@ func GetSourceData() map[string]SourceConfig {
 		return nil
 	}
 
-	path := setdir + "/" + source_set_filename
+	path := setdir + "/" + sourceSetFilename
 
 	cfg := map[string]SourceConfig{}
 
@@ -163,7 +163,7 @@ func GetSourceData() map[string]SourceConfig {
 func InitSettingsStruct(maxulogs int16, source string,
 	autofetch bool, dbdir string, autoremove bool) *Config {
 	if source == "default" {
-		source = default_source
+		source = defaultSource
 	}
 
 	if dbdir == "default" {
@@ -180,7 +180,7 @@ func InitSettingsStruct(maxulogs int16, source string,
 			home = path
 		}
 
-		dbdir = home + "/" + db_dir
+		dbdir = home + "/" + dbDir
 	}
 
 	initConf := Config{
@@ -208,7 +208,7 @@ func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
 		return false
 	}
 
-	path := setdir + "/" + set_filename
+	path := setdir + "/" + setFilename
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) || recreate {
 		fmt.Println("Initialising config file:", path)
 		file, err := os.Create(path)
@@ -245,7 +245,7 @@ func GetSettings() *Config {
 		return nil
 	}
 
-	path := setdir + "/" + set_filename
+	path := setdir + "/" + setFilename
 
 	cfg := Config{}
 
