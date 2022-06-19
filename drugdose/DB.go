@@ -678,16 +678,16 @@ func GetLogs(num int, id int64, user string, all bool, driver string, path strin
 		}
 
 		if printit {
-			fmt.Printf("Start:\t%s (%d) < ID\n",
+			fmt.Printf("Start:\t%q (%d) < ID\n",
 				time.Unix(int64(tempul.StartTime), 0).In(location), tempul.StartTime)
 			if tempul.EndTime != 0 {
-				fmt.Printf("End:\t%s (%d)\n",
+				fmt.Printf("End:\t%q (%d)\n",
 					time.Unix(int64(tempul.EndTime), 0).In(location), tempul.EndTime)
 			}
-			fmt.Printf("Drug:\t%s\n", tempul.DrugName)
-			fmt.Printf("Dose:\t%f %s\n", tempul.Dose, tempul.DoseUnits)
-			fmt.Printf("Route:\t%s\n", tempul.DrugRoute)
-			fmt.Printf("User:\t%s\n", tempul.Username)
+			fmt.Printf("Drug:\t%q\n", tempul.DrugName)
+			fmt.Printf("Dose:\t%f %q\n", tempul.Dose, tempul.DoseUnits)
+			fmt.Printf("Route:\t%q\n", tempul.DrugRoute)
+			fmt.Printf("User:\t%q\n", tempul.Username)
 			fmt.Println("=========================")
 		}
 
@@ -762,23 +762,23 @@ func GetLocalInfo(drug string, source string, driver string, path string, printi
 			fmt.Println("Dose units:", tempdrinfo.DoseUnits)
 			fmt.Println("---Times---")
 			fmt.Println("Min\tMax\tPeriod\tUnits")
-			fmt.Printf("%g\t%g\tOnset\t%s\n",
+			fmt.Printf("%g\t%g\tOnset\t%q\n",
 				tempdrinfo.OnsetMin,
 				tempdrinfo.OnsetMax,
 				tempdrinfo.OnsetUnits)
-			fmt.Printf("%g\t%g\tComeup\t%s\n",
+			fmt.Printf("%g\t%g\tComeup\t%q\n",
 				tempdrinfo.ComeUpMin,
 				tempdrinfo.ComeUpMax,
 				tempdrinfo.ComeUpUnits)
-			fmt.Printf("%g\t%g\tPeak\t%s\n",
+			fmt.Printf("%g\t%g\tPeak\t%q\n",
 				tempdrinfo.PeakMin,
 				tempdrinfo.PeakMax,
 				tempdrinfo.PeakUnits)
-			fmt.Printf("%g\t%g\tOffset\t%s\n",
+			fmt.Printf("%g\t%g\tOffset\t%q\n",
 				tempdrinfo.OffsetMin,
 				tempdrinfo.OffsetMax,
 				tempdrinfo.OffsetUnits)
-			fmt.Printf("%g\t%g\tTotal\t%s\n",
+			fmt.Printf("%g\t%g\tTotal\t%q\n",
 				tempdrinfo.TotalDurMin,
 				tempdrinfo.TotalDurMax,
 				tempdrinfo.TotalDurUnits)
@@ -797,7 +797,7 @@ func GetLocalInfo(drug string, source string, driver string, path string, printi
 	return infoDrug
 }
 
-func RemoveLogs(driver string, path string, username string, amount int, reverse bool, remID int) bool {
+func RemoveLogs(driver string, path string, username string, amount int, reverse bool, remID int64) bool {
 	if username == "default" {
 		username = defaultUsername
 	}
@@ -809,7 +809,7 @@ func RemoveLogs(driver string, path string, username string, amount int, reverse
 	defer db.Close()
 
 	stmtStr := "delete from userLogs where username = ?"
-	if amount != 0 {
+	if amount != 0 && remID == 0 {
 		direction := "desc"
 		if reverse {
 			direction = "asc"
@@ -882,7 +882,7 @@ func RemoveLogs(driver string, path string, username string, amount int, reverse
 	return true
 }
 
-func SetEndTime(driver string, path string, username string, id int, customTime int) bool {
+func SetTime(driver string, path string, username string, id int64, customTime int64, end bool) bool {
 	if username == "default" {
 		username = defaultUsername
 	}
@@ -920,15 +920,21 @@ func SetEndTime(driver string, path string, username string, id int, customTime 
 		return false
 	}
 
-	var theTime int
+	var theTime int64
 	if customTime != 0 {
 		theTime = customTime
 	} else {
-		theTime = int(time.Now().Unix())
+		theTime = int64(time.Now().Unix())
 	}
 
-	stmtStr := fmt.Sprintf("update userLogs set timeOfDoseEnd = %d where timeOfDoseStart = ?",
-		theTime)
+	var typeOfTime string
+	typeOfTime = "timeOfDoseStart"
+	if end {
+		typeOfTime = "timeOfDoseEnd"
+	}
+
+	stmtStr := fmt.Sprintf("update userLogs set %s = %d where timeOfDoseStart = ?",
+		typeOfTime, theTime)
 
 	stmt, err := tx.Prepare(stmtStr)
 	if err != nil {
@@ -949,7 +955,11 @@ func SetEndTime(driver string, path string, username string, id int, customTime 
 		return false
 	}
 
-	fmt.Println("End time set for entry.")
+	if end {
+		fmt.Println("End time set for entry.")
+	} else {
+		fmt.Println("Start time set for entry.")
+	}
 
 	return true
 }

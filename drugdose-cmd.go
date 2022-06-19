@@ -36,21 +36,24 @@ var (
 		0,
 		"this is only used for alcohol currently, again just a number,\nno % around it")
 
-	setEndTime = flag.Bool(
-		"set-end-time",
+	setTime = flag.Bool(
+		"set-time",
 		false,
-		"set the end time on the last log")
+		"set the current time as the time on the last log,\n"+
+			"default is end time,\n"+
+			"choose -start-time if you wish to set the starting time of the dosage\n"+
+			"don't forget to checkout -set-custom-time and -for-id as well")
 
-	setEndID = flag.Int(
-		"set-end-id",
-		0,
-		"set the end time on a log ID, use -get-all to get the ID")
+	startTime = flag.Bool(
+		"start-time",
+		false,
+		"make changes to start time of dosage, instead of default end time")
 
-	setCustomEndTime = flag.Int(
-		"set-end-time-custom",
+	setCustomTime = flag.Int64(
+		"set-custom-time",
 		0,
-		"set the end time in unix seconds, for last log\n"+
-			"or if you add -set-end-id, for a particular log\n"+
+		"set the time in unix seconds, for last log\n"+
+			"or if you add -for-id, for a particular log\n"+
 			"this is in case you forgot to set it in time")
 
 	forUser = flag.String(
@@ -68,10 +71,13 @@ var (
 		false,
 		"print all logs for the current user")
 
-	getLogsID = flag.Int64(
-		"get-logs-id",
+	forID = flag.Int64(
+		"for-id",
 		0,
-		"get a specific ID only from the logs")
+		"perform and action for a particular id\n"+
+			"current works for:\n"+
+			"-get-logs -set-time -get-times\n"+
+			"-clean-new-logs -clean-old-logs")
 
 	apiName = flag.String(
 		"apiname",
@@ -96,7 +102,8 @@ var (
 	cleanLogs = flag.Bool(
 		"clean-logs",
 		false,
-		"cleans the logs for the specified user name,\noptionally using the -user option")
+		"cleans the logs\noptionally using the -user option for\n"+
+			"clearing logs for a specific user")
 
 	removeNew = flag.Int(
 		"clean-new-logs",
@@ -107,11 +114,6 @@ var (
 		"clean-old-logs",
 		0,
 		"cleans the N number of oldest logs")
-
-	removeID = flag.Int(
-		"clean-id",
-		0,
-		"removes a single ID from the logs, use -get-all to see the IDs")
 
 	dbDir = flag.String(
 		"db-dir",
@@ -128,7 +130,8 @@ var (
 	localInfoDrug = flag.String(
 		"local-info-drug",
 		"none",
-		"print info about drug from local DB,\nfor example if you've forgotten routes and units")
+		"print info about drug from local DB,\n"+
+			"for example if you've forgotten routes and units")
 
 	dontLog = flag.Bool(
 		"dont-log",
@@ -148,12 +151,10 @@ var (
 	getTimes = flag.Bool(
 		"get-times",
 		false,
-		"get the times till onset, comeup, etc.\naccording to the current time")
-
-	getTimesID = flag.Int64(
-		"get-times-id",
-		0,
-		"get the times for a specific log id")
+		"get the times till onset, comeup, etc.\n"+
+			"according to the current time\n"+
+			"can be combined with -for-id to get times for a specific ID\n"+
+			"use -get-logs, to see the IDs")
 
 	stopOnCfgInit = flag.Bool(
 		"stop-on-config-init",
@@ -443,25 +444,20 @@ func main() {
 		remAmount = *removeNew
 	}
 
-	if *cleanLogs || remAmount != 0 || *removeID != 0 {
-		ret := drugdose.RemoveLogs(dbDriver, path, *forUser, remAmount, revRem, *removeID)
+	if *cleanLogs || remAmount != 0 {
+		ret := drugdose.RemoveLogs(dbDriver, path, *forUser, remAmount, revRem, *forID)
 		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
 		}
 	}
 
 	if *getLogs {
-		ret := drugdose.GetLogs(0, 0, *forUser, true, dbDriver, path, true)
+		ret := drugdose.GetLogs(0, *forID, *forUser, true, dbDriver, path, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
 	} else if *getLogsLast != 0 {
 		ret := drugdose.GetLogs(*getLogsLast, 0, *forUser, false, dbDriver, path, true)
-		if ret == nil {
-			fmt.Println("No logs could be returned.")
-		}
-	} else if *getLogsID != 0 {
-		ret := drugdose.GetLogs(0, *getLogsID, *forUser, false, dbDriver, path, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
@@ -474,8 +470,14 @@ func main() {
 		}
 	}
 
-	if *setEndTime || *setEndID != 0 || *setCustomEndTime != 0 {
-		ret := drugdose.SetEndTime(dbDriver, path, *forUser, *setEndID, *setCustomEndTime)
+	if *setTime || *setCustomTime != 0 {
+		var timeType bool
+		timeType = true
+		if *startTime {
+			timeType = false
+		}
+
+		ret := drugdose.SetTime(dbDriver, path, *forUser, *forID, *setCustomTime, timeType)
 		if !ret {
 			fmt.Println("Couldn't set end time, because of an error.")
 		}
@@ -544,8 +546,8 @@ func main() {
 		}
 	}
 
-	if *getTimes || *getTimesID != 0 {
-		times := drugdose.GetTimes(dbDriver, path, *forUser, gotsetcfg.UseAPI, *getTimesID, true)
+	if *getTimes {
+		times := drugdose.GetTimes(dbDriver, path, *forUser, gotsetcfg.UseAPI, *forID, true)
 		if times == nil {
 			fmt.Println("Times couldn't be retrieved because of an error.")
 		}

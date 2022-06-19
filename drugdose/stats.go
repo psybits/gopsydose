@@ -190,27 +190,27 @@ func GetTimes(driver string, path string, username string, source string, getid 
 		fmt.Println("Warning: All data in here is approximations based on averages.")
 		fmt.Println("Please don't let that influence the experience too much!")
 		fmt.Println()
-		fmt.Printf("Start Dose:\t%s (%d)\n",
+		fmt.Printf("Start Dose:\t%q (%d)\n",
 			time.Unix(gotLogs.StartTime, 0).In(location),
 			gotLogs.StartTime)
 
 		if gotLogs.EndTime != 0 {
-			fmt.Printf("End Dose:\t%s (%d)\n",
+			fmt.Printf("End Dose:\t%q (%d)\n",
 				time.Unix(gotLogs.EndTime, 0).In(location),
 				gotLogs.EndTime)
 
 			if useLoggedTime != gotLogs.EndTime {
-				fmt.Printf("Offset End:\t%s (%d)\n",
+				fmt.Printf("Offset End:\t%q (%d)\n",
 					time.Unix(useLoggedTime, 0).In(location), useLoggedTime)
 			}
 		}
-		fmt.Printf("Current Time:\t%s (%d)\n", time.Unix(curTime, 0).In(location), curTime)
+		fmt.Printf("Current Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
 		fmt.Printf("Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
 		fmt.Println()
 
-		fmt.Printf("Drug:\t%s\n", gotLogs.DrugName)
+		fmt.Printf("Drug:\t%q\n", gotLogs.DrugName)
 		fmt.Printf("Dose:\t%f\n", gotLogs.Dose)
-		fmt.Printf("Units:\t%s\n\n", gotLogs.DoseUnits)
+		fmt.Printf("Units:\t%q\n\n", gotLogs.DoseUnits)
 
 		fmt.Printf("Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
 			int(timeTill.TotalCompleteMin*100),
