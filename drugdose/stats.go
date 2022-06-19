@@ -208,6 +208,8 @@ func GetTimes(driver string, path string, username string, source string, getid 
 		fmt.Println()
 
 		fmt.Printf("Drug:\t%s\n", gotLogs.DrugName)
+		fmt.Printf("Dose:\t%f\n", gotLogs.Dose)
+		fmt.Printf("Units:\t%s\n\n", gotLogs.DoseUnits)
 
 		fmt.Printf("Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
 			int(timeTill.TotalCompleteMin*100),
