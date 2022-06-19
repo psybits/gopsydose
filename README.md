@@ -26,20 +26,31 @@ If you want to log a dose:
 
 or
 
-`gopsydose -drug weed -route smoked -dose 100 -units mg`
+`gopsydose -drug weed -route smoked -dose 100 -units "mg (THC)"`
 
 Since both of these aren't consumed at once, there is a command to mark
-when the dosing has ended:
+when the dosing has ended.
 
-`gopsydose -set-end-time`
+`gopsydose -set-time`
 
 This will set when you finished your dose for the last log.
+
+The default for `-set-time` is to set the end time of the dose always.
+To change the start time of dose use: `gopsydose -set-time -start-time`
+
+This will set the time for the last dose, to set for a specific ID use:
+
+`gopsydose -set-time -start-time -for-id 1655144869`
+
+To change for end time use:
+
+`gopsydose -set-time -for-id 1655144869`
 
 If you're consuming something at once like
 [LSD](https://en.wikipedia.org/wiki/Lysergic_acid_diethylamide) or
 [Psilocybin mushrooms](https://en.wikipedia.org/wiki/Psilocybin_mushroom) or
 anything else, there's no need for the
-`-set-end-time` command. Just continue without doing it.
+`-set-time` command. Just continue without doing it.
 
 To see the last dose: `gopsydose -get-logs-last 1`
 
@@ -47,9 +58,15 @@ To see all dosages: `gopsydose -get-logs`
 
 To see the progress of your last dosage: `gopsydose -get-times`
 
+You can combine the commands above with: `-for-id`
+
+to get information for a specific ID.
+
+You can see all IDs using: `gopsydose -get-logs`
+
 If you want a log to be remembered and only set the dose for the next log:
 
-`gopsydose -remember -drug weed -route smoked -dose 100 -units mg`
+`gopsydose -remember -drug weed -route smoked -dose 100 -units "mg (THC)"`
 
 Remembers the config and then for the next dose: `gopsydose -dose 100`
 
@@ -71,6 +88,10 @@ No need to delete all logs, you can delete X number of the oldest logs
 like so, for example to delete 3 of the oldest logs:
 
 `gopsydose -clean-old-logs 3`
+
+You can do the command like so: `gopsydose -clean-old-logs 1 -for-id 1655144869`
+
+to remove a specific ID, works with `-clean-new-logs 1` as well.
 
 To see where your config files and database file are:
 
