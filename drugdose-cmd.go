@@ -76,6 +76,11 @@ var (
 		false,
 		"print all logs for the current user")
 
+	getLogsCount = flag.Bool(
+		"get-logs-count",
+		false,
+		"print the total number of logs for the current user")
+
 	removeNew = flag.Int(
 		"clean-new-logs",
 		0,
@@ -468,6 +473,11 @@ func main() {
 		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
 		}
+	}
+
+	if *getLogsCount {
+		ret := drugdose.GetLogsCount(*forUser, dbDriver, path)
+		fmt.Println("Total number of logs:", ret, "; for user:", *forUser)
 	}
 
 	if *getLogs {

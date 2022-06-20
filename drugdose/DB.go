@@ -623,6 +623,29 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	return true
 }
 
+func GetLogsCount(user string, driver string, path string) int {
+	if user == "default" {
+		user = defaultUsername
+	}
+
+	db, err := sql.Open(driver, path)
+	if err != nil {
+		errorCantOpenDB(path, err)
+	}
+	defer db.Close()
+
+	var count int
+
+	row := db.QueryRow("select count(*) from userLogs where username = ?", user)
+	err = row.Scan(&count)
+	if err != nil {
+		fmt.Println("GetLogsCount: error getting count:", err)
+		return 0
+	}
+
+	return count
+}
+
 func GetLogs(num int, id int64, user string,
 	all bool, driver string, path string,
 	reverse bool, printit bool) []UserLog {
