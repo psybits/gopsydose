@@ -479,7 +479,7 @@ func main() {
 
 		ret := drugdose.SetTime(dbDriver, path, *forUser, *forID, *setCustomTime, timeType)
 		if !ret {
-			fmt.Println("Couldn't set end time, because of an error.")
+			fmt.Println("Couldn't set time, because of an error.")
 		}
 	}
 

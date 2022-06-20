@@ -623,7 +623,10 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	return true
 }
 
-func GetLogs(num int, id int64, user string, all bool, driver string, path string, printit bool) []UserLog {
+func GetLogs(num int, id int64, user string,
+	all bool, driver string, path string,
+	printit bool) []UserLog {
+
 	if user == "default" {
 		user = defaultUsername
 	}
@@ -802,6 +805,15 @@ func RemoveLogs(driver string, path string, username string, amount int, reverse
 		username = defaultUsername
 	}
 
+	if remID != 0 {
+		xtrs := [1]string{xtrastmt("username", "and")}
+		ret := checkIfExistsDB("timeOfDoseStart", "userLogs", driver, path, xtrs[:], remID, username)
+		if !ret {
+			fmt.Println("Log with ID:", remID, "doesn't exists.")
+			return false
+		}
+	}
+
 	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
@@ -910,7 +922,7 @@ func SetTime(driver string, path string, username string, id int64, customTime i
 	}
 
 	if err != nil {
-		fmt.Println("Error Select for SetEndTime:", err)
+		fmt.Println("Error Select for SetTime:", err)
 		return false
 	}
 
@@ -938,20 +950,20 @@ func SetTime(driver string, path string, username string, id int64, customTime i
 
 	stmt, err := tx.Prepare(stmtStr)
 	if err != nil {
-		fmt.Println("SetEndTime: tx.Prepare():", err)
+		fmt.Println("SetTime: tx.Prepare():", err)
 		return false
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(gotTimeOfDose)
 
 	if err != nil {
-		fmt.Println("SetEndTime: stmt.Exec():", err)
+		fmt.Println("SetTime: stmt.Exec():", err)
 		return false
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		fmt.Println("SetEndTime: tx.Commit():", err)
+		fmt.Println("SetTime: tx.Commit():", err)
 		return false
 	}
 
