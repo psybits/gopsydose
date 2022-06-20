@@ -200,6 +200,16 @@ var (
 		"DBDriverInfo",
 		false,
 		"show info about the current configured database driver")
+
+	printSettings = flag.Bool(
+		"print-settings",
+		false,
+		"print the settings")
+
+	printSources = flag.Bool(
+		"print-sources",
+		false,
+		"print the sources config file")
 )
 
 type rememberConfig struct {
@@ -211,6 +221,8 @@ type rememberConfig struct {
 	API   string
 }
 
+// TODO: eventually make an exported function in drugdose/
+// For that, the config needs to be stored in the DB per user.
 func rememberDoseConfig(user string, drug string, route string,
 	units string, perc float64, api string, path string) bool {
 
@@ -258,6 +270,7 @@ func rememberDoseConfig(user string, drug string, route string,
 	return true
 }
 
+// TODO: eventually make an exported function in drugdose/
 func readRememberConfig(path string) *rememberConfig {
 	path = path + "/remember.toml"
 	_, err := os.Stat(path)
@@ -287,6 +300,7 @@ func readRememberConfig(path string) *rememberConfig {
 	return cfg
 }
 
+// TODO: eventually make an exported function in drugdose/
 func forgetConfig(path string) bool {
 	gotCfg := readRememberConfig(path)
 	if gotCfg == nil {
@@ -333,7 +347,7 @@ func main() {
 		drugdose.VerbosePrint("Settings weren't initialised.", *verbose)
 	}
 
-	gotsetcfg := drugdose.GetSettings()
+	gotsetcfg := drugdose.GetSettings(*printSettings)
 
 	if *userDBDriver == "configfile" {
 		*userDBDriver = gotsetcfg.DBDriver
@@ -348,7 +362,7 @@ func main() {
 		drugdose.VerbosePrint("Sources file wasn't initialised.", *verbose)
 	}
 
-	gotsrcData := drugdose.GetSourceData()
+	gotsrcData := drugdose.GetSourceData(*printSources)
 
 	if *getDirs {
 		fmt.Println("DB Dir:", gotsetcfg.DBDir)

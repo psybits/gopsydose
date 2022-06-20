@@ -137,7 +137,7 @@ func InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool, verbose 
 	return true
 }
 
-func GetSourceData() map[string]SourceConfig {
+func GetSourceData(printfile bool) map[string]SourceConfig {
 	setdir := InitSettingsDir()
 	if setdir == "" {
 		return nil
@@ -150,6 +150,10 @@ func GetSourceData() map[string]SourceConfig {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		errorCantReadConfig(path, err)
+	}
+
+	if printfile {
+		fmt.Printf("%s", file)
 	}
 
 	err = toml.Unmarshal(file, &cfg)
@@ -239,7 +243,7 @@ func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
 	return true
 }
 
-func GetSettings() *Config {
+func GetSettings(printfile bool) *Config {
 	setdir := InitSettingsDir()
 	if setdir == "" {
 		return nil
@@ -252,6 +256,10 @@ func GetSettings() *Config {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		errorCantReadConfig(path, err)
+	}
+
+	if printfile {
+		fmt.Printf("%s", file)
 	}
 
 	err = toml.Unmarshal(file, &cfg)
