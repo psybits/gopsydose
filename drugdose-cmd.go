@@ -171,6 +171,11 @@ var (
 		false,
 		"get all usernames logged")
 
+	getDBSize = flag.Bool(
+		"get-db-size",
+		false,
+		"get total size in MiB and bytes for the one database used for logging and drugs info")
+
 	stopOnCfgInit = flag.Bool(
 		"stop-on-config-init",
 		false,
@@ -478,6 +483,12 @@ func main() {
 		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
 		}
+	}
+
+	if *getDBSize {
+		ret := drugdose.GetDBSize(dbDriver, path)
+		retMiB := (ret / 1024) / 1024
+		fmt.Println("Total DB size returned:", retMiB, "MiB ;", ret, "bytes")
 	}
 
 	if *getUsers {

@@ -623,6 +623,56 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	return true
 }
 
+func GetDBSize(driver string, path string) int64 {
+	if driver == "sqlite3" {
+		file, err := os.Open(path)
+		if err != nil {
+			fmt.Println("GetDBSize: error opening:", path, ":", err)
+			return 0
+		}
+
+		fileInfo, err := file.Stat()
+		if err != nil {
+			fmt.Println("GetDBSize: error getting stat:", path, ":", err)
+			return 0
+		}
+
+		err = file.Close()
+		if err != nil {
+			fmt.Println("GetDBSize: error closing file:", path, ":", err)
+			return 0
+		}
+
+		return fileInfo.Size()
+	} else if driver == "mysql" {
+		db, err := sql.Open(driver, path)
+		if err != nil {
+			errorCantOpenDB(path, err)
+		}
+		defer db.Close()
+
+		res := strings.Split(path, "/")
+		dbName := res[1]
+
+		dbSizeQuery := "select SUM(data_length + index_length) FROM information_schema.tables " +
+			"where table_schema = ?"
+
+		var totalSize int64
+
+		row := db.QueryRow(dbSizeQuery, dbName)
+		err = row.Scan(&totalSize)
+		if err != nil {
+			fmt.Println("GetDBSize: error getting size:", err)
+			return 0
+		}
+
+		return totalSize
+	}
+
+	fmt.Println("GetDBSize: the chosen driver is not a proper one:", driver)
+	return 0
+}
+
 func GetUsers(driver string, path string) []string {
 	db, err := sql.Open(driver, path)
 	if err != nil {
