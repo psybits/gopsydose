@@ -800,18 +800,45 @@ func GetLocalInfo(drug string, source string, driver string, path string, printi
 	return infoDrug
 }
 
-func RemoveLogs(driver string, path string, username string, amount int, reverse bool, remID int64) bool {
+func RemoveLogs(driver string, path string, username string,
+	amount int, reverse bool, remID int64) bool {
+
 	if username == "default" {
 		username = defaultUsername
 	}
 
-	if remID != 0 {
+	stmtStr := "delete from userLogs where username = ?"
+	if amount != 0 && remID == 0 {
+		gotLogs := GetLogs(amount, 0, username, false, driver, path, reverse, false)
+		if gotLogs == nil {
+			fmt.Println("RemoveLogs: couldn't get logs, because of an error, no logs will be removed.")
+			return false
+		}
+
+		var gotTimeOfDose []int64
+		var tempTimes int64
+
+		for i := 0; i < len(gotLogs); i++ {
+			tempTimes = gotLogs[i].StartTime
+			gotTimeOfDose = append(gotTimeOfDose, tempTimes)
+		}
+
+		concatTimes := ""
+		for i := 0; i < len(gotTimeOfDose); i++ {
+			concatTimes = concatTimes + strconv.FormatInt(gotTimeOfDose[i], 10) + ","
+		}
+		concatTimes = strings.TrimSuffix(concatTimes, ",")
+
+		stmtStr = "delete from userLogs where timeOfDoseStart in (" + concatTimes + ")"
+	} else if remID != 0 {
 		xtrs := [1]string{xtrastmt("username", "and")}
 		ret := checkIfExistsDB("timeOfDoseStart", "userLogs", driver, path, xtrs[:], remID, username)
 		if !ret {
 			fmt.Println("Log with ID:", remID, "doesn't exists.")
 			return false
 		}
+
+		stmtStr = "delete from userLogs where timeOfDoseStart = ? AND username = ?"
 	}
 
 	db, err := sql.Open(driver, path)
@@ -819,45 +846,6 @@ func RemoveLogs(driver string, path string, username string, amount int, reverse
 		errorCantOpenDB(path, err)
 	}
 	defer db.Close()
-
-	stmtStr := "delete from userLogs where username = ?"
-	if amount != 0 && remID == 0 {
-		direction := "desc"
-		if reverse {
-			direction = "asc"
-		}
-
-		selectStr := fmt.Sprintf("select timeOfDoseStart from userLogs where username = ? "+
-			"order by timeOfDoseStart %s limit %d", direction, amount)
-
-		rows, err := db.Query(selectStr, username)
-		if err != nil {
-			fmt.Println("Error Select for RemoveLogs():", err)
-			return false
-		}
-
-		var gotTimeOfDose []int
-		var tempTimes int
-
-		for rows.Next() {
-			err = rows.Scan(&tempTimes)
-			if err != nil {
-				fmt.Println("Error scanning Select for RemoveLogs():", err)
-				return false
-			}
-			gotTimeOfDose = append(gotTimeOfDose, tempTimes)
-		}
-
-		concatTimes := ""
-		for i := 0; i < len(gotTimeOfDose); i++ {
-			concatTimes = concatTimes + strconv.Itoa(gotTimeOfDose[i]) + ","
-		}
-		concatTimes = strings.TrimSuffix(concatTimes, ",")
-
-		stmtStr = "delete from userLogs where timeOfDoseStart in (" + concatTimes + ")"
-	} else if remID != 0 {
-		stmtStr = "delete from userLogs where timeOfDoseStart = ? AND username = ?"
-	}
 
 	tx, err := db.Begin()
 	if err != nil {

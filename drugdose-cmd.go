@@ -442,11 +442,11 @@ func main() {
 	revRem := false
 	if *removeOld != 0 {
 		remAmount = *removeOld
-		revRem = true
 	}
 
 	if *removeNew != 0 {
 		remAmount = *removeNew
+		revRem = true
 	}
 
 	if *cleanLogs || remAmount != 0 {
