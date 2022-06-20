@@ -166,6 +166,11 @@ var (
 			"can be combined with -for-id to get times for a specific ID\n"+
 			"use -get-logs, to see the IDs")
 
+	getUsers = flag.Bool(
+		"get-users",
+		false,
+		"get all usernames logged")
+
 	stopOnCfgInit = flag.Bool(
 		"stop-on-config-init",
 		false,
@@ -472,6 +477,19 @@ func main() {
 		ret := drugdose.RemoveLogs(dbDriver, path, *forUser, remAmount, revRem, *forID)
 		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
+		}
+	}
+
+	if *getUsers {
+		ret := drugdose.GetUsers(dbDriver, path)
+		if ret == nil {
+			fmt.Println("Couldn't get users because of an error.")
+		} else {
+			fmt.Print("All users: ")
+			for i := 0; i < len(ret); i++ {
+				fmt.Print(ret[i] + " ; ")
+			}
+			fmt.Println()
 		}
 	}
 

@@ -623,6 +623,34 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	return true
 }
 
+func GetUsers(driver string, path string) []string {
+	db, err := sql.Open(driver, path)
+	if err != nil {
+		errorCantOpenDB(path, err)
+	}
+	defer db.Close()
+
+	var allUsers []string
+	var tempUser string
+
+	rows, err := db.Query("select distinct username from userLogs")
+	if err != nil {
+		fmt.Println("GetUsers: Query: error getting usernames:", err)
+		return nil
+	}
+
+	for rows.Next() {
+		err = rows.Scan(&tempUser)
+		if err != nil {
+			fmt.Println("GetUsers: Scan: error getting usernames:", err)
+			return nil
+		}
+		allUsers = append(allUsers, tempUser)
+	}
+
+	return allUsers
+}
+
 func GetLogsCount(user string, driver string, path string) int {
 	if user == "default" {
 		user = defaultUsername
