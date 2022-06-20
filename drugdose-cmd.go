@@ -61,15 +61,36 @@ var (
 		"default",
 		"log for a specific user, for example if you're looking\nafter a friend")
 
-	getLogsLast = flag.Int(
-		"get-logs-last",
+	getNewLogs = flag.Int(
+		"get-new-logs",
 		0,
-		"print the last N number of logs for the current user")
+		"print the N number of the newest logs for the current user")
+
+	getOldLogs = flag.Int(
+		"get-old-logs",
+		0,
+		"print the N number of the oldest logs for the current user")
 
 	getLogs = flag.Bool(
 		"get-logs",
 		false,
 		"print all logs for the current user")
+
+	removeNew = flag.Int(
+		"clean-new-logs",
+		0,
+		"cleans the N number of newest logs")
+
+	removeOld = flag.Int(
+		"clean-old-logs",
+		0,
+		"cleans the N number of oldest logs")
+
+	cleanLogs = flag.Bool(
+		"clean-logs",
+		false,
+		"cleans the logs\noptionally using the -user option for\n"+
+			"clearing logs for a specific user")
 
 	forID = flag.Int64(
 		"for-id",
@@ -98,22 +119,6 @@ var (
 		"recreate-sources",
 		false,
 		"recreate the sources.toml file")
-
-	cleanLogs = flag.Bool(
-		"clean-logs",
-		false,
-		"cleans the logs\noptionally using the -user option for\n"+
-			"clearing logs for a specific user")
-
-	removeNew = flag.Int(
-		"clean-new-logs",
-		0,
-		"cleans the N number of newest logs")
-
-	removeOld = flag.Int(
-		"clean-old-logs",
-		0,
-		"cleans the N number of oldest logs")
 
 	dbDir = flag.String(
 		"db-dir",
@@ -452,12 +457,17 @@ func main() {
 	}
 
 	if *getLogs {
-		ret := drugdose.GetLogs(0, *forID, *forUser, true, dbDriver, path, true)
+		ret := drugdose.GetLogs(0, *forID, *forUser, true, dbDriver, path, false, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
-	} else if *getLogsLast != 0 {
-		ret := drugdose.GetLogs(*getLogsLast, 0, *forUser, false, dbDriver, path, true)
+	} else if *getNewLogs != 0 {
+		ret := drugdose.GetLogs(*getNewLogs, 0, *forUser, false, dbDriver, path, true, true)
+		if ret == nil {
+			fmt.Println("No logs could be returned.")
+		}
+	} else if *getOldLogs != 0 {
+		ret := drugdose.GetLogs(*getOldLogs, 0, *forUser, false, dbDriver, path, false, true)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}

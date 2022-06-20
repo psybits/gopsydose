@@ -625,7 +625,7 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 
 func GetLogs(num int, id int64, user string,
 	all bool, driver string, path string,
-	printit bool) []UserLog {
+	reverse bool, printit bool) []UserLog {
 
 	if user == "default" {
 		user = defaultUsername
@@ -647,7 +647,7 @@ func GetLogs(num int, id int64, user string,
 	}
 
 	orientation := "asc"
-	if num > 0 {
+	if reverse {
 		orientation = "desc"
 	}
 

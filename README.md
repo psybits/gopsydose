@@ -36,6 +36,7 @@ when the dosing has ended.
 This will set when you finished your dose for the last log.
 
 The default for `-set-time` is to set the end time of the dose always.
+
 To change the start time of dose use: `gopsydose -set-time -start-time`
 
 This will set the time for the last dose, to set for a specific ID use:
@@ -52,13 +53,13 @@ If you're consuming something at once like
 anything else, there's no need for the
 `-set-time` command. Just continue without doing it.
 
-To see the last dose: `gopsydose -get-logs-last 1`
+To see the newest dose only: `gopsydose -get-new-logs 1`
 
 To see all dosages: `gopsydose -get-logs`
 
 To see the progress of your last dosage: `gopsydose -get-times`
 
-You can combine the commands above with: `-for-id`
+You can combine `-get-logs` or `-get-times` with: `-for-id`
 
 to get information for a specific ID.
 
