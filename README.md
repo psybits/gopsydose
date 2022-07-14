@@ -57,6 +57,8 @@ To see the newest dose only: `gopsydose -get-new-logs 1`
 
 To see all dosages: `gopsydose -get-logs`
 
+To search the dosages: `gopsydose -get-logs -search "whatever"`
+
 To see the progress of your last dosage: `gopsydose -get-times`
 
 You can combine `-get-logs` or `-get-times` with: `-for-id`
@@ -84,6 +86,10 @@ the latest results.
 There is a limit set in a config file about how many dosages you can do,
 the default is 100, when the limit is reached it will not allow anymore,
 but you can clean the logs like so: `gopsydose -clean-logs`
+
+To clean dosages with a search: `gopsydose -clean-logs -search "whatever"`
+
+This will clean only dosages which contain the "whatever" string.
 
 No need to delete all logs, you can delete X number of the oldest logs
 like so, for example to delete 3 of the oldest logs:

@@ -583,7 +583,7 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	if int16(count) >= cfg.MaxLogsPerUser {
 		diff := count - int(cfg.MaxLogsPerUser)
 		if cfg.AutoRemove {
-			RemoveLogs(driver, path, user, diff+1, true, 0)
+			RemoveLogs(driver, path, user, diff+1, true, 0, "")
 		} else {
 			fmt.Println("User:", user, "has reached the maximum entries per user:", cfg.MaxLogsPerUser,
 				"; Not logging.")
@@ -726,7 +726,7 @@ func GetLogsCount(user string, driver string, path string) int {
 
 func GetLogs(num int, id int64, user string,
 	all bool, driver string, path string,
-	reverse bool, printit bool) []UserLog {
+	reverse bool, printit bool, search string) []UserLog {
 
 	if user == "default" {
 		user = defaultUsername
@@ -781,21 +781,43 @@ func GetLogs(num int, id int64, user string,
 			return nil
 		}
 
-		if printit {
-			fmt.Printf("Start:\t%q (%d) < ID\n",
-				time.Unix(int64(tempul.StartTime), 0).In(location), tempul.StartTime)
-			if tempul.EndTime != 0 {
-				fmt.Printf("End:\t%q (%d)\n",
-					time.Unix(int64(tempul.EndTime), 0).In(location), tempul.EndTime)
+		match := true
+		if search != "" {
+			var tempArr = [7]string{
+				strconv.FormatInt(tempul.StartTime, 10),
+				tempul.Username,
+				strconv.FormatInt(tempul.EndTime, 10),
+				tempul.DrugName,
+				strconv.FormatFloat(float64(tempul.Dose), 'f', 2, 32),
+				tempul.DoseUnits,
+				tempul.DrugRoute,
 			}
-			fmt.Printf("Drug:\t%q\n", tempul.DrugName)
-			fmt.Printf("Dose:\t%f %q\n", tempul.Dose, tempul.DoseUnits)
-			fmt.Printf("Route:\t%q\n", tempul.DrugRoute)
-			fmt.Printf("User:\t%q\n", tempul.Username)
-			fmt.Println("=========================")
+			match = false
+			for i := 0; i < len(tempArr); i++ {
+				if strings.Contains(tempArr[i], search) {
+					match = true
+					break
+				}
+			}
 		}
 
-		userlogs = append(userlogs, tempul)
+		if match {
+			if printit {
+				fmt.Printf("Start:\t%q (%d) < ID\n",
+					time.Unix(int64(tempul.StartTime), 0).In(location), tempul.StartTime)
+				if tempul.EndTime != 0 {
+					fmt.Printf("End:\t%q (%d)\n",
+						time.Unix(int64(tempul.EndTime), 0).In(location), tempul.EndTime)
+				}
+				fmt.Printf("Drug:\t%q\n", tempul.DrugName)
+				fmt.Printf("Dose:\t%f %q\n", tempul.Dose, tempul.DoseUnits)
+				fmt.Printf("Route:\t%q\n", tempul.DrugRoute)
+				fmt.Printf("User:\t%q\n", tempul.Username)
+				fmt.Println("=========================")
+			}
+
+			userlogs = append(userlogs, tempul)
+		}
 	}
 	err = rows.Err()
 	if err != nil {
@@ -902,15 +924,20 @@ func GetLocalInfo(drug string, source string, driver string, path string, printi
 }
 
 func RemoveLogs(driver string, path string, username string,
-	amount int, reverse bool, remID int64) bool {
+	amount int, reverse bool, remID int64, search string) bool {
 
 	if username == "default" {
 		username = defaultUsername
 	}
 
 	stmtStr := "delete from userLogs where username = ?"
-	if amount != 0 && remID == 0 {
-		gotLogs := GetLogs(amount, 0, username, false, driver, path, reverse, false)
+	if amount != 0 && remID == 0 || search != "" {
+		getAll := false
+		if search != "" {
+			getAll = true
+		}
+
+		gotLogs := GetLogs(amount, 0, username, getAll, driver, path, reverse, false, search)
 		if gotLogs == nil {
 			fmt.Println("RemoveLogs: couldn't get logs, because of an error, no logs will be removed.")
 			return false
@@ -931,7 +958,7 @@ func RemoveLogs(driver string, path string, username string,
 		concatTimes = strings.TrimSuffix(concatTimes, ",")
 
 		stmtStr = "delete from userLogs where timeOfDoseStart in (" + concatTimes + ")"
-	} else if remID != 0 {
+	} else if remID != 0 && search == "" {
 		xtrs := [1]string{xtrastmt("username", "and")}
 		ret := checkIfExistsDB("timeOfDoseStart", "userLogs", driver, path, xtrs[:], remID, username)
 		if !ret {
@@ -962,7 +989,7 @@ func RemoveLogs(driver string, path string, username string,
 	defer stmt.Close()
 	if remID != 0 {
 		_, err = stmt.Exec(remID, username)
-	} else if amount != 0 {
+	} else if amount != 0 || search != "" {
 		_, err = stmt.Exec()
 	} else {
 		_, err = stmt.Exec(username)

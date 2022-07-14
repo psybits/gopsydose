@@ -233,6 +233,11 @@ var (
 			"you can bypass it using this option, this does not \n"+
 			"affect logging new entries for that do -get-dirs \n"+
 			"and checkout the settings file")
+
+	searchStr = flag.String(
+		"search",
+		"",
+		"search all columns for specific string")
 )
 
 type rememberConfig struct {
@@ -487,7 +492,7 @@ func main() {
 	}
 
 	if *cleanLogs || remAmount != 0 {
-		ret := drugdose.RemoveLogs(dbDriver, path, *forUser, remAmount, revRem, *forID)
+		ret := drugdose.RemoveLogs(dbDriver, path, *forUser, remAmount, revRem, *forID, *searchStr)
 		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
 		}
@@ -520,9 +525,9 @@ func main() {
 	if *getLogs {
 		var ret []drugdose.UserLog
 		if *noGetLimit {
-			ret = drugdose.GetLogs(0, *forID, *forUser, true, dbDriver, path, false, true)
+			ret = drugdose.GetLogs(0, *forID, *forUser, true, dbDriver, path, false, true, *searchStr)
 		} else {
-			ret = drugdose.GetLogs(100, *forID, *forUser, false, dbDriver, path, false, true)
+			ret = drugdose.GetLogs(100, *forID, *forUser, false, dbDriver, path, false, true, *searchStr)
 			if ret != nil && len(ret) == 100 {
 				fmt.Println("By default there is a limit of retrieving " +
 					"and printing a maximum of 100 entries. " +
@@ -533,12 +538,12 @@ func main() {
 			fmt.Println("No logs could be returned.")
 		}
 	} else if *getNewLogs != 0 {
-		ret := drugdose.GetLogs(*getNewLogs, 0, *forUser, false, dbDriver, path, true, true)
+		ret := drugdose.GetLogs(*getNewLogs, 0, *forUser, false, dbDriver, path, true, true, *searchStr)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
 	} else if *getOldLogs != 0 {
-		ret := drugdose.GetLogs(*getOldLogs, 0, *forUser, false, dbDriver, path, false, true)
+		ret := drugdose.GetLogs(*getOldLogs, 0, *forUser, false, dbDriver, path, false, true, *searchStr)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
