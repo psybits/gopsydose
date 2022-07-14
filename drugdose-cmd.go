@@ -225,6 +225,14 @@ var (
 		"print-sources",
 		false,
 		"print the sources config file")
+
+	noGetLimit = flag.Bool(
+		"no-get-limit",
+		false,
+		"there is a default limit of getting a maximum of 100 entries \n"+
+			"you can bypass it using this option, this does not \n"+
+			"affect logging new entries for that do -get-dirs \n"+
+			"and checkout the settings file")
 )
 
 type rememberConfig struct {
@@ -510,7 +518,17 @@ func main() {
 	}
 
 	if *getLogs {
-		ret := drugdose.GetLogs(0, *forID, *forUser, true, dbDriver, path, false, true)
+		var ret []drugdose.UserLog
+		if *noGetLimit {
+			ret = drugdose.GetLogs(0, *forID, *forUser, true, dbDriver, path, false, true)
+		} else {
+			ret = drugdose.GetLogs(100, *forID, *forUser, false, dbDriver, path, false, true)
+			if ret != nil && len(ret) == 100 {
+				fmt.Println("By default there is a limit of retrieving " +
+					"and printing a maximum of 100 entries. " +
+					"To avoid it, use the -no-get-limit option.")
+			}
+		}
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
