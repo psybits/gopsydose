@@ -830,6 +830,50 @@ func GetLogs(num int, id int64, user string,
 	return userlogs
 }
 
+func GetLocalInfoNames(source string, driver string, path string, printit bool) []string {
+	if source == "default" {
+		source = defaultSource
+	}
+
+	db, err := sql.Open(driver, path)
+	if err != nil {
+		errorCantOpenDB(path, err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query("select distinct drugName from " + source)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	defer rows.Close()
+
+	var drugList []string
+	for rows.Next() {
+		var holdName string
+		err := rows.Scan(&holdName)
+		if err != nil {
+			fmt.Println(err)
+			return nil
+		}
+
+		if printit {
+			fmt.Print(holdName + ", ")
+		}
+
+		drugList = append(drugList, holdName)
+	}
+	err = rows.Err()
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+
+	fmt.Println()
+
+	return drugList
+}
+
 func GetLocalInfo(drug string, source string, driver string, path string, printit bool) []DrugInfo {
 	if source == "default" {
 		source = defaultSource

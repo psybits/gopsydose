@@ -143,6 +143,11 @@ var (
 		"print info about drug from local DB,\n"+
 			"for example if you've forgotten routes and units")
 
+	getLocalInfoDrugs = flag.Bool(
+		"get-local-info-drugs",
+		false,
+		"get all cached drugs names (from info tables, not logs) according to set source")
+
 	dontLog = flag.Bool(
 		"dont-log",
 		false,
@@ -546,6 +551,13 @@ func main() {
 		ret := drugdose.GetLogs(*getOldLogs, 0, *forUser, false, dbDriver, path, false, true, *searchStr)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
+		}
+	}
+
+	if *getLocalInfoDrugs {
+		locinfolist := drugdose.GetLocalInfoNames(gotsetcfg.UseAPI, dbDriver, path, true)
+		if len(locinfolist) == 0 {
+			fmt.Println("Couldn't get database list of drugs names from info table.")
 		}
 	}
 
