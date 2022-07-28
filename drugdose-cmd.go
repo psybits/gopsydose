@@ -511,7 +511,7 @@ func main() {
 
 	if *getUsers {
 		ret := drugdose.GetUsers(dbDriver, path)
-		if ret == nil {
+		if len(ret) == 0 {
 			fmt.Println("Couldn't get users because of an error.")
 		} else {
 			fmt.Print("All users: ")
@@ -555,9 +555,15 @@ func main() {
 	}
 
 	if *getLocalInfoDrugs {
-		locinfolist := drugdose.GetLocalInfoNames(gotsetcfg.UseAPI, dbDriver, path, true)
+		locinfolist := drugdose.GetLocalInfoNames(gotsetcfg.UseAPI, dbDriver, path)
 		if len(locinfolist) == 0 {
 			fmt.Println("Couldn't get database list of drugs names from info table.")
+		} else {
+			fmt.Print("All local drugs: ")
+			for i := 0; i < len(locinfolist); i++ {
+				fmt.Print(locinfolist[i] + " ; ")
+			}
+			fmt.Println()
 		}
 	}
 

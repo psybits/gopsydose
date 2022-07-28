@@ -830,7 +830,7 @@ func GetLogs(num int, id int64, user string,
 	return userlogs
 }
 
-func GetLocalInfoNames(source string, driver string, path string, printit bool) []string {
+func GetLocalInfoNames(source string, driver string, path string) []string {
 	if source == "default" {
 		source = defaultSource
 	}
@@ -857,10 +857,6 @@ func GetLocalInfoNames(source string, driver string, path string, printit bool) 
 			return nil
 		}
 
-		if printit {
-			fmt.Print(holdName + ", ")
-		}
-
 		drugList = append(drugList, holdName)
 	}
 	err = rows.Err()
@@ -868,8 +864,6 @@ func GetLocalInfoNames(source string, driver string, path string, printit bool) 
 		fmt.Println(err)
 		return nil
 	}
-
-	fmt.Println()
 
 	return drugList
 }
