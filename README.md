@@ -134,7 +134,7 @@ likely change a lot until the first stable tag.
 ## Installing Go
 
 Check whether you already have Go, by typing `go version` in your
-terminal. If information about Go shows up and you're on Go version 1.17+,
+terminal. If information about Go shows up and you're on Go version 1.18+,
 you're good to go. Otherwise remove the old installation and reinstall
 with a newer version.
 
