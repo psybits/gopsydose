@@ -19,11 +19,6 @@ import (
 	"github.com/powerjungle/goalconvert/alconvert"
 )
 
-const dbDir = "GPD"
-const dbName = "gpd.db"
-const defaultSource = "psychonautwiki"
-const defaultUsername = "defaultUser"
-
 // Encryption should be done by default unless specified not to by the user from the settings
 // But first the official implementation for encryption has to be done in the sqlite module
 
@@ -129,14 +124,6 @@ func checkIfExistsDB(col string, table string, driver string,
 
 // InitFileStructure creates the basic file structure for the database, this should be run only once
 func InitFileStructure(dbdir string, dbname string) string {
-	if dbdir == "default" {
-		dbdir = dbDir
-	}
-
-	if dbname == "default" {
-		dbname = dbName
-	}
-
 	err := os.Mkdir(dbdir, 0700)
 	if err != nil {
 		fmt.Println("Error creating directory for DB:", err)
@@ -163,10 +150,6 @@ func InitFileStructure(dbdir string, dbname string) string {
 // CheckDBFileStruct Returns true if the file structure is already created, false otherwise
 // Checks whether the db directory and minimum amount of files exist with the proper names in it
 func (cfg Config) CheckDBFileStruct(dbdir string, dbname string) string {
-	if dbname == "default" {
-		dbname = dbName
-	}
-
 	dbFileLocat := dbdir + "/" + dbname
 
 	if _, err := os.Stat(dbFileLocat); err == nil {
@@ -183,10 +166,6 @@ func (cfg Config) CheckDBFileStruct(dbdir string, dbname string) string {
 
 // RemoveSingleDrugInfoDB Remove all entries of a single drug from the local info DB, instead of deleting the whole DB.
 func RemoveSingleDrugInfoDB(source string, drug string, driver string, path string) bool {
-	if source == "default" {
-		source = defaultSource
-	}
-
 	drug = MatchDrugName(drug)
 
 	ret := checkIfExistsDB("drugName", source, driver, path, nil, drug)
@@ -322,10 +301,6 @@ func CleanDB(driver string, path string) bool {
 }
 
 func AddToInfoDB(source string, subs []DrugInfo, driver string, path string) bool {
-	if source == "default" {
-		source = defaultSource
-	}
-
 	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
@@ -404,10 +379,6 @@ func AddToInfoDB(source string, subs []DrugInfo, driver string, path string) boo
 // Creates the database
 // source - the name of the db, a.k.a. the source of the drug information
 func InitDrugDB(source string, driver string, path string) bool {
-	if source == "default" {
-		source = defaultSource
-	}
-
 	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
@@ -515,14 +486,6 @@ func MatchUnits(units string) string {
 func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	dose float32, units string, perc float32,
 	driver string, path string, source string) bool {
-
-	if source == "default" {
-		source = defaultSource
-	}
-
-	if user == "default" {
-		user = defaultUsername
-	}
 
 	drug = MatchDrugName(drug)
 	route = MatchDrugRoute(route)
@@ -702,10 +665,6 @@ func GetUsers(driver string, path string) []string {
 }
 
 func GetLogsCount(user string, driver string, path string) int {
-	if user == "default" {
-		user = defaultUsername
-	}
-
 	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
@@ -727,10 +686,6 @@ func GetLogsCount(user string, driver string, path string) int {
 func GetLogs(num int, id int64, user string,
 	all bool, driver string, path string,
 	reverse bool, printit bool, search string) []UserLog {
-
-	if user == "default" {
-		user = defaultUsername
-	}
 
 	numstr := strconv.Itoa(num)
 
@@ -831,10 +786,6 @@ func GetLogs(num int, id int64, user string,
 }
 
 func GetLocalInfoNames(source string, driver string, path string) []string {
-	if source == "default" {
-		source = defaultSource
-	}
-
 	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)
@@ -869,10 +820,6 @@ func GetLocalInfoNames(source string, driver string, path string) []string {
 }
 
 func GetLocalInfo(drug string, source string, driver string, path string, printit bool) []DrugInfo {
-	if source == "default" {
-		source = defaultSource
-	}
-
 	drug = MatchDrugName(drug)
 
 	ret := checkIfExistsDB("drugName", source, driver, path, nil, drug)
@@ -964,10 +911,6 @@ func GetLocalInfo(drug string, source string, driver string, path string, printi
 func RemoveLogs(driver string, path string, username string,
 	amount int, reverse bool, remID int64, search string) bool {
 
-	if username == "default" {
-		username = defaultUsername
-	}
-
 	stmtStr := "delete from userLogs where username = ?"
 	if amount != 0 && remID == 0 || search != "" {
 		getAll := false
@@ -1049,10 +992,6 @@ func RemoveLogs(driver string, path string, username string,
 }
 
 func SetTime(driver string, path string, username string, id int64, customTime int64, end bool) bool {
-	if username == "default" {
-		username = defaultUsername
-	}
-
 	db, err := sql.Open(driver, path)
 	if err != nil {
 		errorCantOpenDB(path, err)

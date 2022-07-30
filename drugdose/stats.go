@@ -54,10 +54,6 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 }
 
 func GetTimes(driver string, path string, username string, source string, getid int64, printit bool) *TimeTill {
-	if username == "default" {
-		username = defaultUsername
-	}
-
 	gotLogs := GetLogs(1, getid, username, false, driver, path, true, false, "")[0]
 
 	gotInfo := GetLocalInfo(gotLogs.DrugName, source, driver, path, false)

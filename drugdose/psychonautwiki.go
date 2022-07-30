@@ -65,10 +65,6 @@ type Substances []struct {
 }
 
 func (cfg *Config) InitGraphqlClient(api string) *graphql.Client {
-	if api == "default" {
-		api = DefaultAPI
-	}
-
 	if !cfg.AutoFetch {
 		fmt.Println("Automatic fetching is disabled, returning.")
 		return nil

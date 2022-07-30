@@ -442,7 +442,7 @@ func main() {
 
 	var path string
 	if dbDriver == "sqlite3" {
-		path = gotsetcfg.CheckDBFileStruct(gotsetcfg.DBDir, "default")
+		path = gotsetcfg.CheckDBFileStruct(gotsetcfg.DBDir, drugdose.DefaultDBName)
 		ret = false
 
 		if path != "" {
@@ -451,7 +451,7 @@ func main() {
 
 		if path == "" || !ret {
 			if path == "" {
-				path = drugdose.InitFileStructure(gotsetcfg.DBDir, "default")
+				path = drugdose.InitFileStructure(gotsetcfg.DBDir, drugdose.DefaultDBName)
 			}
 			ret = drugdose.InitDrugDB(gotsetcfg.UseSource, dbDriver, path)
 			if !ret {

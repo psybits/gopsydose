@@ -74,14 +74,6 @@ func VerbosePrint(prstr string, verbose bool) {
 }
 
 func InitSourceStruct(source string, api string) *map[string]SourceConfig {
-	if source == "default" {
-		source = DefaultSource
-	}
-
-	if api == "default" {
-		api = DefaultAPI
-	}
-
 	newcfg := map[string]SourceConfig{
 		source: {
 			APIURL: api,
