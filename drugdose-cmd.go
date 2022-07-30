@@ -58,7 +58,7 @@ var (
 
 	forUser = flag.String(
 		"user",
-		"default",
+		drugdose.DefaultUsername,
 		"log for a specific user, for example if you're looking\nafter a friend")
 
 	getNewLogs = flag.Int(
@@ -105,15 +105,17 @@ var (
 			"-get-logs -set-time -get-times\n"+
 			"-clean-new-logs -clean-old-logs")
 
-	apiName = flag.String(
-		"apiname",
-		"default",
-		"the name of the API that you want to initialise for\nsettings.toml and sources.toml")
+	source = flag.String(
+		"source",
+		drugdose.DefaultSource,
+		"the name of the API that you want to initialise for\n"+
+			"settings and sources config files")
 
 	apiURL = flag.String(
 		"apiurl",
-		"default",
-		"the URL of the API that you want to initialise for\nsources.toml combined with -apiname")
+		drugdose.DefaultAPI,
+		"the URL of the API that you want to initialise for\n"+
+			"sources config file combined with -source")
 
 	recreateSettings = flag.Bool(
 		"recreate-settings",
@@ -127,10 +129,11 @@ var (
 
 	dbDir = flag.String(
 		"db-dir",
-		"default",
-		"full path of the DB directory, this will work only on"+
-			"\nthe initial run, you can change it later in the settings.toml,"+
-			"\ndon't forget to delete the old DB directory")
+		drugdose.DefaultDBDir,
+		"full path of the DB directory, this will work only on\n"+
+			"the initial run, you can change it later in the\n"+
+			"settings config file, don't forget to delete\n"+
+			"the old DB directory")
 
 	getDirs = flag.Bool(
 		"get-dirs",
@@ -193,7 +196,7 @@ var (
 
 	verbose = flag.Bool(
 		"verbose",
-		false,
+		drugdose.DefaultVerbose,
 		"print extra information")
 
 	remember = flag.Bool(
@@ -369,13 +372,23 @@ func main() {
 
 	flag.Parse()
 
-	setcfg := drugdose.InitSettingsStruct(100, *apiName, true, *dbDir, false)
+	setcfg := drugdose.InitSettingsStruct(
+		drugdose.DefaultMaxLogsPerUser,
+		*source,
+		drugdose.DefaultAutoFetch,
+		*dbDir,
+		drugdose.DefaultDBName,
+		drugdose.DefaultAutoRemove,
+		drugdose.DefaultDBDriver,
+		drugdose.DefaultMySQLAccess,
+		drugdose.DefaultVerbose,
+	)
 	if setcfg == nil {
 		fmt.Println("Settings struct not initialised.")
 		os.Exit(1)
 	}
 
-	ret := setcfg.InitSettings(*recreateSettings, *verbose)
+	ret := setcfg.InitSettings(*recreateSettings)
 	if !ret {
 		drugdose.VerbosePrint("Settings weren't initialised.", *verbose)
 	}
@@ -389,8 +402,8 @@ func main() {
 
 	dbDriver := *userDBDriver
 
-	gotsrc := drugdose.InitSourceStruct(gotsetcfg.UseAPI, *apiURL)
-	ret = drugdose.InitSourceSettings(gotsrc, *recreateSources, *verbose)
+	gotsrc := drugdose.InitSourceStruct(gotsetcfg.UseSource, *apiURL)
+	ret = gotsetcfg.InitSourceSettings(gotsrc, *recreateSources)
 	if !ret {
 		drugdose.VerbosePrint("Sources file wasn't initialised.", *verbose)
 	}
@@ -418,7 +431,7 @@ func main() {
 			*drugroute = remCfg.Route
 			*drugunits = remCfg.Units
 			*drugperc = remCfg.Perc
-			*apiName = remCfg.API
+			*source = remCfg.API
 		}
 	}
 
@@ -429,7 +442,7 @@ func main() {
 
 	var path string
 	if dbDriver == "sqlite3" {
-		path = drugdose.CheckDBFileStruct(gotsetcfg.DBDir, "default", *verbose)
+		path = gotsetcfg.CheckDBFileStruct(gotsetcfg.DBDir, "default")
 		ret = false
 
 		if path != "" {
@@ -440,7 +453,7 @@ func main() {
 			if path == "" {
 				path = drugdose.InitFileStructure(gotsetcfg.DBDir, "default")
 			}
-			ret = drugdose.InitDrugDB(gotsetcfg.UseAPI, dbDriver, path)
+			ret = drugdose.InitDrugDB(gotsetcfg.UseSource, dbDriver, path)
 			if !ret {
 				fmt.Println("Database didn't get initialised, because of an error, exiting.")
 				os.Exit(1)
@@ -450,7 +463,7 @@ func main() {
 		path = *mysqlAccess
 		ret = drugdose.CheckDBTables(dbDriver, path)
 		if !ret {
-			ret = drugdose.InitDrugDB(gotsetcfg.UseAPI, dbDriver, path)
+			ret = drugdose.InitDrugDB(gotsetcfg.UseSource, dbDriver, path)
 			if !ret {
 				fmt.Println("Database didn't get initialised, because of an error, exiting.")
 				os.Exit(1)
@@ -479,7 +492,7 @@ func main() {
 	}
 
 	if *removeDrug != "none" {
-		ret := drugdose.RemoveSingleDrugInfoDB(gotsetcfg.UseAPI, *removeDrug, dbDriver, path)
+		ret := drugdose.RemoveSingleDrugInfoDB(gotsetcfg.UseSource, *removeDrug, dbDriver, path)
 		if !ret {
 			fmt.Println("Failed to remove single drug from info database:", *removeDrug)
 		}
@@ -555,7 +568,7 @@ func main() {
 	}
 
 	if *getLocalInfoDrugs {
-		locinfolist := drugdose.GetLocalInfoNames(gotsetcfg.UseAPI, dbDriver, path)
+		locinfolist := drugdose.GetLocalInfoNames(gotsetcfg.UseSource, dbDriver, path)
 		if len(locinfolist) == 0 {
 			fmt.Println("Couldn't get database list of drugs names from info table.")
 		} else {
@@ -568,7 +581,7 @@ func main() {
 	}
 
 	if *localInfoDrug != "none" {
-		locinfo := drugdose.GetLocalInfo(*localInfoDrug, gotsetcfg.UseAPI, dbDriver, path, true)
+		locinfo := drugdose.GetLocalInfo(*localInfoDrug, gotsetcfg.UseSource, dbDriver, path, true)
 		if len(locinfo) == 0 {
 			fmt.Println("Couldn't get database info for drug:", *localInfoDrug)
 		}
@@ -613,24 +626,24 @@ func main() {
 			os.Exit(1)
 		}
 
-		drugdose.VerbosePrint("Using API from settings.toml: "+gotsetcfg.UseAPI, *verbose)
-		drugdose.VerbosePrint("Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseAPI].APIURL, *verbose)
+		drugdose.VerbosePrint("Using API from settings.toml: "+gotsetcfg.UseSource, *verbose)
+		drugdose.VerbosePrint("Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].APIURL, *verbose)
 
-		cli := gotsetcfg.InitGraphqlClient(gotsrcData[gotsetcfg.UseAPI].APIURL)
+		cli := gotsetcfg.InitGraphqlClient(gotsrcData[gotsetcfg.UseSource].APIURL)
 		if cli != nil {
-			if gotsetcfg.UseAPI == "psychonautwiki" {
+			if gotsetcfg.UseSource == "psychonautwiki" {
 				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli, dbDriver, path)
 				if !ret {
 					fmt.Println("Didn't fetch anything.")
 				}
 			} else {
-				fmt.Println("No valid API selected:", gotsetcfg.UseAPI)
+				fmt.Println("No valid API selected:", gotsetcfg.UseSource)
 				os.Exit(1)
 			}
 
 			if *remember {
 				ret = rememberDoseConfig(*forUser, *drugname, *drugroute,
-					*drugunits, *drugperc, *apiName, drugdose.InitSettingsDir())
+					*drugunits, *drugperc, *source, drugdose.InitSettingsDir())
 				if !ret {
 					fmt.Println("Couldn't remember config, because of an error.")
 				}
@@ -639,7 +652,7 @@ func main() {
 			if !*dontLog {
 				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc),
-					dbDriver, path, *apiName)
+					dbDriver, path, *source)
 				if !ret {
 					fmt.Println("Dose wasn't logged.")
 				}
@@ -651,7 +664,7 @@ func main() {
 	}
 
 	if *getTimes {
-		times := drugdose.GetTimes(dbDriver, path, *forUser, gotsetcfg.UseAPI, *forID, true)
+		times := drugdose.GetTimes(dbDriver, path, *forUser, gotsetcfg.UseSource, *forID, true)
 		if times == nil {
 			fmt.Println("Times couldn't be retrieved because of an error.")
 		}

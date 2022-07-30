@@ -13,18 +13,31 @@ type SourceConfig struct {
 }
 
 type Config struct {
-	MaxLogsPerUser int16
-	UseAPI         string
-	AutoFetch      bool
-	DBDir          string
-	AutoRemove     bool
-	DBDriver       string
-	MySQLAccess    string
+	MaxLogsPerUser  int16
+	UseSource       string
+	AutoFetch       bool
+	DBDir           string
+	DBName          string
+	AutoRemove      bool
+	DBDriver        string
+	MySQLAccess     string
+	VerbosePrinting bool
 }
 
-const psychonautwikiAPI = "api.psychonautwiki.org"
+const PsychonautwikiAPI = "api.psychonautwiki.org"
 
-const defaultAPI = psychonautwikiAPI
+const DefaultMaxLogsPerUser = 100
+const DefaultAPI = PsychonautwikiAPI
+const DefaultAutoFetch = true
+const DefaultDBDir = "GPD"
+const DefaultDBName = "gpd.db"
+const DefaultAutoRemove = false
+const DefaultDBDriver = "sqlite3"
+const DefaultMySQLAccess = "user:password@tcp(127.0.0.1:3306)/database"
+const DefaultVerbose = false
+
+const DefaultUsername = "defaultUser"
+const DefaultSource = "psychonautwiki"
 
 const sourceSetFilename = "gpd-sources.toml"
 const setFilename = "gpd-settings.toml"
@@ -62,11 +75,11 @@ func VerbosePrint(prstr string, verbose bool) {
 
 func InitSourceStruct(source string, api string) *map[string]SourceConfig {
 	if source == "default" {
-		source = defaultSource
+		source = DefaultSource
 	}
 
 	if api == "default" {
-		api = defaultAPI
+		api = DefaultAPI
 	}
 
 	newcfg := map[string]SourceConfig{
@@ -94,7 +107,7 @@ func InitSettingsDir() string {
 	return configdir
 }
 
-func InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool, verbose bool) bool {
+func (cfg Config) InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool) bool {
 	mcfg, err := toml.Marshal(newcfg)
 	if err != nil {
 		fmt.Println(err)
@@ -129,7 +142,7 @@ func InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool, verbose 
 			errorCantCloseConfig(path, err)
 		}
 	} else if err == nil {
-		VerbosePrint("Config file: "+path+" ; already exists!", verbose)
+		VerbosePrint("Config file: "+path+" ; already exists!", cfg.VerbosePrinting)
 		return false
 	} else {
 		otherError(path, err)
@@ -164,13 +177,10 @@ func GetSourceData(printfile bool) map[string]SourceConfig {
 	return cfg
 }
 
-func InitSettingsStruct(maxulogs int16, source string,
-	autofetch bool, dbdir string, autoremove bool) *Config {
-	if source == "default" {
-		source = defaultSource
-	}
-
-	if dbdir == "default" {
+func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
+	dbdir string, dbname string, autoremove bool,
+	dbdriver string, mysqlaccess string, verboseprinting bool) *Config {
+	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			fmt.Println(err)
@@ -184,23 +194,25 @@ func InitSettingsStruct(maxulogs int16, source string,
 			home = path
 		}
 
-		dbdir = home + "/" + dbDir
+		dbdir = home + "/" + dbdir
 	}
 
 	initConf := Config{
-		MaxLogsPerUser: maxulogs,
-		UseAPI:         source,
-		AutoFetch:      autofetch,
-		DBDir:          dbdir,
-		AutoRemove:     autoremove,
-		DBDriver:       "sqlite3",
-		MySQLAccess:    "user:password@tcp(127.0.0.1:3306)/database",
+		MaxLogsPerUser:  maxulogs,
+		UseSource:       source,
+		AutoFetch:       autofetch,
+		DBDir:           dbdir,
+		DBName:          dbname,
+		AutoRemove:      autoremove,
+		DBDriver:        dbdriver,
+		MySQLAccess:     mysqlaccess,
+		VerbosePrinting: verboseprinting,
 	}
 
 	return &initConf
 }
 
-func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
+func (initconf *Config) InitSettings(recreate bool) bool {
 	mcfg, err := toml.Marshal(initconf)
 	if err != nil {
 		fmt.Println(err)
@@ -235,7 +247,7 @@ func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
 			errorCantCloseConfig(path, err)
 		}
 	} else if err == nil {
-		VerbosePrint("Config file: "+path+" ; already exists!", verbose)
+		VerbosePrint("Config file: "+path+" ; already exists!", initconf.VerbosePrinting)
 		return false
 	} else {
 		otherError(path, err)

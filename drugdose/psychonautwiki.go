@@ -66,7 +66,7 @@ type Substances []struct {
 
 func (cfg *Config) InitGraphqlClient(api string) *graphql.Client {
 	if api == "default" {
-		api = defaultAPI
+		api = DefaultAPI
 	}
 
 	if !cfg.AutoFetch {
@@ -95,7 +95,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 		return false
 	}
 
-	fmt.Println("Fetching from API:", cfg.UseAPI)
+	fmt.Println("Fetching from source:", cfg.UseSource)
 
 	var q struct {
 		Substances `graphql:"substances(query: $dn)"`

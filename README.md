@@ -251,6 +251,9 @@ Credentials to access a MySQL database.
 
 Example: user:password@tcp(127.0.0.1:3306)/database
 
+#### VerbosePrinting
+If set to true, functions which print more verbose information, will print it.
+
 ### gpd-sources.toml
 
 ```

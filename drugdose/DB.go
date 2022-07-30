@@ -162,7 +162,7 @@ func InitFileStructure(dbdir string, dbname string) string {
 
 // CheckDBFileStruct Returns true if the file structure is already created, false otherwise
 // Checks whether the db directory and minimum amount of files exist with the proper names in it
-func CheckDBFileStruct(dbdir string, dbname string, verbose bool) string {
+func (cfg Config) CheckDBFileStruct(dbdir string, dbname string) string {
 	if dbname == "default" {
 		dbname = dbName
 	}
@@ -170,7 +170,7 @@ func CheckDBFileStruct(dbdir string, dbname string, verbose bool) string {
 	dbFileLocat := dbdir + "/" + dbname
 
 	if _, err := os.Stat(dbFileLocat); err == nil {
-		VerbosePrint(dbFileLocat+": Exists", verbose)
+		VerbosePrint(dbFileLocat+": Exists", cfg.VerbosePrinting)
 	} else if errors.Is(err, os.ErrNotExist) {
 		fmt.Println(dbFileLocat+": Doesn't seem to exist:", err)
 		return ""
