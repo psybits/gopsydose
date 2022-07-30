@@ -122,8 +122,9 @@ func checkIfExistsDB(col string, table string, driver string,
 	return true
 }
 
-// InitFileStructure creates the basic file structure for the database, this should be run only once
-func InitFileStructure(dbdir string, dbname string) string {
+// InitDBFileStructure creates the basic file structure for the database.
+// This should be run only once!
+func InitDBFileStructure(dbdir string, dbname string) string {
 	err := os.Mkdir(dbdir, 0700)
 	if err != nil {
 		fmt.Println("Error creating directory for DB:", err)
@@ -142,15 +143,16 @@ func InitFileStructure(dbdir string, dbname string) string {
 		errorCantCloseDB(dbFileLocat, err)
 	}
 
-	fmt.Println("Initialised the file structure")
+	fmt.Println("Initialised the DB file structure.")
 
 	return dbFileLocat
 }
 
-// CheckDBFileStruct Returns true if the file structure is already created, false otherwise
-// Checks whether the db directory and minimum amount of files exist with the proper names in it
-func (cfg Config) CheckDBFileStruct(dbdir string, dbname string) string {
-	dbFileLocat := dbdir + "/" + dbname
+// CheckDBFileStruct Returns true if the file structure is already created,
+// false otherwise. Checks whether the db directory and minimum amount of files
+// exist with the proper names in it.
+func (cfg Config) CheckDBFileStruct() string {
+	dbFileLocat := cfg.DBDir + "/" + cfg.DBName
 
 	if _, err := os.Stat(dbFileLocat); err == nil {
 		VerbosePrint(dbFileLocat+": Exists", cfg.VerbosePrinting)
