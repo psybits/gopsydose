@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -124,14 +125,21 @@ func checkIfExistsDB(col string, table string, driver string,
 
 // InitDBFileStructure creates the basic file structure for the database.
 // This should be run only once!
-func InitDBFileStructure(dbdir string, dbname string) string {
-	err := os.Mkdir(dbdir, 0700)
+func (cfg Config) InitDBFileStructure() bool {
+	ret := cfg.checkDBFileStruct()
+	if ret == true {
+		return true
+	}
+
+	dirOnly := path.Dir(cfg.DBSettings[cfg.DBDriver].Path)
+
+	err := os.Mkdir(dirOnly, 0700)
 	if err != nil {
 		fmt.Println("Error creating directory for DB:", err)
 		exitProgram()
 	}
 
-	dbFileLocat := dbdir + "/" + dbname
+	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
 
 	file, err := os.Create(dbFileLocat)
 	if err != nil {
@@ -145,40 +153,43 @@ func InitDBFileStructure(dbdir string, dbname string) string {
 
 	fmt.Println("Initialised the DB file structure.")
 
-	return dbFileLocat
+	return true
 }
 
-// CheckDBFileStruct Returns true if the file structure is already created,
+// checkDBFileStruct Returns true if the file structure is already created,
 // false otherwise. Checks whether the db directory and minimum amount of files
 // exist with the proper names in it.
-func (cfg Config) CheckDBFileStruct() string {
-	dbFileLocat := cfg.DBDir + "/" + cfg.DBName
+func (cfg Config) checkDBFileStruct() bool {
+	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
 
 	if _, err := os.Stat(dbFileLocat); err == nil {
 		VerbosePrint(dbFileLocat+": Exists", cfg.VerbosePrinting)
 	} else if errors.Is(err, os.ErrNotExist) {
 		fmt.Println(dbFileLocat+": Doesn't seem to exist:", err)
-		return ""
-	} else {
-		panic(err)
+		return false
 	}
 
-	return dbFileLocat
+	return true
 }
 
 // RemoveSingleDrugInfoDB Remove all entries of a single drug from the local info DB, instead of deleting the whole DB.
-func RemoveSingleDrugInfoDB(source string, drug string, driver string, path string) bool {
+func (cfg Config) RemoveSingleDrugInfoDB(drug string) bool {
 	drug = MatchDrugName(drug)
 
-	ret := checkIfExistsDB("drugName", source, driver, path, nil, drug)
+	ret := checkIfExistsDB("drugName",
+		cfg.UseSource,
+		cfg.DBDriver,
+		cfg.DBSettings[cfg.DBDriver].Path,
+		nil,
+		drug)
 	if !ret {
 		fmt.Println("No such drug in info database:", drug)
 		return false
 	}
 
-	db, err := sql.Open(driver, path)
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
@@ -188,7 +199,7 @@ func RemoveSingleDrugInfoDB(source string, drug string, driver string, path stri
 		return false
 	}
 
-	stmt, err := tx.Prepare("delete from " + source +
+	stmt, err := tx.Prepare("delete from " + cfg.UseSource +
 		" where drugName = ?")
 	if err != nil {
 		fmt.Println("RemoveSingleDrugInfoDB: tx.Prepare():", err)
@@ -212,25 +223,25 @@ func RemoveSingleDrugInfoDB(source string, drug string, driver string, path stri
 	return true
 }
 
-func getTableNamesQuery(driver string, path string) string {
+func (cfg Config) getTableNamesQuery() string {
 	var queryStr string
-	if driver == "sqlite3" {
+	if cfg.DBDriver == "sqlite3" {
 		queryStr = "SELECT name FROM sqlite_schema WHERE type='table'"
-	} else if driver == "mysql" {
-		dbName := strings.Split(path, "/")
+	} else if cfg.DBDriver == "mysql" {
+		dbName := strings.Split(cfg.DBSettings[cfg.DBDriver].Path, "/")
 		queryStr = "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + dbName[1] + "'"
 	}
 	return queryStr
 }
 
-func CheckDBTables(driver string, path string) bool {
-	db, err := sql.Open(driver, path)
+func (cfg Config) CheckDBTables() bool {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
-	queryStr := getTableNamesQuery(driver, path)
+	queryStr := cfg.getTableNamesQuery()
 	rows, err := db.Query(queryStr)
 	if err != nil {
 		fmt.Println(err)
@@ -252,14 +263,14 @@ func CheckDBTables(driver string, path string) bool {
 	return len(tableList) != 0
 }
 
-func CleanDB(driver string, path string) bool {
-	db, err := sql.Open(driver, path)
+func (cfg Config) CleanDB() bool {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
-	queryStr := getTableNamesQuery(driver, path)
+	queryStr := cfg.getTableNamesQuery()
 	rows, err := db.Query(queryStr)
 	if err != nil {
 		fmt.Println(err)
@@ -302,10 +313,10 @@ func CleanDB(driver string, path string) bool {
 	return true
 }
 
-func AddToInfoDB(source string, subs []DrugInfo, driver string, path string) bool {
-	db, err := sql.Open(driver, path)
+func (cfg Config) AddToInfoDB(subs []DrugInfo) bool {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
@@ -315,7 +326,7 @@ func AddToInfoDB(source string, subs []DrugInfo, driver string, path string) boo
 		return false
 	}
 
-	stmt, err := tx.Prepare("insert into " + source +
+	stmt, err := tx.Prepare("insert into " + cfg.UseSource +
 		" (drugName, drugRoute, " +
 		"threshold, " +
 		"lowDoseMin, lowDoseMax, " +
@@ -380,19 +391,19 @@ func AddToInfoDB(source string, subs []DrugInfo, driver string, path string) boo
 // InitDrugDB Returns true if successful and false otherwise
 // Creates the database
 // source - the name of the db, a.k.a. the source of the drug information
-func InitDrugDB(source string, driver string, path string) bool {
-	db, err := sql.Open(driver, path)
+func (cfg Config) InitDrugDB() bool {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
 	caseInsensitive := ""
-	if driver == "sqlite3" {
+	if cfg.DBDriver == "sqlite3" {
 		caseInsensitive = " COLLATE NOCASE "
 	}
 
-	initDBsql := "create table " + source + " (drugName varchar(255)" + caseInsensitive + "not null," +
+	initDBsql := "create table " + cfg.UseSource + " (drugName varchar(255)" + caseInsensitive + "not null," +
 		"drugRoute varchar(255)" + caseInsensitive + "not null," +
 		"threshold real," +
 		"lowDoseMin real," +
@@ -426,7 +437,7 @@ func InitDrugDB(source string, driver string, path string) bool {
 		return false
 	}
 
-	fmt.Println("Created: '" + source + "' table for drug info in database.")
+	fmt.Println("Created: '" + cfg.UseSource + "' table for drug info in database.")
 
 	initDBsql = "create table userLogs (timeOfDoseStart bigint not null," +
 		"username varchar(255) not null," +
@@ -485,9 +496,8 @@ func MatchUnits(units string) string {
 	return matches[units]
 }
 
-func (cfg *Config) AddToDoseDB(user string, drug string, route string,
-	dose float32, units string, perc float32,
-	driver string, path string, source string) bool {
+func (cfg Config) AddToDoseDB(user string, drug string, route string,
+	dose float32, units string, perc float32) bool {
 
 	drug = MatchDrugName(drug)
 	route = MatchDrugRoute(route)
@@ -524,16 +534,18 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	}
 
 	xtrs := [2]string{xtrastmt("drugRoute", "and"), xtrastmt("doseUnits", "and")}
-	ret := checkIfExistsDB("drugName", source, driver, path, xtrs[:], drug, route, units)
+	ret := checkIfExistsDB("drugName", cfg.UseSource,
+		cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
+		xtrs[:], drug, route, units)
 	if !ret {
 		fmt.Println("Combo of Drug, Route and Units doesn't exist in local DB:",
 			drug+", "+route+", "+units)
 		return false
 	}
 
-	db, err := sql.Open(driver, path)
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
@@ -548,7 +560,7 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	if int16(count) >= cfg.MaxLogsPerUser {
 		diff := count - int(cfg.MaxLogsPerUser)
 		if cfg.AutoRemove {
-			RemoveLogs(driver, path, user, diff+1, true, 0, "")
+			cfg.RemoveLogs(user, diff+1, true, 0, "")
 		} else {
 			fmt.Println("User:", user, "has reached the maximum entries per user:", cfg.MaxLogsPerUser,
 				"; Not logging.")
@@ -588,35 +600,35 @@ func (cfg *Config) AddToDoseDB(user string, drug string, route string,
 	return true
 }
 
-func GetDBSize(driver string, path string) int64 {
-	if driver == "sqlite3" {
-		file, err := os.Open(path)
+func (cfg Config) GetDBSize() int64 {
+	if cfg.DBDriver == "sqlite3" {
+		file, err := os.Open(cfg.DBSettings[cfg.DBDriver].Path)
 		if err != nil {
-			fmt.Println("GetDBSize: error opening:", path, ":", err)
+			fmt.Println("GetDBSize: error opening:", cfg.DBSettings[cfg.DBDriver].Path, ":", err)
 			return 0
 		}
 
 		fileInfo, err := file.Stat()
 		if err != nil {
-			fmt.Println("GetDBSize: error getting stat:", path, ":", err)
+			fmt.Println("GetDBSize: error getting stat:", cfg.DBSettings[cfg.DBDriver].Path, ":", err)
 			return 0
 		}
 
 		err = file.Close()
 		if err != nil {
-			fmt.Println("GetDBSize: error closing file:", path, ":", err)
+			fmt.Println("GetDBSize: error closing file:", cfg.DBSettings[cfg.DBDriver].Path, ":", err)
 			return 0
 		}
 
 		return fileInfo.Size()
-	} else if driver == "mysql" {
-		db, err := sql.Open(driver, path)
+	} else if cfg.DBDriver == "mysql" {
+		db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 		if err != nil {
-			errorCantOpenDB(path, err)
+			errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 		}
 		defer db.Close()
 
-		res := strings.Split(path, "/")
+		res := strings.Split(cfg.DBSettings[cfg.DBDriver].Path, "/")
 		dbName := res[1]
 
 		dbSizeQuery := "select SUM(data_length + index_length) FROM information_schema.tables " +
@@ -634,14 +646,14 @@ func GetDBSize(driver string, path string) int64 {
 		return totalSize
 	}
 
-	fmt.Println("GetDBSize: the chosen driver is not a proper one:", driver)
+	fmt.Println("GetDBSize: the chosen driver is not a proper one:", cfg.DBDriver)
 	return 0
 }
 
-func GetUsers(driver string, path string) []string {
-	db, err := sql.Open(driver, path)
+func (cfg Config) GetUsers() []string {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
@@ -666,10 +678,10 @@ func GetUsers(driver string, path string) []string {
 	return allUsers
 }
 
-func GetLogsCount(user string, driver string, path string) int {
-	db, err := sql.Open(driver, path)
+func (cfg Config) GetLogsCount(user string) int {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
@@ -685,15 +697,14 @@ func GetLogsCount(user string, driver string, path string) int {
 	return count
 }
 
-func GetLogs(num int, id int64, user string,
-	all bool, driver string, path string,
+func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 	reverse bool, printit bool, search string) []UserLog {
 
 	numstr := strconv.Itoa(num)
 
-	db, err := sql.Open(driver, path)
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
@@ -787,14 +798,14 @@ func GetLogs(num int, id int64, user string,
 	return userlogs
 }
 
-func GetLocalInfoNames(source string, driver string, path string) []string {
-	db, err := sql.Open(driver, path)
+func (cfg Config) GetLocalInfoNames() []string {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
-	rows, err := db.Query("select distinct drugName from " + source)
+	rows, err := db.Query("select distinct drugName from " + cfg.UseSource)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -821,22 +832,27 @@ func GetLocalInfoNames(source string, driver string, path string) []string {
 	return drugList
 }
 
-func GetLocalInfo(drug string, source string, driver string, path string, printit bool) []DrugInfo {
+func (cfg Config) GetLocalInfo(drug string, printit bool) []DrugInfo {
 	drug = MatchDrugName(drug)
 
-	ret := checkIfExistsDB("drugName", source, driver, path, nil, drug)
+	ret := checkIfExistsDB("drugName",
+		cfg.UseSource,
+		cfg.DBDriver,
+		cfg.DBSettings[cfg.DBDriver].Path,
+		nil,
+		drug)
 	if !ret {
 		fmt.Println("No such drug in info database:", drug)
 		return nil
 	}
 
-	db, err := sql.Open(driver, path)
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
-	rows, err := db.Query("select * from "+source+" where drugName = ?", drug)
+	rows, err := db.Query("select * from "+cfg.UseSource+" where drugName = ?", drug)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -910,8 +926,8 @@ func GetLocalInfo(drug string, source string, driver string, path string, printi
 	return infoDrug
 }
 
-func RemoveLogs(driver string, path string, username string,
-	amount int, reverse bool, remID int64, search string) bool {
+func (cfg Config) RemoveLogs(username string, amount int, reverse bool,
+	remID int64, search string) bool {
 
 	stmtStr := "delete from userLogs where username = ?"
 	if amount != 0 && remID == 0 || search != "" {
@@ -920,7 +936,7 @@ func RemoveLogs(driver string, path string, username string,
 			getAll = true
 		}
 
-		gotLogs := GetLogs(amount, 0, username, getAll, driver, path, reverse, false, search)
+		gotLogs := cfg.GetLogs(amount, 0, username, getAll, reverse, false, search)
 		if gotLogs == nil {
 			fmt.Println("RemoveLogs: couldn't get logs, because of an error, no logs will be removed.")
 			return false
@@ -943,7 +959,9 @@ func RemoveLogs(driver string, path string, username string,
 		stmtStr = "delete from userLogs where timeOfDoseStart in (" + concatTimes + ")"
 	} else if remID != 0 && search == "" {
 		xtrs := [1]string{xtrastmt("username", "and")}
-		ret := checkIfExistsDB("timeOfDoseStart", "userLogs", driver, path, xtrs[:], remID, username)
+		ret := checkIfExistsDB("timeOfDoseStart", "userLogs",
+			cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
+			xtrs[:], remID, username)
 		if !ret {
 			fmt.Println("Log with ID:", remID, "doesn't exists.")
 			return false
@@ -952,9 +970,9 @@ func RemoveLogs(driver string, path string, username string,
 		stmtStr = "delete from userLogs where timeOfDoseStart = ? AND username = ?"
 	}
 
-	db, err := sql.Open(driver, path)
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
@@ -993,10 +1011,10 @@ func RemoveLogs(driver string, path string, username string,
 	return true
 }
 
-func SetTime(driver string, path string, username string, id int64, customTime int64, end bool) bool {
-	db, err := sql.Open(driver, path)
+func (cfg Config) SetTime(username string, id int64, customTime int64, end bool) bool {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 

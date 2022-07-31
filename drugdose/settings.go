@@ -9,19 +9,21 @@ import (
 )
 
 type SourceConfig struct {
-	APIURL string
+	API_URL string
 }
 
 type Config struct {
 	MaxLogsPerUser  int16
 	UseSource       string
 	AutoFetch       bool
-	DBDir           string
-	DBName          string
 	AutoRemove      bool
 	DBDriver        string
-	MySQLAccess     string
 	VerbosePrinting bool
+	DBSettings      map[string]DBSettings
+}
+
+type DBSettings struct {
+	Path string
 }
 
 const PsychonautwikiAPI = "api.psychonautwiki.org"
@@ -76,7 +78,7 @@ func VerbosePrint(prstr string, verbose bool) {
 func InitSourceStruct(source string, api string) *map[string]SourceConfig {
 	newcfg := map[string]SourceConfig{
 		source: {
-			APIURL: api,
+			API_URL: api,
 		},
 	}
 	return &newcfg
@@ -142,7 +144,7 @@ func (cfg Config) InitSourceSettings(newcfg *map[string]SourceConfig, recreate b
 	return true
 }
 
-func GetSourceData(printfile bool) map[string]SourceConfig {
+func GetSourceData() map[string]SourceConfig {
 	setdir := InitSettingsDir()
 	if setdir == "" {
 		return nil
@@ -155,10 +157,6 @@ func GetSourceData(printfile bool) map[string]SourceConfig {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		errorCantReadConfig(path, err)
-	}
-
-	if printfile {
-		fmt.Printf("%s", file)
 	}
 
 	err = toml.Unmarshal(file, &cfg)
@@ -189,16 +187,23 @@ func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
 		dbdir = home + "/" + dbdir
 	}
 
+	var dbSettings = map[string]DBSettings{
+		"sqlite3": {
+			Path: dbdir + "/" + DefaultDBName,
+		},
+		"MySQL": {
+			Path: mysqlaccess,
+		},
+	}
+
 	initConf := Config{
 		MaxLogsPerUser:  maxulogs,
 		UseSource:       source,
 		AutoFetch:       autofetch,
-		DBDir:           dbdir,
-		DBName:          dbname,
 		AutoRemove:      autoremove,
 		DBDriver:        dbdriver,
-		MySQLAccess:     mysqlaccess,
 		VerbosePrinting: verboseprinting,
+		DBSettings:      dbSettings,
 	}
 
 	return &initConf

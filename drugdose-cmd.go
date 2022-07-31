@@ -19,7 +19,8 @@ var (
 	drugroute = flag.String(
 		"route",
 		"none",
-		"oral, smoked, sublingual, insufflation, inhalation,\nintravenous, etc.")
+		"oral, smoked, sublingual, insufflation, inhalation,\n"+
+			"intravenous, etc.")
 
 	drugargdose = flag.Float64(
 		"dose",
@@ -34,20 +35,27 @@ var (
 	drugperc = flag.Float64(
 		"perc",
 		0,
-		"this is only used for alcohol currently, again just a number,\nno % around it")
+		"this is only used for alcohol currently,\n"+
+			"again just a number, no % around it")
 
 	setTime = flag.Bool(
 		"set-time",
 		false,
 		"set the current time as the time on the last log,\n"+
 			"default is end time,\n"+
-			"choose -start-time if you wish to set the starting time of the dosage\n"+
-			"don't forget to checkout -set-custom-time and -for-id as well")
+			"choose -start-time if you wish to set\n"+
+			"the starting time of the dosage\n"+
+			"don't forget to checkout -set-custom-time\n"+
+			"and -for-id as well\n"+
+			"this is a bool option, doesn't accept a velue")
 
 	startTime = flag.Bool(
 		"start-time",
 		false,
-		"make changes to start time of dosage, instead of default end time")
+		"make changes to start time of dosage,\n"+
+			"instead of default end time\n"+
+			"this is a bool option to be used\n"+
+			"in combination with -set-time and -set-custom-time")
 
 	setCustomTime = flag.Int64(
 		"set-custom-time",
@@ -59,7 +67,8 @@ var (
 	forUser = flag.String(
 		"user",
 		drugdose.DefaultUsername,
-		"log for a specific user, for example if you're looking\nafter a friend")
+		"log for a specific user, for example if you're looking\n"+
+			"after a friend")
 
 	getNewLogs = flag.Int(
 		"get-new-logs",
@@ -105,8 +114,8 @@ var (
 			"-get-logs -set-time -get-times\n"+
 			"-clean-new-logs -clean-old-logs")
 
-	source = flag.String(
-		"source",
+	sourcecfg = flag.String(
+		"sourcecfg",
 		drugdose.DefaultSource,
 		"the name of the API that you want to initialise for\n"+
 			"settings and sources config files")
@@ -149,12 +158,14 @@ var (
 	getLocalInfoDrugs = flag.Bool(
 		"get-local-info-drugs",
 		false,
-		"get all cached drugs names (from info tables, not logs) according to set source")
+		"get all cached drugs names (from info tables, not logs)\n"+
+			"according to set source")
 
 	dontLog = flag.Bool(
 		"dont-log",
 		false,
-		"only fetch info about drug to local DB, but don't log anything")
+		"only fetch info about drug to local DB,\n"+
+			"but don't log anything")
 
 	removeDrug = flag.String(
 		"remove-info-drug",
@@ -171,7 +182,8 @@ var (
 		false,
 		"get the times till onset, comeup, etc.\n"+
 			"according to the current time\n"+
-			"can be combined with -for-id to get times for a specific ID\n"+
+			"can be combined with -for-id to\n"+
+			"get times for a specific ID\n"+
 			"use -get-logs, to see the IDs")
 
 	getUsers = flag.Bool(
@@ -182,17 +194,20 @@ var (
 	getDBSize = flag.Bool(
 		"get-db-size",
 		false,
-		"get total size in MiB and bytes for the one database used for logging and drugs info")
+		"get total size in MiB and bytes for the\n"+
+			"one database used for logging and drugs info")
 
 	stopOnCfgInit = flag.Bool(
 		"stop-on-config-init",
 		false,
-		"stops the program once the config\nfiles have been initialised")
+		"stops the program once the config\n"+
+			"files have been initialised")
 
 	stopOnDbInit = flag.Bool(
 		"stop-on-db-init",
 		false,
-		"stops the program once the DB file has\nbeen created and initialised, if it doesn't exists already")
+		"stops the program once the DB file has been created\n"+
+			"and initialised, if it doesn't exists already")
 
 	verbose = flag.Bool(
 		"verbose",
@@ -209,16 +224,6 @@ var (
 		false,
 		"forget the last set remember config")
 
-	userDBDriver = flag.String(
-		"DBDriver",
-		"configfile",
-		"use mysql or sqlite3 as DB driver")
-
-	mysqlAccess = flag.String(
-		"MySQLAccess",
-		"none",
-		"user:password@tcp(127.0.0.1:3306)/database")
-
 	dbDriverInfo = flag.Bool(
 		"DBDriverInfo",
 		false,
@@ -229,17 +234,13 @@ var (
 		false,
 		"print the settings")
 
-	printSources = flag.Bool(
-		"print-sources",
-		false,
-		"print the sources config file")
-
 	noGetLimit = flag.Bool(
 		"no-get-limit",
 		false,
-		"there is a default limit of getting a maximum of 100 entries \n"+
-			"you can bypass it using this option, this does not \n"+
-			"affect logging new entries for that do -get-dirs \n"+
+		"there is a default limit of getting\n"+
+			"a maximum of 100 entries, you can bypass it\n"+
+			"using this option, this does not\n"+
+			"affect logging new entries for that do -get-dirs\n"+
 			"and checkout the settings file")
 
 	searchStr = flag.String(
@@ -249,26 +250,27 @@ var (
 )
 
 type rememberConfig struct {
-	User  string
-	Drug  string
-	Route string
-	Units string
-	Perc  float64
-	API   string
+	User   string
+	Drug   string
+	Route  string
+	Units  string
+	Perc   float64
+	Source string
 }
 
 // TODO: eventually make an exported function in drugdose/
 // For that, the config needs to be stored in the DB per user.
-func rememberDoseConfig(user string, drug string, route string,
-	units string, perc float64, api string, path string) bool {
+func rememberDoseConfig(source string, user string, drug string,
+	route string, units string, perc float64,
+	cfgFilePath string) bool {
 
 	newConfig := rememberConfig{
-		User:  user,
-		Drug:  drug,
-		Route: route,
-		Units: units,
-		Perc:  perc,
-		API:   api,
+		User:   user,
+		Drug:   drug,
+		Route:  route,
+		Units:  units,
+		Perc:   perc,
+		Source: source,
 	}
 
 	b, err := toml.Marshal(newConfig)
@@ -277,7 +279,7 @@ func rememberDoseConfig(user string, drug string, route string,
 		return false
 	}
 
-	path = path + "/remember.toml"
+	path := cfgFilePath + "/remember.toml"
 	fmt.Println("Writing to remember file:", path)
 	file, err := os.Create(path)
 	if err != nil {
@@ -374,7 +376,7 @@ func main() {
 
 	setcfg := drugdose.InitSettingsStruct(
 		drugdose.DefaultMaxLogsPerUser,
-		*source,
+		*sourcecfg,
 		drugdose.DefaultAutoFetch,
 		*dbDir,
 		drugdose.DefaultDBName,
@@ -383,6 +385,7 @@ func main() {
 		drugdose.DefaultMySQLAccess,
 		drugdose.DefaultVerbose,
 	)
+
 	if setcfg == nil {
 		fmt.Println("Settings struct not initialised.")
 		os.Exit(1)
@@ -395,23 +398,16 @@ func main() {
 
 	gotsetcfg := drugdose.GetSettings(*printSettings)
 
-	if *userDBDriver == "configfile" {
-		*userDBDriver = gotsetcfg.DBDriver
-		*mysqlAccess = gotsetcfg.MySQLAccess
-	}
-
-	dbDriver := *userDBDriver
-
 	gotsrc := drugdose.InitSourceStruct(gotsetcfg.UseSource, *apiURL)
 	ret = gotsetcfg.InitSourceSettings(gotsrc, *recreateSources)
 	if !ret {
 		drugdose.VerbosePrint("Sources file wasn't initialised.", *verbose)
 	}
 
-	gotsrcData := drugdose.GetSourceData(*printSources)
+	gotsrcData := drugdose.GetSourceData()
 
 	if *getDirs {
-		fmt.Println("DB Dir:", gotsetcfg.DBDir)
+		fmt.Println("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 		fmt.Println("Settings Dir:", drugdose.InitSettingsDir())
 	}
 
@@ -431,7 +427,7 @@ func main() {
 			*drugroute = remCfg.Route
 			*drugunits = remCfg.Units
 			*drugperc = remCfg.Perc
-			*source = remCfg.API
+			gotsetcfg.UseSource = remCfg.Source
 		}
 	}
 
@@ -440,30 +436,21 @@ func main() {
 		os.Exit(0)
 	}
 
-	var path string
-	if dbDriver == "sqlite3" {
-		path = gotsetcfg.CheckDBFileStruct()
-		ret = false
+	if gotsetcfg.DBDriver == "sqlite3" {
+		gotsetcfg.InitDBFileStructure()
 
-		if path != "" {
-			ret = drugdose.CheckDBTables(dbDriver, path)
-		}
-
-		if path == "" || !ret {
-			if path == "" {
-				path = drugdose.InitDBFileStructure(gotsetcfg.DBDir, drugdose.DefaultDBName)
-			}
-			ret = drugdose.InitDrugDB(gotsetcfg.UseSource, dbDriver, path)
+		ret = gotsetcfg.CheckDBTables()
+		if !ret {
+			ret = gotsetcfg.InitDrugDB()
 			if !ret {
 				fmt.Println("Database didn't get initialised, because of an error, exiting.")
 				os.Exit(1)
 			}
 		}
-	} else if dbDriver == "mysql" {
-		path = *mysqlAccess
-		ret = drugdose.CheckDBTables(dbDriver, path)
+	} else if gotsetcfg.DBDriver == "mysql" {
+		ret = gotsetcfg.CheckDBTables()
 		if !ret {
-			ret = drugdose.InitDrugDB(gotsetcfg.UseSource, dbDriver, path)
+			ret = gotsetcfg.InitDrugDB()
 			if !ret {
 				fmt.Println("Database didn't get initialised, because of an error, exiting.")
 				os.Exit(1)
@@ -475,12 +462,12 @@ func main() {
 	}
 
 	if *dbDriverInfo {
-		fmt.Println("Using database driver:", dbDriver)
-		fmt.Println("Database path:", path)
+		fmt.Println("Using database driver:", gotsetcfg.DBDriver)
+		fmt.Println("Database path:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 	}
 
 	if *cleanDB {
-		ret := drugdose.CleanDB(dbDriver, path)
+		ret := gotsetcfg.CleanDB()
 		if !ret {
 			fmt.Println("Database couldn't be cleaned, because of an error.")
 		}
@@ -492,7 +479,7 @@ func main() {
 	}
 
 	if *removeDrug != "none" {
-		ret := drugdose.RemoveSingleDrugInfoDB(gotsetcfg.UseSource, *removeDrug, dbDriver, path)
+		ret := gotsetcfg.RemoveSingleDrugInfoDB(*removeDrug)
 		if !ret {
 			fmt.Println("Failed to remove single drug from info database:", *removeDrug)
 		}
@@ -510,20 +497,20 @@ func main() {
 	}
 
 	if *cleanLogs || remAmount != 0 {
-		ret := drugdose.RemoveLogs(dbDriver, path, *forUser, remAmount, revRem, *forID, *searchStr)
+		ret := gotsetcfg.RemoveLogs(*forUser, remAmount, revRem, *forID, *searchStr)
 		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
 		}
 	}
 
 	if *getDBSize {
-		ret := drugdose.GetDBSize(dbDriver, path)
+		ret := gotsetcfg.GetDBSize()
 		retMiB := (ret / 1024) / 1024
 		fmt.Println("Total DB size returned:", retMiB, "MiB ;", ret, "bytes")
 	}
 
 	if *getUsers {
-		ret := drugdose.GetUsers(dbDriver, path)
+		ret := gotsetcfg.GetUsers()
 		if len(ret) == 0 {
 			fmt.Println("Couldn't get users because of an error.")
 		} else {
@@ -536,16 +523,16 @@ func main() {
 	}
 
 	if *getLogsCount {
-		ret := drugdose.GetLogsCount(*forUser, dbDriver, path)
+		ret := gotsetcfg.GetLogsCount(*forUser)
 		fmt.Println("Total number of logs:", ret, "; for user:", *forUser)
 	}
 
 	if *getLogs {
 		var ret []drugdose.UserLog
 		if *noGetLimit {
-			ret = drugdose.GetLogs(0, *forID, *forUser, true, dbDriver, path, false, true, *searchStr)
+			ret = gotsetcfg.GetLogs(0, *forID, *forUser, true, false, true, *searchStr)
 		} else {
-			ret = drugdose.GetLogs(100, *forID, *forUser, false, dbDriver, path, false, true, *searchStr)
+			ret = gotsetcfg.GetLogs(100, *forID, *forUser, false, false, true, *searchStr)
 			if ret != nil && len(ret) == 100 {
 				fmt.Println("By default there is a limit of retrieving " +
 					"and printing a maximum of 100 entries. " +
@@ -556,19 +543,19 @@ func main() {
 			fmt.Println("No logs could be returned.")
 		}
 	} else if *getNewLogs != 0 {
-		ret := drugdose.GetLogs(*getNewLogs, 0, *forUser, false, dbDriver, path, true, true, *searchStr)
+		ret := gotsetcfg.GetLogs(*getNewLogs, 0, *forUser, false, true, true, *searchStr)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
 	} else if *getOldLogs != 0 {
-		ret := drugdose.GetLogs(*getOldLogs, 0, *forUser, false, dbDriver, path, false, true, *searchStr)
+		ret := gotsetcfg.GetLogs(*getOldLogs, 0, *forUser, false, false, true, *searchStr)
 		if ret == nil {
 			fmt.Println("No logs could be returned.")
 		}
 	}
 
 	if *getLocalInfoDrugs {
-		locinfolist := drugdose.GetLocalInfoNames(gotsetcfg.UseSource, dbDriver, path)
+		locinfolist := gotsetcfg.GetLocalInfoNames()
 		if len(locinfolist) == 0 {
 			fmt.Println("Couldn't get database list of drugs names from info table.")
 		} else {
@@ -581,7 +568,7 @@ func main() {
 	}
 
 	if *localInfoDrug != "none" {
-		locinfo := drugdose.GetLocalInfo(*localInfoDrug, gotsetcfg.UseSource, dbDriver, path, true)
+		locinfo := gotsetcfg.GetLocalInfo(*localInfoDrug, true)
 		if len(locinfo) == 0 {
 			fmt.Println("Couldn't get database info for drug:", *localInfoDrug)
 		}
@@ -594,7 +581,7 @@ func main() {
 			timeType = false
 		}
 
-		ret := drugdose.SetTime(dbDriver, path, *forUser, *forID, *setCustomTime, timeType)
+		ret := gotsetcfg.SetTime(*forUser, *forID, *setCustomTime, timeType)
 		if !ret {
 			fmt.Println("Couldn't set time, because of an error.")
 		}
@@ -627,12 +614,12 @@ func main() {
 		}
 
 		drugdose.VerbosePrint("Using API from settings.toml: "+gotsetcfg.UseSource, *verbose)
-		drugdose.VerbosePrint("Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].APIURL, *verbose)
+		drugdose.VerbosePrint("Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_URL, *verbose)
 
-		cli := gotsetcfg.InitGraphqlClient(gotsrcData[gotsetcfg.UseSource].APIURL)
+		cli := gotsetcfg.InitGraphqlClient()
 		if cli != nil {
 			if gotsetcfg.UseSource == "psychonautwiki" {
-				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli, dbDriver, path)
+				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli)
 				if !ret {
 					fmt.Println("Didn't fetch anything.")
 				}
@@ -642,8 +629,10 @@ func main() {
 			}
 
 			if *remember {
-				ret = rememberDoseConfig(*forUser, *drugname, *drugroute,
-					*drugunits, *drugperc, *source, drugdose.InitSettingsDir())
+				ret = rememberDoseConfig(gotsetcfg.UseSource,
+					*forUser, *drugname, *drugroute,
+					*drugunits, *drugperc,
+					drugdose.InitSettingsDir())
 				if !ret {
 					fmt.Println("Couldn't remember config, because of an error.")
 				}
@@ -651,8 +640,7 @@ func main() {
 
 			if !*dontLog {
 				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
-					float32(*drugargdose), *drugunits, float32(*drugperc),
-					dbDriver, path, *source)
+					float32(*drugargdose), *drugunits, float32(*drugperc))
 				if !ret {
 					fmt.Println("Dose wasn't logged.")
 				}
@@ -664,7 +652,7 @@ func main() {
 	}
 
 	if *getTimes {
-		times := drugdose.GetTimes(dbDriver, path, *forUser, gotsetcfg.UseSource, *forID, true)
+		times := gotsetcfg.GetTimes(*forUser, *forID, true)
 		if times == nil {
 			fmt.Println("Times couldn't be retrieved because of an error.")
 		}

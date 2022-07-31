@@ -53,10 +53,10 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 	}
 }
 
-func GetTimes(driver string, path string, username string, source string, getid int64, printit bool) *TimeTill {
-	gotLogs := GetLogs(1, getid, username, false, driver, path, true, false, "")[0]
+func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill {
+	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "")[0]
 
-	gotInfo := GetLocalInfo(gotLogs.DrugName, source, driver, path, false)
+	gotInfo := cfg.GetLocalInfo(gotLogs.DrugName, false)
 
 	gotInfoNum := -1
 	for i := 0; i < len(gotInfo); i++ {
