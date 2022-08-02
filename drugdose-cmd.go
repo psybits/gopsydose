@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/psybits/gopsydose/drugdose"
@@ -38,31 +39,36 @@ var (
 		"this is only used for alcohol currently,\n"+
 			"again just a number, no % around it")
 
-	setTime = flag.Bool(
-		"set-time",
+	set = flag.Bool(
+		"set",
 		false,
-		"set the current time as the time on the last log,\n"+
-			"default is end time,\n"+
-			"choose -start-time if you wish to set\n"+
-			"the starting time of the dosage\n"+
-			"don't forget to checkout -set-custom-time\n"+
-			"and -for-id as well\n"+
-			"this is a bool option, doesn't accept a velue")
+		"make changes to an entry,\n"+
+			"if -for-id is not specified, it's to the last entry\n"+
+			"must be used in combination with:\n"+
+			"-end-time ; -start-time ; -drug\n"+
+			"in order to clarify what you want to change in the entry")
 
-	startTime = flag.Bool(
+	endTime = flag.String(
+		"end-time",
+		"none",
+		"change the end time of the last log\n"+
+			"it accepts unix timestamps as input\n"+
+			"if input is the string \"now\"\n"+
+			"it will use the current time\n\n"+
+			"must be used in combination with -set\n"+
+			"if combined with -for-id as well\n"+
+			"it will change for a specific ID")
+
+	startTime = flag.String(
 		"start-time",
-		false,
-		"make changes to start time of dosage,\n"+
-			"instead of default end time\n"+
-			"this is a bool option to be used\n"+
-			"in combination with -set-time and -set-custom-time")
-
-	setCustomTime = flag.Int64(
-		"set-custom-time",
-		0,
-		"set the time in unix seconds, for last log\n"+
-			"or if you add -for-id, for a particular log\n"+
-			"this is in case you forgot to set it in time")
+		"none",
+		"change the start time of the last log\n"+
+			"it accepts unix timestamps as input\n"+
+			"if input is the string \"now\"\n"+
+			"it will use the current time\n\n"+
+			"must be used in combination with -set\n"+
+			"if combined with -for-id as well\n"+
+			"it will change for a specific ID")
 
 	forUser = flag.String(
 		"user",
@@ -245,7 +251,7 @@ var (
 
 	searchStr = flag.String(
 		"search",
-		"",
+		"none",
 		"search all columns for specific string")
 )
 
@@ -574,45 +580,38 @@ func main() {
 		}
 	}
 
-	if *setTime || *setCustomTime != 0 {
-		var timeType bool
-		timeType = true
-		if *startTime {
-			timeType = false
-		}
+	inputDose := false
+	if *set == false {
+		if *drugname != "none" ||
+			*drugroute != "none" ||
+			*drugargdose != 0 ||
+			*drugunits != "none" {
 
-		ret := gotsetcfg.SetTime(*forUser, *forID, *setCustomTime, timeType)
-		if !ret {
-			fmt.Println("Couldn't set time, because of an error.")
+			if *drugname == "none" {
+				fmt.Println("No drug name specified, checkout: gopsydose -help")
+			}
+
+			if *drugroute == "none" {
+				fmt.Println("No route specified, checkout: gopsydose -help")
+			}
+
+			if *drugargdose == 0 {
+				fmt.Println("No dose specified, checkout: gopsydose -help")
+			}
+
+			if *drugunits == "none" {
+				fmt.Println("No units specified, checkout: gopsydose -help")
+			}
+
+			if *drugname != "none" && *drugroute != "none" &&
+				*drugargdose != 0 && *drugunits != "none" {
+
+				inputDose = true
+			}
 		}
 	}
 
-	if *drugname != "none" ||
-		*drugroute != "none" ||
-		*drugargdose != 0 ||
-		*drugunits != "none" ||
-		*dontLog {
-
-		if *drugname == "none" {
-			fmt.Println("No drug name specified, checkout: gopsydose -help")
-			os.Exit(1)
-		}
-
-		if *drugroute == "none" {
-			fmt.Println("No route specified, checkout: gopsydose -help")
-			os.Exit(1)
-		}
-
-		if *drugargdose == 0 {
-			fmt.Println("No dose specified, checkout: gopsydose -help")
-			os.Exit(1)
-		}
-
-		if *drugunits == "none" {
-			fmt.Println("No units specified, checkout: gopsydose -help")
-			os.Exit(1)
-		}
-
+	if inputDose == true {
 		drugdose.VerbosePrint("Using API from settings.toml: "+gotsetcfg.UseSource, *verbose)
 		drugdose.VerbosePrint("Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_URL, *verbose)
 
@@ -638,7 +637,7 @@ func main() {
 				}
 			}
 
-			if !*dontLog {
+			if *dontLog == false {
 				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc))
 				if !ret {
@@ -648,6 +647,35 @@ func main() {
 		} else {
 			fmt.Println("Something went wrong when initialising the client," +
 				"\nnothing was fetched or logged.")
+		}
+	}
+
+	if *set {
+		setType := ""
+		setValue := ""
+		if *startTime != "none" {
+			setType = "start-time"
+			setValue = *startTime
+		} else if *endTime != "none" {
+			setType = "end-time"
+			setValue = *endTime
+		} else if *drugname != "none" {
+			setType = "drug"
+			setValue = *drugname
+		} else if *drugargdose != 0 {
+			setType = "dose"
+			setValue = strconv.FormatFloat(*drugargdose, 'f', -1, 64)
+		} else if *drugunits != "none" {
+			setType = "units"
+			setValue = *drugunits
+		} else if *drugroute != "none" {
+			setType = "route"
+			setValue = *drugroute
+		}
+
+		ret := gotsetcfg.SetUserLogs(setType, *forID, *forUser, setValue)
+		if !ret {
+			fmt.Println("Couldn't change user log, because of an error.")
 		}
 	}
 

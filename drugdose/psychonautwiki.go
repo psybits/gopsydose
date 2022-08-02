@@ -84,10 +84,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 		return false
 	}
 
-	matchedDrugName := MatchDrugName(drugname)
-	if matchedDrugName != "" {
-		drugname = matchedDrugName
-	}
+	drugname = MatchDrugName(drugname)
 
 	ret := checkIfExistsDB("drugName",
 		"psychonautwiki",

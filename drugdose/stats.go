@@ -54,7 +54,7 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 }
 
 func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill {
-	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "")[0]
+	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none")[0]
 
 	gotInfo := cfg.GetLocalInfo(gotLogs.DrugName, false)
 
@@ -72,6 +72,12 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 	}
 
 	gotInfoProper := gotInfo[gotInfoNum]
+
+	if gotInfoProper.DoseUnits != gotLogs.DoseUnits {
+		fmt.Println("The logged dose units:", gotLogs.DoseUnits,
+			"; don't match the local info database dose units:", gotInfoProper.DoseUnits)
+		return nil
+	}
 
 	// No need to do further calculation, because if the source is correct,
 	// in theory almost no effect should be accomplished with this dosage.

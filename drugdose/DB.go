@@ -560,7 +560,7 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 	if int16(count) >= cfg.MaxLogsPerUser {
 		diff := count - int(cfg.MaxLogsPerUser)
 		if cfg.AutoRemove {
-			cfg.RemoveLogs(user, diff+1, true, 0, "")
+			cfg.RemoveLogs(user, diff+1, true, 0, "none")
 		} else {
 			fmt.Println("User:", user, "has reached the maximum entries per user:", cfg.MaxLogsPerUser,
 				"; Not logging.")
@@ -750,7 +750,7 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 		}
 
 		match := true
-		if search != "" {
+		if search != "none" {
 			var tempArr = [7]string{
 				strconv.FormatInt(tempul.StartTime, 10),
 				tempul.Username,
@@ -930,9 +930,9 @@ func (cfg Config) RemoveLogs(username string, amount int, reverse bool,
 	remID int64, search string) bool {
 
 	stmtStr := "delete from userLogs where username = ?"
-	if amount != 0 && remID == 0 || search != "" {
+	if amount != 0 && remID == 0 || search != "none" {
 		getAll := false
-		if search != "" {
+		if search != "none" {
 			getAll = true
 		}
 
@@ -957,7 +957,7 @@ func (cfg Config) RemoveLogs(username string, amount int, reverse bool,
 		concatTimes = strings.TrimSuffix(concatTimes, ",")
 
 		stmtStr = "delete from userLogs where timeOfDoseStart in (" + concatTimes + ")"
-	} else if remID != 0 && search == "" {
+	} else if remID != 0 && search == "none" {
 		xtrs := [1]string{xtrastmt("username", "and")}
 		ret := checkIfExistsDB("timeOfDoseStart", "userLogs",
 			cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
@@ -990,7 +990,7 @@ func (cfg Config) RemoveLogs(username string, amount int, reverse bool,
 	defer stmt.Close()
 	if remID != 0 {
 		_, err = stmt.Exec(remID, username)
-	} else if amount != 0 || search != "" {
+	} else if amount != 0 || search != "none" {
 		_, err = stmt.Exec()
 	} else {
 		_, err = stmt.Exec(username)
@@ -1011,80 +1011,95 @@ func (cfg Config) RemoveLogs(username string, amount int, reverse bool,
 	return true
 }
 
-func (cfg Config) SetTime(username string, id int64, customTime int64, end bool) bool {
+func (cfg Config) SetUserLogs(set string, id int64, username string, setValue string) bool {
+	if username == "none" {
+		fmt.Println("Set: Please specify an username!")
+		return false
+	}
+
+	if set == "none" {
+		fmt.Println("Set: Please specify a set type!")
+		return false
+	}
+
+	if setValue == "none" {
+		fmt.Println("Set: Please specify a value to set!")
+		return false
+	}
+
+	if setValue == "now" && set == "start-time" || setValue == "now" && set == "end-time" {
+		setValue = strconv.FormatInt(time.Now().Unix(), 10)
+	}
+
+	if set == "start-time" || set == "end-time" {
+		if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
+			fmt.Println("Set: error when checking if integer:", err)
+			return false
+		}
+	}
+
+	if set == "dose" {
+		if _, err := strconv.ParseFloat(setValue, 64); err != nil {
+			fmt.Println("Set: error when checking if float:", err)
+			return false
+		}
+	}
+
+	setName := map[string]string{
+		"start-time": "timeOfDoseStart",
+		"end-time":   "timeOfDoseEnd",
+		"drug":       "drugName",
+		"dose":       "dose",
+		"units":      "doseUnits",
+		"route":      "drugRoute",
+	}
+
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
 		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
-	endStmt := "order by timeOfDoseStart desc"
-	if id != 0 {
-		endStmt = "and timeOfDoseStart = ?"
+	if id == 0 {
+		findIdStmt := "select timeOfDoseStart from userLogs where username = ? " +
+			"order by timeOfDoseStart desc limit 1"
+		err = db.QueryRow(findIdStmt, username).Scan(&id)
+		if err != nil {
+			fmt.Println("Set: findIdStmt:", err)
+			return false
+		}
 	}
 
-	selectStr := fmt.Sprintf("select timeOfDoseStart from userLogs where username = ? "+"%s limit 1",
-		endStmt)
-
-	var gotTimeOfDose int
-
-	if id != 0 {
-		err = db.QueryRow(selectStr, username, id).Scan(&gotTimeOfDose)
-	} else {
-		err = db.QueryRow(selectStr, username).Scan(&gotTimeOfDose)
-	}
-
-	if err != nil {
-		fmt.Println("Error Select for SetTime:", err)
-		return false
-	}
+	stmtStr := fmt.Sprintf("update userLogs set %s = ? where timeOfDoseStart = ?",
+		setName[set])
 
 	tx, err := db.Begin()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Set: db.Begin():", err)
 		return false
 	}
-
-	var theTime int64
-	if customTime != 0 {
-		theTime = customTime
-	} else {
-		theTime = int64(time.Now().Unix())
-	}
-
-	var typeOfTime string
-	typeOfTime = "timeOfDoseStart"
-	if end {
-		typeOfTime = "timeOfDoseEnd"
-	}
-
-	stmtStr := fmt.Sprintf("update userLogs set %s = %d where timeOfDoseStart = ?",
-		typeOfTime, theTime)
 
 	stmt, err := tx.Prepare(stmtStr)
 	if err != nil {
-		fmt.Println("SetTime: tx.Prepare():", err)
+		fmt.Println("Set: tx.Prepare():", err)
 		return false
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(gotTimeOfDose)
+
+	_, err = stmt.Exec(setValue, id)
 
 	if err != nil {
-		fmt.Println("SetTime: stmt.Exec():", err)
+		fmt.Println("Set: stmt.Exec():", err)
 		return false
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		fmt.Println("SetTime: tx.Commit():", err)
+		fmt.Println("Set: tx.Commit():", err)
 		return false
 	}
 
-	if end {
-		fmt.Println("End time set for entry.")
-	} else {
-		fmt.Println("Start time set for entry.")
-	}
+	fmt.Println(set + ": set for entry.")
 
 	return true
 }
