@@ -424,7 +424,7 @@ func main() {
 		}
 	}
 
-	if *drugargdose != 0 && *drugname == "none" {
+	if *drugargdose != 0 && *drugname == "none" && *set == false {
 		remCfg := readRememberConfig(drugdose.InitSettingsDir())
 		if remCfg != nil {
 			fmt.Println("Remembering from config.")
