@@ -31,27 +31,25 @@ or
 Since both of these aren't consumed at once, there is a command to mark
 when the dosing has ended.
 
-`gopsydose -set-time`
+`gopsydose -set -end-time now`
 
-This will set when you finished your dose for the last log.
+This will set when you finished your dose for the last log. You can use an unix timestamp like in the example below instead of `now`.
 
-The default for `-set-time` is to set the end time of the dose always.
+To change the start time of dose use: `gopsydose -set -start-time 1655443322`
 
-To change the start time of dose use: `gopsydose -set-time -start-time`
+Changing the start time also changes the "id" of a dose. This means, if you're looking for the last dose and you've changed the start time to an earlier moment, it will get pushed back in the list.
 
-This will set the time for the last dose, to set for a specific ID use:
+You can set the times for a specific id by using the `-for-id` command like so:
 
-`gopsydose -set-time -start-time -for-id 1655144869`
+`gopsydose -set -end-time now -for-id 1655443322`
 
-To change for end time use:
-
-`gopsydose -set-time -for-id 1655144869`
+This works for both times.
 
 If you're consuming something at once like
 [LSD](https://en.wikipedia.org/wiki/Lysergic_acid_diethylamide) or
 [Psilocybin mushrooms](https://en.wikipedia.org/wiki/Psilocybin_mushroom) or
 anything else, there's no need for the
-`-set-time` command. Just continue without doing it.
+`-set -end-time` command. Just continue without doing it.
 
 To see the newest dose only: `gopsydose -get-new-logs 1`
 
@@ -78,9 +76,9 @@ Forgetting the last config: `gopsydose -forget`
 If you're running Linux or another UNIX-like OS with GNU Watch,
 you can do:
 
-`watch -n 300 gopsydose -get-times`
+`watch -n 60 gopsydose -get-times`
 
-This will run the command every 5 minutes and show you
+This will run the command every minute and show you
 the latest results.
 
 There is a limit set in a config file about how many dosages you can do,
@@ -99,6 +97,18 @@ like so, for example to delete 3 of the oldest logs:
 You can do the command like so: `gopsydose -clean-old-logs 1 -for-id 1655144869`
 
 to remove a specific ID, works with `-clean-new-logs 1` as well.
+
+After logging you can change the data of a log using `-set` it works for:
+
+`-start-time` ; `-end-time` ; `-drug` ; `-dose` ; `-units` ; `-route`
+
+So for example for changing the dose you would do:
+
+`gopsydose -set -dose 123`
+
+This will change the dose for the last log, to change for a specific log do:
+
+`gopsydose -set -dose 123 -for-id 1655144869`
 
 To see where your config files and database file are:
 
