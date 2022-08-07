@@ -54,13 +54,18 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 }
 
 func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill {
-	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none")[0]
+	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none")
+	if gotLogs == nil {
+		fmt.Println("GetTimes: No logs for getting the times.")
+		return nil
+	}
 
-	gotInfo := cfg.GetLocalInfo(gotLogs.DrugName, false)
+	useLog := gotLogs[0]
+	gotInfo := cfg.GetLocalInfo(useLog.DrugName, false)
 
 	gotInfoNum := -1
 	for i := 0; i < len(gotInfo); i++ {
-		if gotInfo[i].DrugRoute == gotLogs.DrugRoute {
+		if gotInfo[i].DrugRoute == useLog.DrugRoute {
 			gotInfoNum = i
 			break
 		}
@@ -73,17 +78,17 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 
 	gotInfoProper := gotInfo[gotInfoNum]
 
-	if gotInfoProper.DoseUnits != gotLogs.DoseUnits {
-		fmt.Println("The logged dose units:", gotLogs.DoseUnits,
+	if gotInfoProper.DoseUnits != useLog.DoseUnits {
+		fmt.Println("GetTimes: The logged dose units:", useLog.DoseUnits,
 			"; don't match the local info database dose units:", gotInfoProper.DoseUnits)
 		return nil
 	}
 
 	// No need to do further calculation, because if the source is correct,
 	// in theory almost no effect should be accomplished with this dosage.
-	if gotInfoProper.Threshold != 0 && gotLogs.Dose < gotInfoProper.Threshold {
-		fmt.Println("The dosage is below the source threshold.")
-		fmt.Println("Will not calculate times.")
+	if gotInfoProper.Threshold != 0 && useLog.Dose < gotInfoProper.Threshold {
+		fmt.Println("GetTimes: The dosage is below the source threshold.")
+		fmt.Println("GetTimes: Will not calculate times.")
 		return nil
 	}
 
@@ -122,12 +127,12 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 	// so it's best to take that middle point and go from there.
 	// This will be used until proper metabolism is taken into consideration.
 	// Eventually age, weight and gender needs to be considered.
-	useLoggedTime = gotLogs.StartTime
-	if gotLogs.EndTime != 0 && gotLogs.Dose > useDose {
-		totalSec := gotLogs.EndTime - gotLogs.StartTime
+	useLoggedTime = useLog.StartTime
+	if useLog.EndTime != 0 && useLog.Dose > useDose {
+		totalSec := useLog.EndTime - useLog.StartTime
 
 		// units per second
-		ups := gotLogs.Dose / float32(totalSec)
+		ups := useLog.Dose / float32(totalSec)
 
 		// The point where over time units have accumulated
 		// to the average low or threshold dose.
@@ -137,12 +142,12 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		// this will do for now.
 		startOfLight := useDose / ups
 
-		useLoggedTime = (int64(getAverage(startOfLight, float32(totalSec)))) + gotLogs.StartTime
-	} else if gotLogs.EndTime != 0 && gotLogs.Dose <= useDose {
+		useLoggedTime = (int64(getAverage(startOfLight, float32(totalSec)))) + useLog.StartTime
+	} else if useLog.EndTime != 0 && useLog.Dose <= useDose {
 		// Fall back to just average between start and finish, because we're below the light dose.
 		// If there's no info about threshold, this is the best thing I came up with :D
 		// If we're below the threshold, we won't even get to here.
-		useLoggedTime = int64(getAverage(float32(gotLogs.StartTime), float32(gotLogs.EndTime)))
+		useLoggedTime = int64(getAverage(float32(useLog.StartTime), float32(useLog.EndTime)))
 	}
 
 	timeTill := TimeTill{}
@@ -180,8 +185,8 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		calcTimeTill(&timeTill.TimeTillOffset, getDiffSinceLastLog, onsetAvg, comeupAvg, peakAvg, offsetAvg)
 	}
 
-	timeTill.StartDose = gotLogs.StartTime
-	timeTill.EnDose = gotLogs.EndTime
+	timeTill.StartDose = useLog.StartTime
+	timeTill.EnDose = useLog.EndTime
 
 	if printit {
 		location, err := time.LoadLocation("Local")
@@ -193,15 +198,15 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		fmt.Println("Please don't let that influence the experience too much!")
 		fmt.Println()
 		fmt.Printf("Start Dose:\t%q (%d)\n",
-			time.Unix(gotLogs.StartTime, 0).In(location),
-			gotLogs.StartTime)
+			time.Unix(useLog.StartTime, 0).In(location),
+			useLog.StartTime)
 
-		if gotLogs.EndTime != 0 {
+		if useLog.EndTime != 0 {
 			fmt.Printf("End Dose:\t%q (%d)\n",
-				time.Unix(gotLogs.EndTime, 0).In(location),
-				gotLogs.EndTime)
+				time.Unix(useLog.EndTime, 0).In(location),
+				useLog.EndTime)
 
-			if useLoggedTime != gotLogs.EndTime {
+			if useLoggedTime != useLog.EndTime {
 				fmt.Printf("Offset End:\t%q (%d)\n",
 					time.Unix(useLoggedTime, 0).In(location), useLoggedTime)
 			}
@@ -210,9 +215,9 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		fmt.Printf("Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
 		fmt.Println()
 
-		fmt.Printf("Drug:\t%q\n", gotLogs.DrugName)
-		fmt.Printf("Dose:\t%f\n", gotLogs.Dose)
-		fmt.Printf("Units:\t%q\n\n", gotLogs.DoseUnits)
+		fmt.Printf("Drug:\t%q\n", useLog.DrugName)
+		fmt.Printf("Dose:\t%f\n", useLog.Dose)
+		fmt.Printf("Units:\t%q\n\n", useLog.DoseUnits)
 
 		fmt.Printf("Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
 			int(timeTill.TotalCompleteMin*100),

@@ -135,7 +135,7 @@ func (cfg Config) InitDBFileStructure() bool {
 
 	err := os.Mkdir(dirOnly, 0700)
 	if err != nil {
-		fmt.Println("Error creating directory for DB:", err)
+		fmt.Println("InitDBFileStructure: Error creating directory for DB:", err)
 		exitProgram()
 	}
 
@@ -151,7 +151,7 @@ func (cfg Config) InitDBFileStructure() bool {
 		errorCantCloseDB(dbFileLocat, err)
 	}
 
-	fmt.Println("Initialised the DB file structure.")
+	fmt.Println("InitDBFileStructure: Initialised the DB file structure.")
 
 	return true
 }
@@ -183,7 +183,7 @@ func (cfg Config) RemoveSingleDrugInfoDB(drug string) bool {
 		nil,
 		drug)
 	if !ret {
-		fmt.Println("No such drug in info database:", drug)
+		fmt.Println("RemoveSingleDrugInfoDB: No such drug in info database:", drug)
 		return false
 	}
 
@@ -322,7 +322,7 @@ func (cfg Config) AddToInfoDB(subs []DrugInfo) bool {
 
 	tx, err := db.Begin()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("AddToInfoDB:", err)
 		return false
 	}
 
@@ -456,9 +456,23 @@ func (cfg Config) InitDrugDB() bool {
 
 	fmt.Println("Created: 'userLogs' table in database.")
 
+	initDBsql = "create table userSettings (username varchar(255) not null," +
+		"useIDForRemember bigint not null," +
+		"primary key (username));"
+
+	_, err = db.Exec(initDBsql)
+	if err != nil {
+		fmt.Println(initDBsql+":", err)
+		return false
+	}
+
+	fmt.Println("Created: 'userSettings' table in database.")
+
 	return true
 }
 
+// TODO: This needs to be a config file!
+// There's no reason to hard code every possible mapping.
 func MatchDrugName(drugname string) string {
 	matches := map[string]string{
 		"weed": "Cannabis",
@@ -471,6 +485,8 @@ func MatchDrugName(drugname string) string {
 	return matches[drugname]
 }
 
+// TODO: This needs to be a config file!
+// There's no reason to hard code every possible mapping.
 func MatchDrugRoute(drugroute string) string {
 	matches := map[string]string{
 		"drink":    "oral",
@@ -484,6 +500,8 @@ func MatchDrugRoute(drugroute string) string {
 	return matches[drugroute]
 }
 
+// TODO: This needs to be a config file!
+// There's no reason to hard code every possible mapping.
 func MatchUnits(units string) string {
 	matches := map[string]string{
 		"µg": "ug",
@@ -505,10 +523,11 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 	if perc != 0 {
 		var newUnits string
 
+		// TODO: These need to be a config file!
+		// There's no reason to hard code every possible mapping.
 		if strings.ToLower(drug) == "alcohol" && units == "ml" {
 			newUnits = "mL EtOH"
 		}
-
 		if strings.ToLower(drug) == "cannabis" && units == "mg" {
 			newUnits = "mg (THC)"
 		}
@@ -517,6 +536,8 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 		av.UserSet.Milliliters = float32(dose)
 		av.UserSet.Percent = float32(perc)
 		av.CalcGotUnits()
+		// TODO: Use the appropriate units according to a config file.
+		// The user must be able to set per unit name, how this should be multiplied.
 		dose = av.GotUnits() * 10
 
 		if len(newUnits) == 0 {
@@ -538,7 +559,7 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 		cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
 		xtrs[:], drug, route, units)
 	if !ret {
-		fmt.Println("Combo of Drug, Route and Units doesn't exist in local DB:",
+		fmt.Println("Combo of Drug, Route and Units doesn't exist in local information database:",
 			drug+", "+route+", "+units)
 		return false
 	}
@@ -728,7 +749,7 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 		rows, err = db.Query("select * from userLogs where username = ? and timeOfDoseStart = ?", user, id)
 	}
 	if err != nil {
-		fmt.Println("GetLogs() Query:", err)
+		fmt.Println("GetLogs: Query:", err)
 		return nil
 	}
 	defer rows.Close()
@@ -739,18 +760,18 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 		err = rows.Scan(&tempul.StartTime, &tempul.Username, &tempul.EndTime, &tempul.DrugName,
 			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute)
 		if err != nil {
-			fmt.Println("GetLogs() Scan:", err)
+			fmt.Println("GetLogs: Scan:", err)
 			return nil
 		}
 
 		location, err := time.LoadLocation("Local")
 		if err != nil {
-			fmt.Println("GetLogs() LoadLocation:", err)
+			fmt.Println("GetLogs: LoadLocation:", err)
 			return nil
 		}
 
 		match := true
-		if search != "none" {
+		if search != "none" && search != "" {
 			var tempArr = [7]string{
 				strconv.FormatInt(tempul.StartTime, 10),
 				tempul.Username,
@@ -789,7 +810,7 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 	}
 	err = rows.Err()
 	if err != nil {
-		fmt.Println("GetLogs() rows.Err():", err)
+		fmt.Println("GetLogs: rows.Err():", err)
 		return nil
 	}
 	if len(userlogs) == 0 {
@@ -807,7 +828,7 @@ func (cfg Config) GetLocalInfoNames() []string {
 
 	rows, err := db.Query("select distinct drugName from " + cfg.UseSource)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("GetLocalInfoNames:", err)
 		return nil
 	}
 	defer rows.Close()
@@ -817,7 +838,7 @@ func (cfg Config) GetLocalInfoNames() []string {
 		var holdName string
 		err := rows.Scan(&holdName)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("GetLocalInfoNames:", err)
 			return nil
 		}
 
@@ -825,7 +846,7 @@ func (cfg Config) GetLocalInfoNames() []string {
 	}
 	err = rows.Err()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("GetLocalInfoNames:", err)
 		return nil
 	}
 
@@ -842,7 +863,7 @@ func (cfg Config) GetLocalInfo(drug string, printit bool) []DrugInfo {
 		nil,
 		drug)
 	if !ret {
-		fmt.Println("No such drug in info database:", drug)
+		fmt.Println("GetLocalInfo: No such drug in info database:", drug)
 		return nil
 	}
 
@@ -854,7 +875,7 @@ func (cfg Config) GetLocalInfo(drug string, printit bool) []DrugInfo {
 
 	rows, err := db.Query("select * from "+cfg.UseSource+" where drugName = ?", drug)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("GetLocalInfo:", err)
 		return nil
 	}
 	defer rows.Close()
@@ -872,12 +893,12 @@ func (cfg Config) GetLocalInfo(drug string, printit bool) []DrugInfo {
 			&tempdrinfo.OffsetUnits, &tempdrinfo.TotalDurMin, &tempdrinfo.TotalDurMax,
 			&tempdrinfo.TotalDurUnits, &tempdrinfo.TimeOfFetch)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("GetLocalInfo:", err)
 			return nil
 		}
 		location, err := time.LoadLocation("Local")
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("GetLocalInfo:", err)
 		}
 
 		if printit {
@@ -919,7 +940,7 @@ func (cfg Config) GetLocalInfo(drug string, printit bool) []DrugInfo {
 	}
 	err = rows.Err()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("GetLocalInfo:", err)
 		return nil
 	}
 
@@ -1013,17 +1034,17 @@ func (cfg Config) RemoveLogs(username string, amount int, reverse bool,
 
 func (cfg Config) SetUserLogs(set string, id int64, username string, setValue string) bool {
 	if username == "none" {
-		fmt.Println("Set: Please specify an username!")
+		fmt.Println("SetUserLogs: Please specify an username!")
 		return false
 	}
 
 	if set == "none" {
-		fmt.Println("Set: Please specify a set type!")
+		fmt.Println("SetUserLogs: Please specify a set type!")
 		return false
 	}
 
 	if setValue == "none" {
-		fmt.Println("Set: Please specify a value to set!")
+		fmt.Println("SetUserLogs: Please specify a value to set!")
 		return false
 	}
 
@@ -1033,14 +1054,14 @@ func (cfg Config) SetUserLogs(set string, id int64, username string, setValue st
 
 	if set == "start-time" || set == "end-time" {
 		if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
-			fmt.Println("Set: error when checking if integer:", err)
+			fmt.Println("SetUserLogs: error when checking if integer:", err)
 			return false
 		}
 	}
 
 	if set == "dose" {
 		if _, err := strconv.ParseFloat(setValue, 64); err != nil {
-			fmt.Println("Set: error when checking if float:", err)
+			fmt.Println("SetUserLogs: error when checking if float:", err)
 			return false
 		}
 	}
@@ -1054,34 +1075,34 @@ func (cfg Config) SetUserLogs(set string, id int64, username string, setValue st
 		"route":      "drugRoute",
 	}
 
+	if id == 0 {
+		gotLogs := cfg.GetLogs(1, 0, username, false, true, false, "")
+		if gotLogs == nil {
+			fmt.Println("SetUserLogs: Couldn't get last log to get the ID.")
+			return false
+		}
+
+		id = gotLogs[0].StartTime
+	}
+
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
 		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 	defer db.Close()
 
-	if id == 0 {
-		findIdStmt := "select timeOfDoseStart from userLogs where username = ? " +
-			"order by timeOfDoseStart desc limit 1"
-		err = db.QueryRow(findIdStmt, username).Scan(&id)
-		if err != nil {
-			fmt.Println("Set: findIdStmt:", err)
-			return false
-		}
-	}
-
 	stmtStr := fmt.Sprintf("update userLogs set %s = ? where timeOfDoseStart = ?",
 		setName[set])
 
 	tx, err := db.Begin()
 	if err != nil {
-		fmt.Println("Set: db.Begin():", err)
+		fmt.Println("SetUserLogs: db.Begin():", err)
 		return false
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
 	if err != nil {
-		fmt.Println("Set: tx.Prepare():", err)
+		fmt.Println("SetUserLogs: tx.Prepare():", err)
 		return false
 	}
 	defer stmt.Close()
@@ -1089,17 +1110,194 @@ func (cfg Config) SetUserLogs(set string, id int64, username string, setValue st
 	_, err = stmt.Exec(setValue, id)
 
 	if err != nil {
-		fmt.Println("Set: stmt.Exec():", err)
+		fmt.Println("SetUserLogs: stmt.Exec():", err)
 		return false
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		fmt.Println("Set: tx.Commit():", err)
+		fmt.Println("SetUserLogs: tx.Commit():", err)
 		return false
 	}
 
-	fmt.Println(set + ": set for entry.")
+	fmt.Println("entry:", id, "; changed:", set, "; to value:", setValue)
+
+	return true
+}
+
+func (cfg Config) InitUserSettings(username string) bool {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
+	if err != nil {
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
+	}
+	defer db.Close()
+
+	tx, err := db.Begin()
+	if err != nil {
+		fmt.Println("InitUserSettings:", err)
+		return false
+	}
+
+	stmt, err := tx.Prepare("insert into userSettings" +
+		" (username, useIDForRemember) " +
+		"values(?, ?)")
+	if err != nil {
+		fmt.Println("InitUserSettings:", err)
+		return false
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(username, 0)
+	if err != nil {
+		fmt.Println("InitUserSettings:", err)
+		return false
+	}
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("InitUserSettings:", err)
+		return false
+	}
+
+	fmt.Println("User settings initialized successfully!")
+
+	return true
+}
+
+func (cfg Config) SetUserSettings(set string, username string, setValue string) bool {
+	ret := checkIfExistsDB("username", "userSettings",
+		cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
+		nil, username)
+	if ret == false {
+		cfg.InitUserSettings(username)
+	}
+
+	if username == "none" {
+		fmt.Println("SetUserSettings: Please specify an username!")
+		return false
+	}
+
+	if set == "none" {
+		fmt.Println("SetUserSettings: Please specify a set type!")
+		return false
+	}
+
+	if setValue == "none" {
+		fmt.Println("SetUserSettings: Please specify a value to set!")
+		return false
+	}
+
+	if set == "useIDForRemember" {
+		if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
+			fmt.Println("SetUserSettings: error when checking if integer:", setValue, ":", err)
+			return false
+		}
+
+		if setValue == "0" || setValue == "none" {
+			gotLogs := cfg.GetLogs(1, 0, username, false, true, false, "none")
+			if gotLogs == nil {
+				fmt.Println("SetUserSettings: No logs to remember.")
+				return false
+			}
+
+			setValue = strconv.FormatInt(gotLogs[0].StartTime, 10)
+		}
+	}
+
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
+	if err != nil {
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
+	}
+	defer db.Close()
+
+	stmtStr := fmt.Sprintf("update userSettings set %s = ? where username = ?", set)
+
+	tx, err := db.Begin()
+	if err != nil {
+		fmt.Println("SetUserSettings: db.Begin():", err)
+		return false
+	}
+
+	stmt, err := tx.Prepare(stmtStr)
+	if err != nil {
+		fmt.Println("SetUserSettings: tx.Prepare():", err)
+		return false
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(setValue, username)
+
+	if err != nil {
+		fmt.Println("SetUserSettings: stmt.Exec():", err)
+		return false
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("SetUserSettings: tx.Commit():", err)
+		return false
+	}
+
+	fmt.Println(set+": setting changed to:", setValue)
+
+	return true
+}
+
+func (cfg Config) GetUserSettings(set string, username string) string {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
+	if err != nil {
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
+	}
+	defer db.Close()
+
+	fmtStmt := fmt.Sprintf("select %s from userSettings where username = ?", set)
+	stmt, err := db.Prepare(fmtStmt)
+	if err != nil {
+		fmt.Println("GetUserSettings: SQL error in prepare:", err)
+		return ""
+	}
+	defer stmt.Close()
+
+	var got string
+	err = stmt.QueryRow(username).Scan(&got)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ""
+		}
+		fmt.Println("GetUserSettings: received weird error:", err)
+		return ""
+	}
+
+	return got
+}
+
+func (cfg Config) RememberConfig(username string) *UserLog {
+	got := cfg.GetUserSettings("useIDForRemember", username)
+	if got == "" {
+		fmt.Println("RememberConfig: couldn't get setting value: useIDForRemember")
+		return nil
+	}
+
+	gotInt, err := strconv.ParseInt(got, 10, 64)
+	if err != nil {
+		fmt.Println("RememberConfig: couldn't convert:", got, "; to integer:", err)
+		return nil
+	}
+
+	gotLogs := cfg.GetLogs(1, gotInt, username, false, false, false, "")
+	if gotLogs == nil {
+		fmt.Println("RememberConfig: no logs returned for:", gotInt)
+		return nil
+	}
+
+	return &gotLogs[0]
+}
+
+func (cfg Config) ForgetConfig(username string) bool {
+	ret := cfg.SetUserSettings("useIDForRemember", username, "9999999999")
+	if ret == false {
+		fmt.Println("ForgetConfig: couldn't set setting: useIDForRemember")
+		return false
+	}
 
 	return true
 }

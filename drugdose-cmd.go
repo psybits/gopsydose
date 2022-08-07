@@ -1,13 +1,11 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/psybits/gopsydose/drugdose"
 )
 
@@ -39,10 +37,10 @@ var (
 		"this is only used for alcohol currently,\n"+
 			"again just a number, no % around it")
 
-	set = flag.Bool(
-		"set",
+	changeLog = flag.Bool(
+		"change-log",
 		false,
-		"make changes to an entry,\n"+
+		"make changes to an entry/log/dosage,\n"+
 			"if -for-id is not specified, it's to the last entry\n"+
 			"must be used in combination with:\n"+
 			"-end-time ; -start-time ; -drug\n"+
@@ -55,7 +53,7 @@ var (
 			"it accepts unix timestamps as input\n"+
 			"if input is the string \"now\"\n"+
 			"it will use the current time\n\n"+
-			"must be used in combination with -set\n"+
+			"must be used in combination with -change-log\n"+
 			"if combined with -for-id as well\n"+
 			"it will change for a specific ID")
 
@@ -66,7 +64,7 @@ var (
 			"it accepts unix timestamps as input\n"+
 			"if input is the string \"now\"\n"+
 			"it will use the current time\n\n"+
-			"must be used in combination with -set\n"+
+			"must be used in combination with -change-log\n"+
 			"if combined with -for-id as well\n"+
 			"it will change for a specific ID")
 
@@ -115,10 +113,7 @@ var (
 	forID = flag.Int64(
 		"for-id",
 		0,
-		"perform and action for a particular id\n"+
-			"current works for:\n"+
-			"-get-logs -set-time -get-times\n"+
-			"-clean-new-logs -clean-old-logs")
+		"perform and action for a particular id")
 
 	sourcecfg = flag.String(
 		"sourcecfg",
@@ -255,113 +250,6 @@ var (
 		"search all columns for specific string")
 )
 
-type rememberConfig struct {
-	User   string
-	Drug   string
-	Route  string
-	Units  string
-	Perc   float64
-	Source string
-}
-
-// TODO: eventually make an exported function in drugdose/
-// For that, the config needs to be stored in the DB per user.
-func rememberDoseConfig(source string, user string, drug string,
-	route string, units string, perc float64,
-	cfgFilePath string) bool {
-
-	newConfig := rememberConfig{
-		User:   user,
-		Drug:   drug,
-		Route:  route,
-		Units:  units,
-		Perc:   perc,
-		Source: source,
-	}
-
-	b, err := toml.Marshal(newConfig)
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	path := cfgFilePath + "/remember.toml"
-	fmt.Println("Writing to remember file:", path)
-	file, err := os.Create(path)
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	err = file.Chmod(0600)
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	_, err = file.WriteString(string(b))
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	err = file.Close()
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	return true
-}
-
-// TODO: eventually make an exported function in drugdose/
-func readRememberConfig(path string) *rememberConfig {
-	path = path + "/remember.toml"
-	_, err := os.Stat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-
-	file, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-
-	if len(file) == 0 {
-		fmt.Println("Config is empty.")
-		return nil
-	}
-
-	cfg := &rememberConfig{}
-
-	err = toml.Unmarshal(file, cfg)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-
-	return cfg
-}
-
-// TODO: eventually make an exported function in drugdose/
-func forgetConfig(path string) bool {
-	gotCfg := readRememberConfig(path)
-	if gotCfg == nil {
-		fmt.Println("Problem with reading remember config.")
-		return false
-	}
-
-	path = path + "/remember.toml"
-
-	os.Remove(path)
-
-	fmt.Println("Removed file:", path)
-	fmt.Println("Forgot config.")
-
-	return true
-}
-
 func main() {
 	flag.Usage = func() {
 		flag.PrintDefaults()
@@ -418,22 +306,25 @@ func main() {
 	}
 
 	if *forget {
-		ret := forgetConfig(drugdose.InitSettingsDir())
+		ret := gotsetcfg.ForgetConfig(*forUser)
 		if !ret {
 			fmt.Println("Couldn't forget remember config, because of an error.")
 		}
 	}
 
-	if *drugargdose != 0 && *drugname == "none" && *set == false {
-		remCfg := readRememberConfig(drugdose.InitSettingsDir())
-		if remCfg != nil {
-			fmt.Println("Remembering from config.")
-			*forUser = remCfg.User
-			*drugname = remCfg.Drug
-			*drugroute = remCfg.Route
-			*drugunits = remCfg.Units
-			*drugperc = remCfg.Perc
-			gotsetcfg.UseSource = remCfg.Source
+	remembering := false
+	if *drugargdose != 0 && *drugname == "none" && *changeLog == false {
+		got := gotsetcfg.GetUserSettings("useIDForRemember", *forUser)
+		if got != "" && got != "9999999999" {
+			remCfg := gotsetcfg.RememberConfig(*forUser)
+			if remCfg != nil {
+				fmt.Println("Remembering from config using ID:", got)
+				*forUser = remCfg.Username
+				*drugname = remCfg.DrugName
+				*drugroute = remCfg.DrugRoute
+				*drugunits = remCfg.DoseUnits
+				remembering = true
+			}
 		}
 	}
 
@@ -581,7 +472,7 @@ func main() {
 	}
 
 	inputDose := false
-	if *set == false {
+	if *changeLog == false && remembering == false {
 		if *drugname != "none" ||
 			*drugroute != "none" ||
 			*drugargdose != 0 ||
@@ -611,6 +502,10 @@ func main() {
 		}
 	}
 
+	if remembering == true {
+		inputDose = true
+	}
+
 	if inputDose == true {
 		drugdose.VerbosePrint("Using API from settings.toml: "+gotsetcfg.UseSource, *verbose)
 		drugdose.VerbosePrint("Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_URL, *verbose)
@@ -627,16 +522,6 @@ func main() {
 				os.Exit(1)
 			}
 
-			if *remember {
-				ret = rememberDoseConfig(gotsetcfg.UseSource,
-					*forUser, *drugname, *drugroute,
-					*drugunits, *drugperc,
-					drugdose.InitSettingsDir())
-				if !ret {
-					fmt.Println("Couldn't remember config, because of an error.")
-				}
-			}
-
 			if *dontLog == false {
 				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc))
@@ -650,7 +535,17 @@ func main() {
 		}
 	}
 
-	if *set {
+	if *dontLog == false {
+		if *remember {
+			userSettingsForID := strconv.FormatInt(*forID, 10)
+			ret = gotsetcfg.SetUserSettings("useIDForRemember", *forUser, userSettingsForID)
+			if !ret {
+				fmt.Println("Couldn't remember config, because of an error.")
+			}
+		}
+	}
+
+	if *changeLog {
 		setType := ""
 		setValue := ""
 		if *startTime != "none" {
