@@ -1,12 +1,12 @@
 module github.com/psybits/gopsydose
 
-go 1.17
+go 1.19
 
 require (
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/hasura/go-graphql-client v0.7.2
-	github.com/mattn/go-sqlite3 v1.14.14
-	github.com/pelletier/go-toml/v2 v2.0.2
+	github.com/hasura/go-graphql-client v0.8.0
+	github.com/mattn/go-sqlite3 v1.14.15
+	github.com/pelletier/go-toml/v2 v2.0.5
 	github.com/powerjungle/goalconvert v1.0.1
 )
 

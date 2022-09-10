@@ -46,9 +46,6 @@ builds:
       - -w
 archives:
   -
-    replacements:
-      amd64: 64bit
-      386: 32bit
     format_overrides:
       - goos: windows
         format: zip
