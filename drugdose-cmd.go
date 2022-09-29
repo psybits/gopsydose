@@ -253,17 +253,18 @@ var (
 func main() {
 	flag.Usage = func() {
 		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr, "\nExample\ngopsydose -drug alcohol -route oral -dose 355 -units ml -perc 4.5")
-		fmt.Fprintln(os.Stderr, "If not taken at once, when finished dosing: gopsydose -set-end-time")
-		fmt.Fprintln(os.Stderr, "\n-set-end-time means, for example when finished"+
-			"\ndrinking a glass of beer.")
-		fmt.Fprintln(os.Stderr, "\nExample 2: gopsydose -drug lsd -route sublingual -dose 100 -units ug")
-		fmt.Fprintln(os.Stderr, "The second example shouldn't require the -set-end-time command,"+
-			"\nsince it's usually taken all at once.")
+		fmt.Fprintln(os.Stderr, "\nCheckout the list above for more info!")
+		fmt.Fprintln(os.Stderr, "\nAlso checkout the example.alias file in the git repo\nfor an easier to use environment!")
+		fmt.Fprintln(os.Stderr, "\nTo delete the 3 oldest dosages: gopsydose -clean-old-logs 3")
 		fmt.Fprintln(os.Stderr, "\nTo see last dose: gopsydose -get-last 1")
 		fmt.Fprintln(os.Stderr, "To see last dose progression: gopsydose -get-times")
-		fmt.Fprintln(os.Stderr, "\nTo delete the 3 oldest dosages: gopsydose -clean-old-logs 3")
-		fmt.Fprintln(os.Stderr, "\nCheckout the list above for more info!")
+		fmt.Fprintln(os.Stderr, "\nExample:\ngopsydose -drug alcohol -route oral -dose 355 -units ml -perc 4.5")
+		fmt.Fprintln(os.Stderr, "If not taken at once, when finished dosing: gopsydose -set-end-time")
+		fmt.Fprintln(os.Stderr, "\nThe flag -set-end-time means, for example when finished"+
+			"\ndrinking a glass of beer.")
+		fmt.Fprintln(os.Stderr, "\nExample 2:\ngopsydose -drug lsd -route sublingual -dose 100 -units ug")
+		fmt.Fprintln(os.Stderr, "\nThe second example shouldn't require the -set-end-time command,"+
+			"\nsince it's usually taken all at once.")
 	}
 
 	flag.Parse()

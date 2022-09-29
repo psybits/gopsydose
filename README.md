@@ -18,6 +18,25 @@ If it prevents a person from consuming more, then it's done it's job.
 
 Showing logs to others as a bragging point makes you look like a fool.
 
+## Source Information
+
+You can find any info present in the "source" that's configured.
+
+Currently the default source is [psychonautwiki](https://psychonautwiki.org).
+This means the info present there, that's available through their API, will be
+downloaded to your machine and stored in a local database. Later when you log
+new dosages or want information about a substance, it will use the local
+database, not the API, if it's already fetched the information.
+
+You don't need to configure anything for the database or API by default.
+
+Keep in mind, if you store data locally for too long, it might
+be obsolete. You shouldn't clear your local db too quickly as well,
+because this way you put more strain on the API servers for no reason and
+you might lose data, which you might need in case you don't have an Internet
+connection. It's also a lot slower to get data using the API compared to
+the local database.
+
 ## Examples
 
 If you want to log a dose:
@@ -118,6 +137,13 @@ Checkout [this](#configs-explained) section for more info on configs!
 
 If you're paranoid, to clean the whole database: `gopsydose -clean-db`
 
+Also don't forget, if you're using sqlite, which is the default, you can always
+do: `gopsydose -get-dirs`
+
+Then you can delete the database (db) file itself manually.
+
+## Security/Privacy
+
 The issue is currently no files are encrypted and can't be 
 until a proper implementation is done, also since
 by default we're fetching drug information using the psychonautwiki API,
@@ -128,11 +154,23 @@ can still be used properly and the API servers can relax.
 
 For any more info, again: `gopsydose -help`
 
+## Alias
+
+You can use the `example.alias` file to setup an easier to use environment
+for your system. The difference between this and the `-remember` command is
+that, shell aliases are system wide and from the operating system. The
+`-remember` command stores the "command" in the database, allowing even remote
+use of those settings, which is OS-independent. Aliases are a lot more flexible
+currently, so use them when you need them!
+
 ## Current status
 
 The project is in a very early phase, making the very first steps
 at being something remotely usable. If you feel like it, give it a try
 and please if you have any ideas, concerns, etc. write in the Issues.
+
+If you don't want to build from source, you can checkout the "Releases"
+section. There should be a "snapshot" tag with archives attached to it.
 
 Pull requests are very welcome as well and there currently aren't any
 guidelines, just try sticking to the coding style and use `gofmt`!

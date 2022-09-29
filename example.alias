@@ -1,0 +1,35 @@
+# The reason for this file's existence, is that there needs to be an easier
+# way to use the tool system wide if someone wishes. It also eases use on
+# Android using Termux.
+#
+# Add anything you need to this file, that's missing for your use!
+# There's no need to make it cover every single use case.
+# This is only an example.
+#
+# You need to define PATH_TO_GPD in ~/.bashrc or ~/.config/fish/config.fish
+# or in this file for bash as:
+# PATH_TO_GPD="/full/path/to/gpdBinary"
+#
+# Keep in mind if you define PATH_TO_GPD in this file, the fish shell won't 
+# work with these aliases properly if you source this file.
+# For fish you need to define it like so in the config:
+# set --local PATH_TO_GPD "/full/path/to/gpdBinary"
+#
+# You might have an ~/.alias file already and ~/.bashrc might be sourcing it,
+# but if not, it can be done like so in ~/.bashrc:
+# source ~/.alias
+# It's the same thing for ~/.config/fish/config.fish
+# Just make sure to add the line if the file exists at ~/.alias and it's not
+# already sourced somewhere. You can test by adding an alias without sourcing
+# it, opening a new shell and checking if the alias works.
+#
+# !!! Don't copy this comment over to ~/.alias
+
+alias gpdLogs="$PATH_TO_GPD -get-logs"
+
+alias gpdCannabisInfo="$PATH_TO_GPD -local-info-drug cannabis"
+alias gpdCannabisDose="$PATH_TO_GPD -drug cannabis -units 'mg (THC)' -route smoked -dose"
+
+alias gpdAlcoholInfo="$PATH_TO_GPD -local-info-drug alcohol"
+alias gpdAlcoholDose="$PATH_TO_GPD -drug alcohol -units 'mL EtOH' -route oral -dose"
+
