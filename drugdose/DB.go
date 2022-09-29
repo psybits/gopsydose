@@ -515,7 +515,7 @@ func MatchUnits(units string) string {
 }
 
 func (cfg Config) AddToDoseDB(user string, drug string, route string,
-	dose float32, units string, perc float32) bool {
+	dose float32, units string, perc float32, printit bool) bool {
 
 	drug = MatchDrugName(drug)
 	route = MatchDrugRoute(route)
@@ -525,10 +525,13 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 
 		// TODO: These need to be a config file!
 		// There's no reason to hard code every possible mapping.
-		if strings.ToLower(drug) == "alcohol" && units == "ml" {
+		if strings.ToLower(drug) == "alcohol" {
+			units = "ml"
 			newUnits = "mL EtOH"
 		}
-		if strings.ToLower(drug) == "cannabis" && units == "mg" {
+
+		if strings.ToLower(drug) == "cannabis" {
+			units = "mg"
 			newUnits = "mg (THC)"
 		}
 
@@ -536,6 +539,7 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 		av.UserSet.Milliliters = float32(dose)
 		av.UserSet.Percent = float32(perc)
 		av.CalcGotUnits()
+
 		// TODO: Use the appropriate units according to a config file.
 		// The user must be able to set per unit name, how this should be multiplied.
 		dose = av.GotUnits() * 10
@@ -544,12 +548,8 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 			newUnits = units
 		}
 
-		fmt.Println("Calculated for",
-			drug, ":",
-			perc, "%",
-			"of",
-			av.UserSet.Milliliters, units,
-			"to be:", dose, newUnits)
+		fmt.Printf("Calculated for %q: %g%% of %g %q to be: %g %q\n",
+			drug, perc, av.UserSet.Milliliters, units, dose, newUnits)
 
 		units = newUnits
 	}
@@ -616,7 +616,11 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 		return false
 	}
 
-	fmt.Println("Dose logged successfully!")
+	if printit {
+		fmt.Printf("Logged: drug: %q ; dose: %g ; units: %q ; route: %q ; username: %q\n",
+			drug, dose, units, route, user)
+		fmt.Println("Dose logged successfully!")
+	}
 
 	return true
 }
@@ -799,7 +803,8 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 						time.Unix(int64(tempul.EndTime), 0).In(location), tempul.EndTime)
 				}
 				fmt.Printf("Drug:\t%q\n", tempul.DrugName)
-				fmt.Printf("Dose:\t%f %q\n", tempul.Dose, tempul.DoseUnits)
+				fmt.Printf("Dose:\t%g\n", tempul.Dose)
+				fmt.Printf("Units:\t%q\n", tempul.DoseUnits)
 				fmt.Printf("Route:\t%q\n", tempul.DrugRoute)
 				fmt.Printf("User:\t%q\n", tempul.Username)
 				fmt.Println("=========================")

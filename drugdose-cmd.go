@@ -513,7 +513,7 @@ func main() {
 		cli := gotsetcfg.InitGraphqlClient()
 		if cli != nil {
 			if gotsetcfg.UseSource == "psychonautwiki" {
-				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli)
+				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli, true)
 				if !ret {
 					fmt.Println("Didn't fetch anything.")
 				}
@@ -524,7 +524,7 @@ func main() {
 
 			if *dontLog == false {
 				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
-					float32(*drugargdose), *drugunits, float32(*drugperc))
+					float32(*drugargdose), *drugunits, float32(*drugperc), true)
 				if !ret {
 					fmt.Println("Dose wasn't logged.")
 				}

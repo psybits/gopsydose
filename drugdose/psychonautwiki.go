@@ -78,7 +78,7 @@ func (cfg *Config) InitGraphqlClient() *graphql.Client {
 	return client
 }
 
-func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graphql.Client) bool {
+func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graphql.Client, printit bool) bool {
 	if !cfg.AutoFetch {
 		fmt.Println("Automatic fetching is disabled, returning.")
 		return false
@@ -93,7 +93,9 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 		nil,
 		drugname)
 	if ret {
-		fmt.Println("Drug already in DB, returning.")
+		if printit {
+			fmt.Println("Drug already in DB, returning.")
+		}
 		return false
 	}
 
