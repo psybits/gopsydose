@@ -7,58 +7,58 @@ import (
 	"github.com/hasura/go-graphql-client"
 )
 
-type Substances []struct {
-	Name graphql.String
+type PsychonautwikiSubstance []struct {
+	Name string
 
 	Roas []struct {
-		Name graphql.String
+		Name string
 
 		Dose struct {
-			Units     graphql.String
-			Threshold graphql.Float
+			Units     string
+			Threshold float64
 			Light     struct {
-				Min graphql.Float
-				Max graphql.Float
+				Min float64
+				Max float64
 			}
 			Common struct {
-				Min graphql.Float
-				Max graphql.Float
+				Min float64
+				Max float64
 			}
 			Strong struct {
-				Min graphql.Float
-				Max graphql.Float
+				Min float64
+				Max float64
 			}
 		}
 
 		Duration struct {
 			Onset struct {
-				Min   graphql.Float
-				Max   graphql.Float
-				Units graphql.String
+				Min   float64
+				Max   float64
+				Units string
 			}
 
 			Comeup struct {
-				Min   graphql.Float
-				Max   graphql.Float
-				Units graphql.String
+				Min   float64
+				Max   float64
+				Units string
 			}
 
 			Peak struct {
-				Min   graphql.Float
-				Max   graphql.Float
-				Units graphql.String
+				Min   float64
+				Max   float64
+				Units string
 			}
 
 			Offset struct {
-				Min   graphql.Float
-				Max   graphql.Float
-				Units graphql.String
+				Min   float64
+				Max   float64
+				Units string
 			}
 
 			Total struct {
-				Min   graphql.Float
-				Max   graphql.Float
-				Units graphql.String
+				Min   float64
+				Max   float64
+				Units string
 			}
 		}
 	}
@@ -102,11 +102,11 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 	fmt.Println("Fetching from source:", cfg.UseSource)
 
 	var q struct {
-		Substances `graphql:"substances(query: $dn)"`
+		PsychonautwikiSubstance `graphql:"substances(query: $dn)"`
 	}
 
 	variables := map[string]interface{}{
-		"dn": graphql.String(drugname),
+		"dn": drugname,
 	}
 
 	err := client.Query(context.Background(), &q, variables)
@@ -117,8 +117,8 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 
 	InfoDrug := []DrugInfo{}
 
-	if len(q.Substances) != 0 {
-		subs := q.Substances
+	if len(q.PsychonautwikiSubstance) != 0 {
+		subs := q.PsychonautwikiSubstance
 
 		for i := 0; i < len(subs); i++ {
 			if len(subs[i].Roas) != 0 {
@@ -127,8 +127,8 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 
 					tempInfoDrug := DrugInfo{}
 
-					tempInfoDrug.DrugName = string(subs[i].Name)
-					tempInfoDrug.DrugRoute = string(subs[i].Roas[o].Name)
+					tempInfoDrug.DrugName = subs[i].Name
+					tempInfoDrug.DrugRoute = subs[i].Roas[o].Name
 					tempInfoDrug.Threshold = float32(subs[i].Roas[o].Dose.Threshold)
 					tempInfoDrug.LowDoseMin = float32(subs[i].Roas[o].Dose.Light.Min)
 					tempInfoDrug.LowDoseMax = float32(subs[i].Roas[o].Dose.Light.Max)
@@ -136,22 +136,22 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 					tempInfoDrug.MediumDoseMax = float32(subs[i].Roas[o].Dose.Common.Max)
 					tempInfoDrug.HighDoseMin = float32(subs[i].Roas[o].Dose.Strong.Min)
 					tempInfoDrug.HighDoseMax = float32(subs[i].Roas[o].Dose.Strong.Max)
-					tempInfoDrug.DoseUnits = string(subs[i].Roas[o].Dose.Units)
+					tempInfoDrug.DoseUnits = subs[i].Roas[o].Dose.Units
 					tempInfoDrug.OnsetMin = float32(subs[i].Roas[o].Duration.Onset.Min)
 					tempInfoDrug.OnsetMax = float32(subs[i].Roas[o].Duration.Onset.Max)
-					tempInfoDrug.OnsetUnits = string(subs[i].Roas[o].Duration.Onset.Units)
+					tempInfoDrug.OnsetUnits = subs[i].Roas[o].Duration.Onset.Units
 					tempInfoDrug.ComeUpMin = float32(subs[i].Roas[o].Duration.Comeup.Min)
 					tempInfoDrug.ComeUpMax = float32(subs[i].Roas[o].Duration.Comeup.Max)
-					tempInfoDrug.ComeUpUnits = string(subs[i].Roas[o].Duration.Comeup.Units)
+					tempInfoDrug.ComeUpUnits = subs[i].Roas[o].Duration.Comeup.Units
 					tempInfoDrug.PeakMin = float32(subs[i].Roas[o].Duration.Peak.Min)
 					tempInfoDrug.PeakMax = float32(subs[i].Roas[o].Duration.Peak.Max)
-					tempInfoDrug.PeakUnits = string(subs[i].Roas[o].Duration.Peak.Units)
+					tempInfoDrug.PeakUnits = subs[i].Roas[o].Duration.Peak.Units
 					tempInfoDrug.OffsetMin = float32(subs[i].Roas[o].Duration.Offset.Min)
 					tempInfoDrug.OffsetMax = float32(subs[i].Roas[o].Duration.Offset.Max)
-					tempInfoDrug.OffsetUnits = string(subs[i].Roas[o].Duration.Offset.Units)
+					tempInfoDrug.OffsetUnits = subs[i].Roas[o].Duration.Offset.Units
 					tempInfoDrug.TotalDurMin = float32(subs[i].Roas[o].Duration.Total.Min)
 					tempInfoDrug.TotalDurMax = float32(subs[i].Roas[o].Duration.Total.Max)
-					tempInfoDrug.TotalDurUnits = string(subs[i].Roas[o].Duration.Total.Units)
+					tempInfoDrug.TotalDurUnits = subs[i].Roas[o].Duration.Total.Units
 
 					InfoDrug = append(InfoDrug, tempInfoDrug)
 				}
