@@ -1,0 +1,30 @@
+# This file is used to generate a database table.
+# If you want to change the file and make a new table, remove the old one
+# and the table will be generated once the names are used.
+
+[LocalName]
+# Substances ##################################################################
+[LocalName.Cannabis]
+AltNames = ["weed","marijuana"]
+
+[LocalName.Alcohol]
+AltNames = ["booze"]
+
+[LocalName.MDMA]
+AltNames = ["molly","ecstasy"]
+
+[LocalName.LSD]
+AltNames = ["lucy","acid"]
+
+[LocalName.Cocaine]
+AltNames = ["coco","coke","coca"]
+
+[LocalName.2c-b]
+AltNames = ["2cb"]
+
+[LocalName.Psilocybin_mushrooms]
+AltNames = ["mushrooms","shrooms"]
+
+[LocalName.Ketamine]
+Altnames = ["ket"]
+

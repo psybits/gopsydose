@@ -84,7 +84,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 		return false
 	}
 
-	drugname = MatchDrugName(drugname)
+	drugname = cfg.MatchAndReplace(drugname, "substance")
 
 	ret := checkIfExistsDB("drugName",
 		"psychonautwiki",
@@ -119,11 +119,11 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 
 	if len(q.PsychonautwikiSubstance) != 0 {
 		subs := q.PsychonautwikiSubstance
-
 		for i := 0; i < len(subs); i++ {
 			if len(subs[i].Roas) != 0 {
 				for o := 0; o < len(subs[i].Roas); o++ {
-					fmt.Println(subs[i].Roas[o])
+					fmt.Println("From source:", cfg.UseSource, "; Substance:", subs[i].Name,
+						"; Route:", subs[i].Roas[o])
 
 					tempInfoDrug := DrugInfo{}
 

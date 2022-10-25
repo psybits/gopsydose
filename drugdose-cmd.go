@@ -110,6 +110,15 @@ var (
 		"cleans the logs\noptionally using the -user option for\n"+
 			"clearing logs for a specific user")
 
+	cleanNames = flag.Bool(
+		"clean-names",
+		false,
+		"cleans the alternative names from the DB\n"+
+			"this includes the replace names for the\n"+
+			"currently configured source\n"+
+			"when you reuse the name matching, it will\n"+
+			"recreate the tables with the present config files")
+
 	forID = flag.Int64(
 		"for-id",
 		0,
@@ -161,6 +170,16 @@ var (
 		false,
 		"get all cached drugs names (from info tables, not logs)\n"+
 			"according to set source")
+
+	getSubNames = flag.String(
+		"get-subst-alt-names",
+		"",
+		"get all alternative names for a substance")
+
+	getRouteNames = flag.String(
+		"get-route-alt-names",
+		"",
+		"get all alternative names for a route")
 
 	dontLog = flag.Bool(
 		"dont-log",
@@ -337,22 +356,16 @@ func main() {
 	if gotsetcfg.DBDriver == "sqlite3" {
 		gotsetcfg.InitDBFileStructure()
 
-		ret = gotsetcfg.CheckDBTables()
+		ret = gotsetcfg.InitAllDBTables()
 		if !ret {
-			ret = gotsetcfg.InitDrugDB()
-			if !ret {
-				fmt.Println("Database didn't get initialised, because of an error, exiting.")
-				os.Exit(1)
-			}
+			fmt.Println("Database didn't get initialised, because of an error, exiting.")
+			os.Exit(1)
 		}
 	} else if gotsetcfg.DBDriver == "mysql" {
-		ret = gotsetcfg.CheckDBTables()
+		ret = gotsetcfg.InitAllDBTables()
 		if !ret {
-			ret = gotsetcfg.InitDrugDB()
-			if !ret {
-				fmt.Println("Database didn't get initialised, because of an error, exiting.")
-				os.Exit(1)
-			}
+			fmt.Println("Database didn't get initialised, because of an error, exiting.")
+			os.Exit(1)
 		}
 	} else {
 		fmt.Println("No proper driver selected. Choose sqlite3 or mysql!")
@@ -398,6 +411,13 @@ func main() {
 		ret := gotsetcfg.RemoveLogs(*forUser, remAmount, revRem, *forID, *searchStr)
 		if !ret {
 			fmt.Println("Couldn't remove logs because of an error.")
+		}
+	}
+
+	if *cleanNames {
+		ret := gotsetcfg.CleanNames()
+		if !ret {
+			fmt.Println("Couldn't remove alt names from DB because of an error.")
 		}
 	}
 
@@ -460,6 +480,32 @@ func main() {
 			fmt.Print("All local drugs: ")
 			for i := 0; i < len(locinfolist); i++ {
 				fmt.Print(locinfolist[i] + " ; ")
+			}
+			fmt.Println()
+		}
+	}
+
+	if *getSubNames != "" {
+		subsNames := gotsetcfg.GetAllNames(*getSubNames, "substance", true)
+		if subsNames == nil {
+			fmt.Println("Couldn't get substance names, because of an error.")
+		} else {
+			fmt.Print("For substance: " + *getSubNames + " ; Alternative names: ")
+			for i := 0; i < len(subsNames); i++ {
+				fmt.Print(subsNames[i] + ", ")
+			}
+			fmt.Println()
+		}
+	}
+
+	if *getRouteNames != "" {
+		routeNames := gotsetcfg.GetAllNames(*getRouteNames, "route", true)
+		if routeNames == nil {
+			fmt.Println("Couldn't get route names, because of an error.")
+		} else {
+			fmt.Print("For route: " + *getRouteNames + " ; Alternative names: ")
+			for i := 0; i < len(routeNames); i++ {
+				fmt.Print(routeNames[i] + ", ")
 			}
 			fmt.Println()
 		}

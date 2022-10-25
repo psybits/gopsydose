@@ -18,6 +18,20 @@ builds:
       - -w
   -
     main: .
+    id: "linux-CLI-arm64"
+    binary: dose
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-suse-linux-gcc-12
+    goos:
+      - linux
+    goarch:
+      - arm64
+    ldflags:
+      - -s
+      - -w
+  -
+    main: .
     id: "win-64-CLI"
     binary: dose
     env:
@@ -50,6 +64,15 @@ archives:
       - goos: windows
         format: zip
     wrap_in_directory: true
+    files:
+      - LICENSE.txt
+      - README.md
+      - example.alias
+      - src: 'names-configs/*.toml'
+        strip_parent: true
+      - src: 'names-configs/replace-local-names-configs/psychonautwiki/*'
+        dst: 'replace-local-names-configs/psychonautwiki'
+        strip_parent: true
 checksum:
   name_template: 'checksums.txt'
 

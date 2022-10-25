@@ -1,0 +1,15 @@
+# This file is used to generate a database table.
+# If you want to change the file and make a new table, remove the old one
+# and the table will be generated once the names are used.
+
+[LocalName]
+# Routes ######################################################################
+[LocalName.oral]
+AltNames = ["drinking","drank","drink","ate","eating","eat"]
+
+[LocalName.smoked]
+AltNames = ["smoke","puff","toke"]
+
+[LocalName.sublingual]
+AltNames = ["mouth","tongue"]
+

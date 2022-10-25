@@ -191,7 +191,7 @@ func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
 		"sqlite3": {
 			Path: dbdir + "/" + DefaultDBName,
 		},
-		"MySQL": {
+		"mysql": {
 			Path: mysqlaccess,
 		},
 	}

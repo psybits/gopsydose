@@ -1,0 +1,9 @@
+# This file is used to generate a database table.
+# If you want to change the file and make a new table, remove the old one
+# and the table will be generated once the names are used.
+
+[LocalName]
+# Routes ######################################################################
+[LocalName.replace]
+AltNames = ["me"]
+
