@@ -125,15 +125,37 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 	}
 	paths := [2]string{file, replaceDir}
 	for i := 0; i < len(paths); i++ {
-		if _, err := os.Stat(paths[i]); !errors.Is(err, os.ErrNotExist) {
+		// Check if files exist in current working directory.
+		// If they do, try to move them to the config directory.
+		_, err := os.Stat(paths[i])
+		if err == nil {
 			moveToPath := setdir + "/" + paths[i]
 
 			fmt.Println("Found config in working directory:", paths[i],
-				"; moving to:", moveToPath)
+				"; attempt moving to:", moveToPath)
 
-			err = os.Rename(paths[i], moveToPath)
+			// Check if files exist in config directory.
+			// If they don't, move them to config directory.
+			// If they do, don't move them, because you will overwrite the old files.
+			_, err := os.Stat(moveToPath)
 			if err != nil {
-				fmt.Println("AddToSubstanceNamesTable: Couldn't move file:", err)
+				if errors.Is(err, os.ErrNotExist) {
+					err = os.Rename(paths[i], moveToPath)
+					if err != nil {
+						fmt.Println("AddToSubstanceNamesTable: Couldn't move file:", err)
+						return false
+					}
+				} else {
+					fmt.Println("AddToSubstanceNamesTable:", err)
+					return false
+				}
+			} else if err == nil {
+				fmt.Println("Name config already exists:", moveToPath,
+					"; will not move the file from the working directory:", paths[i])
+			}
+		} else if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				fmt.Println("AddToSubstanceNamesTable:", err)
 				return false
 			}
 		}

@@ -168,11 +168,17 @@ func (cfg Config) InitDBFileStructure() bool {
 func (cfg Config) checkDBFileStruct() bool {
 	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
 
-	if _, err := os.Stat(dbFileLocat); err == nil {
+	_, err := os.Stat(dbFileLocat)
+	if err == nil {
 		VerbosePrint(dbFileLocat+": Exists", cfg.VerbosePrinting)
-	} else if errors.Is(err, os.ErrNotExist) {
-		fmt.Println(dbFileLocat+": Doesn't seem to exist:", err)
-		return false
+	} else if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Println("checkDBFileStruct:", dbFileLocat+": Doesn't seem to exist:", err)
+			return false
+		} else {
+			fmt.Println("checkDBFileStruct:", err)
+			return false
+		}
 	}
 
 	return true

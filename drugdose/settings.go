@@ -91,10 +91,16 @@ func InitSettingsDir() string {
 		return ""
 	}
 	configdir = configdir + "/GPD"
-	if _, err := os.Stat(configdir); errors.Is(err, os.ErrNotExist) {
-		err = os.Mkdir(configdir, 0700)
-		if err != nil {
-			fmt.Println(err)
+	_, err = os.Stat(configdir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			err = os.Mkdir(configdir, 0700)
+			if err != nil {
+				fmt.Println("InitSettingsDir:", err)
+				return ""
+			}
+		} else {
+			fmt.Println("InitSettingsDir:", err)
 			return ""
 		}
 	}
@@ -114,33 +120,37 @@ func (cfg Config) InitSourceSettings(newcfg *map[string]SourceConfig, recreate b
 	}
 
 	path := setdir + "/" + sourceSetFilename
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) || recreate {
-		fmt.Println("Initialising config file:", path)
-		file, err := os.Create(path)
-		if err != nil {
-			errorCantCreateConfig(path, err)
-		}
+	_, err = os.Stat(path)
+	if err != nil || recreate {
+		if errors.Is(err, os.ErrNotExist) || recreate {
+			fmt.Println("Initialising config file:", path)
+			file, err := os.Create(path)
+			if err != nil {
+				errorCantCreateConfig(path, err)
+			}
 
-		err = file.Chmod(0600)
-		if err != nil {
-			errorCantChmodConfig(path, err)
-		}
+			err = file.Chmod(0600)
+			if err != nil {
+				errorCantChmodConfig(path, err)
+			}
 
-		_, err = file.WriteString(string(mcfg))
-		if err != nil {
-			errorCantCreateConfig(path, err)
-		}
+			_, err = file.WriteString(string(mcfg))
+			if err != nil {
+				errorCantCreateConfig(path, err)
+			}
 
-		err = file.Close()
-		if err != nil {
-			errorCantCloseConfig(path, err)
+			err = file.Close()
+			if err != nil {
+				errorCantCloseConfig(path, err)
+			}
+		} else {
+			otherError(path, err)
 		}
 	} else if err == nil {
 		VerbosePrint("Config file: "+path+" ; already exists!", cfg.VerbosePrinting)
 		return false
-	} else {
-		otherError(path, err)
 	}
+
 	return true
 }
 
@@ -182,6 +192,11 @@ func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
 		_, err = os.Stat(path)
 		if err == nil {
 			home = path
+		} else if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				fmt.Println("InitSettingsStruct:", err)
+				return nil
+			}
 		}
 
 		dbdir = home + "/" + dbdir
@@ -222,33 +237,37 @@ func (initconf *Config) InitSettings(recreate bool) bool {
 	}
 
 	path := setdir + "/" + setFilename
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) || recreate {
-		fmt.Println("Initialising config file:", path)
-		file, err := os.Create(path)
-		if err != nil {
-			errorCantCreateConfig(path, err)
-		}
+	_, err = os.Stat(path)
+	if err != nil || recreate {
+		if errors.Is(err, os.ErrNotExist) || recreate {
+			fmt.Println("Initialising config file:", path)
+			file, err := os.Create(path)
+			if err != nil {
+				errorCantCreateConfig(path, err)
+			}
 
-		err = file.Chmod(0600)
-		if err != nil {
-			errorCantChmodConfig(path, err)
-		}
+			err = file.Chmod(0600)
+			if err != nil {
+				errorCantChmodConfig(path, err)
+			}
 
-		_, err = file.WriteString(string(mcfg))
-		if err != nil {
-			errorCantCreateConfig(path, err)
-		}
+			_, err = file.WriteString(string(mcfg))
+			if err != nil {
+				errorCantCreateConfig(path, err)
+			}
 
-		err = file.Close()
-		if err != nil {
-			errorCantCloseConfig(path, err)
+			err = file.Close()
+			if err != nil {
+				errorCantCloseConfig(path, err)
+			}
+		} else {
+			otherError(path, err)
 		}
 	} else if err == nil {
 		VerbosePrint("Config file: "+path+" ; already exists!", initconf.VerbosePrinting)
 		return false
-	} else {
-		otherError(path, err)
 	}
+
 	return true
 }
 
