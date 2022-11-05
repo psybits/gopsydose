@@ -20,6 +20,7 @@ type Config struct {
 	DBDriver        string
 	VerbosePrinting bool
 	DBSettings      map[string]DBSettings
+	Timezone        string
 }
 
 type DBSettings struct {
@@ -37,6 +38,7 @@ const DefaultAutoRemove = false
 const DefaultDBDriver = "sqlite3"
 const DefaultMySQLAccess = "user:password@tcp(127.0.0.1:3306)/database"
 const DefaultVerbose = false
+const DefaultTimezone = "Local"
 
 const DefaultUsername = "defaultUser"
 const DefaultSource = "psychonautwiki"
@@ -179,7 +181,8 @@ func GetSourceData() map[string]SourceConfig {
 
 func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
 	dbdir string, dbname string, autoremove bool,
-	dbdriver string, mysqlaccess string, verboseprinting bool) *Config {
+	dbdriver string, mysqlaccess string, verboseprinting bool,
+	timezone string) *Config {
 	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -219,6 +222,7 @@ func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
 		DBDriver:        dbdriver,
 		VerbosePrinting: verboseprinting,
 		DBSettings:      dbSettings,
+		Timezone:        timezone,
 	}
 
 	return &initConf

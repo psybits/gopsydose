@@ -302,6 +302,17 @@ Example: user:password@tcp(127.0.0.1:3306)/database
 #### VerbosePrinting
 If set to true, functions which print more verbose information, will print it.
 
+#### Timezone
+This by default is "Local", which means the code tries to figure out the local
+time zone using the operating system settings. If this fails, you can use
+the other possible strings from below.
+
+You can change it to something like "Europe/Paris" to change the time zone to
+the one in that area.
+
+All info about this string can be found here:
+https://pkg.go.dev/time#LoadLocation
+
 ### gpd-sources.toml
 
 ```

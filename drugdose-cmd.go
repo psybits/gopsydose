@@ -298,8 +298,8 @@ func main() {
 		drugdose.DefaultDBDriver,
 		drugdose.DefaultMySQLAccess,
 		drugdose.DefaultVerbose,
+		drugdose.DefaultTimezone,
 	)
-
 	if setcfg == nil {
 		fmt.Println("Settings struct not initialised.")
 		os.Exit(1)

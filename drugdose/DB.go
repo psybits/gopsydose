@@ -935,7 +935,7 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 			return nil
 		}
 
-		location, err := time.LoadLocation("Local")
+		location, err := time.LoadLocation(cfg.Timezone)
 		if err != nil {
 			fmt.Println("GetLogs: LoadLocation:", err)
 			return nil
