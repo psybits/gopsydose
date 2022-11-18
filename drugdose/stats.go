@@ -189,9 +189,10 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 	timeTill.EnDose = useLog.EndTime
 
 	if printit {
-		location, err := time.LoadLocation("Local")
+		location, err := time.LoadLocation(cfg.Timezone)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("GetTimes: LoadLocation:", err)
+			return nil
 		}
 
 		fmt.Println("Warning: All data in here is approximations based on averages.")
