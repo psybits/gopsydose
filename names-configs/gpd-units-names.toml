@@ -3,7 +3,10 @@
 # and the table will be generated once the names are used.
 
 [LocalName]
-# Substances ##################################################################
-[LocalName.replace]
-AltNames = ["me"]
+# Units #######################################################################
+[LocalName.hours]
+AltNames = ["h"]
+
+[LocalName.minutes]
+AltNames = ["m", "mins"]
 

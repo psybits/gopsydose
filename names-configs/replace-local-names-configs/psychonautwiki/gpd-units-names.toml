@@ -3,7 +3,7 @@
 # and the table will be generated once the names are used.
 
 [LocalName]
-# Routes ######################################################################
-[LocalName.replace]
-AltNames = ["me"]
+# Units #######################################################################
+[LocalName."µg"]
+AltNames = ["ug"]
 

@@ -23,15 +23,17 @@ type TimeTill struct {
 	EnDose    int64
 }
 
-func convertToSeconds(units string, min *float32, max *float32) {
-	if units == "hours" || units == "h" {
+func (cfg Config) convertToSeconds(units string, min *float32, max *float32) {
+	units = cfg.MatchAndReplace(units, "units")
+	if units == "hours" {
 		*min *= 60 * 60
 		*max *= 60 * 60
-	} else if units == "minutes" || units == "m" {
+	} else if units == "minutes" {
 		*min *= 60
 		*max *= 60
+	} else {
+		fmt.Println("convertToSeconds: unit:", units, "; is not valid, didn't convert")
 	}
-
 }
 
 func getAverage(first float32, second float32) float32 {
@@ -92,19 +94,19 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		return nil
 	}
 
-	convertToSeconds(gotInfoProper.OnsetUnits,
+	cfg.convertToSeconds(gotInfoProper.OnsetUnits,
 		&gotInfoProper.OnsetMin,
 		&gotInfoProper.OnsetMax)
-	convertToSeconds(gotInfoProper.ComeUpUnits,
+	cfg.convertToSeconds(gotInfoProper.ComeUpUnits,
 		&gotInfoProper.ComeUpMin,
 		&gotInfoProper.ComeUpMax)
-	convertToSeconds(gotInfoProper.PeakUnits,
+	cfg.convertToSeconds(gotInfoProper.PeakUnits,
 		&gotInfoProper.PeakMin,
 		&gotInfoProper.PeakMax)
-	convertToSeconds(gotInfoProper.OffsetUnits,
+	cfg.convertToSeconds(gotInfoProper.OffsetUnits,
 		&gotInfoProper.OffsetMin,
 		&gotInfoProper.OffsetMax)
-	convertToSeconds(gotInfoProper.TotalDurUnits,
+	cfg.convertToSeconds(gotInfoProper.TotalDurUnits,
 		&gotInfoProper.TotalDurMin,
 		&gotInfoProper.TotalDurMax)
 

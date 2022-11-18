@@ -28,6 +28,7 @@ const loggingTableName = "userLogs"
 const userSetTableName = "userSettings"
 const altNamesSubsTableName = "substanceNames"
 const altNamesRouteTableName = "routeNames"
+const altNamesUnitsTableName = "unitsNames"
 
 func exitProgram() {
 	fmt.Println("Exiting")
@@ -407,7 +408,7 @@ func (cfg Config) AddToInfoDB(subs []DrugInfo) bool {
 	}
 	defer stmt.Close()
 	for i := 0; i < len(subs); i++ {
-		subs[i].DoseUnits = MatchUnits(subs[i].DoseUnits)
+		subs[i].DoseUnits = cfg.MatchAndReplace(subs[i].DoseUnits, "units")
 		_, err = stmt.Exec(
 			subs[i].DrugName,
 			subs[i].DrugRoute,
@@ -577,6 +578,7 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 
 	subsExists := false
 	routesExists := false
+	unitsExists := false
 
 	ret := cfg.CheckDBTables(altNamesSubsTableName + tableSuffix)
 	if ret {
@@ -588,7 +590,12 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 		routesExists = true
 	}
 
-	if subsExists && routesExists {
+	ret = cfg.CheckDBTables(altNamesUnitsTableName + tableSuffix)
+	if ret {
+		unitsExists = true
+	}
+
+	if subsExists && routesExists && unitsExists {
 		return true
 	}
 
@@ -633,6 +640,21 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 		fmt.Println("Created: '" + altNamesRouteTableName + tableSuffix + "' table in database.")
 	}
 
+	if !unitsExists {
+		initDBsql := "create table '" + altNamesUnitsTableName + tableSuffix +
+			"' (localName varchar(255)" + caseInsensitive + "not null," +
+			"alternativeName varchar(255)" + caseInsensitive + "not null," +
+			"primary key (localName, alternativeName));"
+
+		_, err = db.Exec(initDBsql)
+		if err != nil {
+			fmt.Println(initDBsql+":", err)
+			return false
+		}
+
+		fmt.Println("Created: '" + altNamesUnitsTableName + tableSuffix + "' table in database.")
+	}
+
 	return true
 }
 
@@ -665,25 +687,12 @@ func (cfg Config) InitAllDBTables() bool {
 	return true
 }
 
-// TODO: This needs to be a config file!
-// There's no reason to hard code every possible mapping.
-func MatchUnits(units string) string {
-	matches := map[string]string{
-		"µg": "ug",
-	}
-
-	if len(matches[units]) == 0 {
-		return units
-	}
-
-	return matches[units]
-}
-
 func (cfg Config) AddToDoseDB(user string, drug string, route string,
 	dose float32, units string, perc float32, printit bool) bool {
 
 	drug = cfg.MatchAndReplace(drug, "substance")
 	route = cfg.MatchAndReplace(route, "route")
+	units = cfg.MatchAndReplace(units, "units")
 
 	if perc != 0 {
 		var newUnits string

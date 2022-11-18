@@ -27,6 +27,7 @@ type SubstanceName struct {
 
 const namesSubstanceFilename = "gpd-substance-names.toml"
 const namesRouteFilename = "gpd-route-names.toml"
+const namesUnitsFilename = "gpd-units-names.toml"
 const namesMagicWord = "!TheTableIsNotEmpty!"
 const replaceDir = "replace-local-names-configs"
 
@@ -51,7 +52,9 @@ func GetNamesConfig(nameType string, source string) *SubstanceName {
 
 	file, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Println("GetNamesConfig: Error:", err)
+		if !errors.Is(err, os.ErrNotExist) {
+			fmt.Println("GetNamesConfig: Error:", err)
+		}
 		return nil
 	}
 
@@ -70,6 +73,8 @@ func namesTables(nameType string) string {
 		table = altNamesSubsTableName
 	} else if nameType == "route" {
 		table = altNamesRouteTableName
+	} else if nameType == "units" {
+		table = altNamesUnitsTableName
 	} else {
 		fmt.Println("namesTables: No nameType:", nameType)
 	}
@@ -83,6 +88,8 @@ func namesFiles(nameType string) string {
 		file = namesSubstanceFilename
 	} else if nameType == "route" {
 		file = namesRouteFilename
+	} else if nameType == "units" {
+		file = namesUnitsFilename
 	} else {
 		fmt.Println("namesFiles: No nameType:", nameType)
 	}
