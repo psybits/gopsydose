@@ -55,6 +55,9 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 	}
 }
 
+// TODO: Add "Approximate Finish Time" bellow "Current Time"
+// which shows when according to the source data the effects should stop
+// completely
 func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill {
 	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none")
 	if gotLogs == nil {

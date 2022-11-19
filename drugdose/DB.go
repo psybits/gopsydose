@@ -699,33 +699,42 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 
 		// TODO: These need to be a config file!
 		// There's no reason to hard code every possible mapping.
-		if strings.ToLower(drug) == "alcohol" {
-			units = "ml"
-			newUnits = "mL EtOH"
+		if cfg.UseSource == "psychonautwiki" {
+			if strings.ToLower(drug) == "alcohol" {
+				units = "ml"
+				newUnits = "mL EtOH"
+			}
+
+			if strings.ToLower(drug) == "cannabis" {
+				units = "mg"
+				newUnits = "mg (THC)"
+			}
+
+			av := alconvert.NewAV()
+			av.UserSet.Milliliters = float32(dose)
+			av.UserSet.Percent = float32(perc)
+			av.CalcGotUnits()
+
+			// TODO: In the config file it should be specified which "implementation" to
+			// use for a conversion. For example:
+			// [alcohol."mL EtOH"]
+			// impl = "ConvPerc2Units*10"
+			//
+			// [cannabis."mg (THC)"]
+			// impl = "ConvPerc2Units*10"
+			//
+			// NOTE: This must be per source only! Different config files for different sources.
+			dose = av.GotUnits() * 10
+
+			if len(newUnits) == 0 {
+				newUnits = units
+			}
+
+			fmt.Printf("Calculated for %q: %g%% of %g %q to be: %g %q\n",
+				drug, perc, av.UserSet.Milliliters, units, dose, newUnits)
+
+			units = newUnits
 		}
-
-		if strings.ToLower(drug) == "cannabis" {
-			units = "mg"
-			newUnits = "mg (THC)"
-		}
-
-		av := alconvert.NewAV()
-		av.UserSet.Milliliters = float32(dose)
-		av.UserSet.Percent = float32(perc)
-		av.CalcGotUnits()
-
-		// TODO: Use the appropriate units according to a config file.
-		// The user must be able to set per unit name, how this should be multiplied.
-		dose = av.GotUnits() * 10
-
-		if len(newUnits) == 0 {
-			newUnits = units
-		}
-
-		fmt.Printf("Calculated for %q: %g%% of %g %q to be: %g %q\n",
-			drug, perc, av.UserSet.Milliliters, units, dose, newUnits)
-
-		units = newUnits
 	}
 
 	xtrs := [2]string{xtrastmt("drugRoute", "and"), xtrastmt("doseUnits", "and")}
