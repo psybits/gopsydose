@@ -336,10 +336,12 @@ func (cfg Config) CleanDB() bool {
 
 func (cfg Config) CleanNames() bool {
 	tableSuffix := "_" + cfg.UseSource
-	tableNames := [4]string{altNamesSubsTableName,
+	tableNames := [6]string{altNamesSubsTableName,
 		altNamesRouteTableName,
+		altNamesUnitsTableName,
 		altNamesSubsTableName + tableSuffix,
-		altNamesRouteTableName + tableSuffix}
+		altNamesRouteTableName + tableSuffix,
+		altNamesUnitsTableName + tableSuffix}
 
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
