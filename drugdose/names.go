@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/powerjungle/goalconvert/alconvert"
 
 	"database/sql"
 
@@ -28,8 +29,11 @@ type SubstanceName struct {
 const namesSubstanceFilename = "gpd-substance-names.toml"
 const namesRouteFilename = "gpd-route-names.toml"
 const namesUnitsFilename = "gpd-units-names.toml"
-const namesMagicWord = "!TheTableIsNotEmpty!"
+const namesConvUnitsFilename = "gpd-units-conversions.toml"
+
 const replaceDir = "replace-local-names-configs"
+
+const namesMagicWord = "!TheTableIsNotEmpty!"
 
 func GetNamesConfig(nameType string, source string) *SubstanceName {
 	setdir := InitSettingsDir()
@@ -75,6 +79,8 @@ func namesTables(nameType string) string {
 		table = altNamesRouteTableName
 	} else if nameType == "units" {
 		table = altNamesUnitsTableName
+	} else if nameType == "convUnits" {
+		table = altNamesConvUnitsTableName
 	} else {
 		fmt.Println("namesTables: No nameType:", nameType)
 	}
@@ -90,6 +96,8 @@ func namesFiles(nameType string) string {
 		file = namesRouteFilename
 	} else if nameType == "units" {
 		file = namesUnitsFilename
+	} else if nameType == "convUnits" {
+		file = namesConvUnitsFilename
 	} else {
 		fmt.Println("namesFiles: No nameType:", nameType)
 	}
@@ -279,16 +287,20 @@ func (cfg Config) MatchAndReplace(inputName string, nameType string) string {
 	return ret
 }
 
-func (cfg Config) GetAllNames(inputName string, nameType string, verbose bool) []string {
+func (cfg Config) GetAllNames(inputName string, nameType string, replace bool, verbose bool) []string {
 	table := namesTables(nameType)
 	if table == "" {
 		return nil
 	}
 
-	ret := cfg.AddToSubstanceNamesTable(nameType, false)
-	if !ret {
-		fmt.Println("GetAllNames: Couldn't initialise names tables, because of an error.")
+	tableSuffix := ""
+	if replace {
+		tableSuffix = "_" + cfg.UseSource
 	}
+
+	table = table + tableSuffix
+
+	cfg.AddToSubstanceNamesTable(nameType, replace)
 
 	repName := cfg.MatchName(inputName, nameType, true)
 	if verbose {
@@ -322,9 +334,59 @@ func (cfg Config) GetAllNames(inputName string, nameType string, verbose bool) [
 		allNames = append(allNames, tempName)
 	}
 
+	addToErrMsg := ""
+	if replace {
+		addToErrMsg = "; for source: " + cfg.UseSource
+	}
+
 	if len(allNames) == 0 {
-		fmt.Println("GetAllNames: No names found for:", repName)
+		fmt.Println("GetAllNames: No names found for:", repName, addToErrMsg)
 	}
 
 	return allNames
+}
+
+func convPerc2Units(amount float32, perc float32) float32 {
+	av := alconvert.NewAV()
+	av.UserSet.Milliliters = amount
+	av.UserSet.Percent = perc
+	av.CalcGotUnits()
+	return av.GotUnits()
+}
+
+func unitsFunctionsOutput(convertFunc string, unitInputs ...float32) float32 {
+	var output float32 = 0
+	if convertFunc == "ConvPerc2Units" || convertFunc == "ConvPerc2Units*10" {
+		gotLenOfUnitInputs := len(unitInputs)
+		if gotLenOfUnitInputs == 2 {
+			output = convPerc2Units(unitInputs[0], unitInputs[1])
+			if convertFunc == "ConvPerc2Units*10" {
+				output *= 10
+			}
+		} else {
+			fmt.Println("unitsFunctionsOutput: ConvPerc2Units: Wrong amount of unitInputs:",
+				gotLenOfUnitInputs, "; needed 2")
+		}
+	} else {
+		fmt.Println("unitsFunctionsOutput: No convertFunc:", convertFunc)
+	}
+
+	return output
+}
+
+func (cfg Config) ConvertUnits(substance string, unitInputs ...float32) (float32, string) {
+	allNames := cfg.GetAllNames(substance, "convUnits", true, false)
+	gotAllNamesLen := len(allNames)
+	if gotAllNamesLen != 2 {
+		fmt.Println("ConvertUnits: wrong amount of names:", gotAllNamesLen,
+			"; should be 2:", allNames)
+		return 0, ""
+	}
+
+	convertFunc := allNames[0]
+	convertUnit := allNames[1]
+
+	output := unitsFunctionsOutput(convertFunc, unitInputs...)
+
+	return output, convertUnit
 }

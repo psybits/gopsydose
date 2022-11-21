@@ -159,8 +159,8 @@ var (
 		false,
 		"prints the settings and DB directories path")
 
-	localInfoDrug = flag.String(
-		"local-info-drug",
+	getLocalInfoDrug = flag.String(
+		"get-local-info-drug",
 		"none",
 		"print info about drug from local DB,\n"+
 			"for example if you've forgotten routes and units")
@@ -180,6 +180,11 @@ var (
 		"get-route-alt-names",
 		"",
 		"get all alternative names for a route")
+
+	getUnitsNames = flag.String(
+		"get-units-alt-names",
+		"",
+		"get all alternative names for a unit")
 
 	dontLog = flag.Bool(
 		"dont-log",
@@ -477,7 +482,7 @@ func main() {
 		if len(locinfolist) == 0 {
 			fmt.Println("Couldn't get database list of drugs names from info table.")
 		} else {
-			fmt.Print("All local drugs: ")
+			fmt.Print("For source: " + gotsetcfg.UseSource + " ; All local drugs: ")
 			for i := 0; i < len(locinfolist); i++ {
 				fmt.Print(locinfolist[i] + " ; ")
 			}
@@ -486,7 +491,7 @@ func main() {
 	}
 
 	if *getSubNames != "" {
-		subsNames := gotsetcfg.GetAllNames(*getSubNames, "substance", true)
+		subsNames := gotsetcfg.GetAllNames(*getSubNames, "substance", false, true)
 		if subsNames == nil {
 			fmt.Println("Couldn't get substance names, because of an error.")
 		} else {
@@ -499,7 +504,7 @@ func main() {
 	}
 
 	if *getRouteNames != "" {
-		routeNames := gotsetcfg.GetAllNames(*getRouteNames, "route", true)
+		routeNames := gotsetcfg.GetAllNames(*getRouteNames, "route", false, true)
 		if routeNames == nil {
 			fmt.Println("Couldn't get route names, because of an error.")
 		} else {
@@ -511,10 +516,23 @@ func main() {
 		}
 	}
 
-	if *localInfoDrug != "none" {
-		locinfo := gotsetcfg.GetLocalInfo(*localInfoDrug, true)
+	if *getUnitsNames != "" {
+		unitsNames := gotsetcfg.GetAllNames(*getUnitsNames, "units", false, true)
+		if unitsNames == nil {
+			fmt.Println("Couldn't get units names, because of an error.")
+		} else {
+			fmt.Print("For unit: " + *getUnitsNames + " ; Alternative names: ")
+			for i := 0; i < len(unitsNames); i++ {
+				fmt.Print(unitsNames[i] + ", ")
+			}
+			fmt.Println()
+		}
+	}
+
+	if *getLocalInfoDrug != "none" {
+		locinfo := gotsetcfg.GetLocalInfo(*getLocalInfoDrug, true)
 		if len(locinfo) == 0 {
-			fmt.Println("Couldn't get database info for drug:", *localInfoDrug)
+			fmt.Println("Couldn't get database info for drug:", *getLocalInfoDrug)
 		}
 	}
 

@@ -17,8 +17,6 @@ import (
 
 	// SQLite driver needed for sql module
 	_ "github.com/mattn/go-sqlite3"
-
-	"github.com/powerjungle/goalconvert/alconvert"
 )
 
 // Encryption should be done by default unless specified not to by the user from the settings
@@ -29,6 +27,7 @@ const userSetTableName = "userSettings"
 const altNamesSubsTableName = "substanceNames"
 const altNamesRouteTableName = "routeNames"
 const altNamesUnitsTableName = "unitsNames"
+const altNamesConvUnitsTableName = "convUnitsNames"
 
 func exitProgram() {
 	fmt.Println("Exiting")
@@ -336,12 +335,14 @@ func (cfg Config) CleanDB() bool {
 
 func (cfg Config) CleanNames() bool {
 	tableSuffix := "_" + cfg.UseSource
-	tableNames := [6]string{altNamesSubsTableName,
+	tableNames := [8]string{altNamesSubsTableName,
 		altNamesRouteTableName,
 		altNamesUnitsTableName,
+		altNamesConvUnitsTableName,
 		altNamesSubsTableName + tableSuffix,
 		altNamesRouteTableName + tableSuffix,
-		altNamesUnitsTableName + tableSuffix}
+		altNamesUnitsTableName + tableSuffix,
+		altNamesConvUnitsTableName + tableSuffix}
 
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
@@ -365,6 +366,7 @@ func (cfg Config) CleanNames() bool {
 			return false
 		}
 	}
+	fmt.Println()
 
 	err = tx.Commit()
 	if err != nil {
@@ -372,7 +374,7 @@ func (cfg Config) CleanNames() bool {
 		return false
 	}
 
-	fmt.Println("\nAll tables removed from DB.")
+	fmt.Println("All tables removed from DB.")
 
 	return true
 }
@@ -581,6 +583,7 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 	subsExists := false
 	routesExists := false
 	unitsExists := false
+	convUnitsExists := false
 
 	ret := cfg.CheckDBTables(altNamesSubsTableName + tableSuffix)
 	if ret {
@@ -597,7 +600,12 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 		unitsExists = true
 	}
 
-	if subsExists && routesExists && unitsExists {
+	ret = cfg.CheckDBTables(altNamesConvUnitsTableName + tableSuffix)
+	if ret {
+		convUnitsExists = true
+	}
+
+	if subsExists && routesExists && unitsExists && convUnitsExists {
 		return true
 	}
 
@@ -657,6 +665,21 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 		fmt.Println("Created: '" + altNamesUnitsTableName + tableSuffix + "' table in database.")
 	}
 
+	if !convUnitsExists {
+		initDBsql := "create table '" + altNamesConvUnitsTableName + tableSuffix +
+			"' (localName varchar(255)" + caseInsensitive + "not null," +
+			"alternativeName varchar(255)" + caseInsensitive + "not null," +
+			"primary key (localName, alternativeName));"
+
+		_, err = db.Exec(initDBsql)
+		if err != nil {
+			fmt.Println(initDBsql+":", err)
+			return false
+		}
+
+		fmt.Println("Created: '" + altNamesConvUnitsTableName + tableSuffix + "' table in database.")
+	}
+
 	return true
 }
 
@@ -697,45 +720,11 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 	units = cfg.MatchAndReplace(units, "units")
 
 	if perc != 0 {
-		var newUnits string
-
-		// TODO: These need to be a config file!
-		// There's no reason to hard code every possible mapping.
-		if cfg.UseSource == "psychonautwiki" {
-			if strings.ToLower(drug) == "alcohol" {
-				units = "ml"
-				newUnits = "mL EtOH"
-			}
-
-			if strings.ToLower(drug) == "cannabis" {
-				units = "mg"
-				newUnits = "mg (THC)"
-			}
-
-			av := alconvert.NewAV()
-			av.UserSet.Milliliters = float32(dose)
-			av.UserSet.Percent = float32(perc)
-			av.CalcGotUnits()
-
-			// TODO: In the config file it should be specified which "implementation" to
-			// use for a conversion. For example:
-			// [alcohol."mL EtOH"]
-			// impl = "ConvPerc2Units*10"
-			//
-			// [cannabis."mg (THC)"]
-			// impl = "ConvPerc2Units*10"
-			//
-			// NOTE: This must be per source only! Different config files for different sources.
-			dose = av.GotUnits() * 10
-
-			if len(newUnits) == 0 {
-				newUnits = units
-			}
-
-			fmt.Printf("Calculated for %q: %g%% of %g %q to be: %g %q\n",
-				drug, perc, av.UserSet.Milliliters, units, dose, newUnits)
-
-			units = newUnits
+		dose, units = cfg.ConvertUnits(drug, dose, perc)
+		if dose == 0 && units == "" {
+			fmt.Println("AddToDoseDB: error converting units for drug:", drug,
+				"; dose:", dose, "; perc:", perc)
+			return false
 		}
 	}
 
@@ -1094,6 +1083,7 @@ func (cfg Config) GetLocalInfo(drug string, printit bool) []DrugInfo {
 		}
 
 		if printit {
+			fmt.Println("Source:", cfg.UseSource)
 			fmt.Println("Drug:", tempdrinfo.DrugName, ";", "Route:", tempdrinfo.DrugRoute)
 			fmt.Println("---Dosages---")
 			fmt.Printf("Threshold: %g\n", tempdrinfo.Threshold)

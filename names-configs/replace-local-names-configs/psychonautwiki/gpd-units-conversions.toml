@@ -1,0 +1,12 @@
+# This file is used to generate a database table.
+# If you want to change the file and make a new table, remove the old one
+# and the table will be generated once the names are used.
+
+[LocalName]
+# Units Conversions ###########################################################
+[LocalName.Alcohol]
+AltNames = ["ConvPerc2Units*10", "mL EtOH"]
+
+[LocalName.Cannabis]
+AltNames = ["ConvPerc2Units*10", "mg (THC)"]
+

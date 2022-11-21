@@ -8,7 +8,7 @@
 AltNames = ["drinking","drank","drink","ate","eating","eat"]
 
 [LocalName.smoked]
-AltNames = ["smoke","puff","toke"]
+AltNames = ["smoking","smoke","puff","toke"]
 
 [LocalName.sublingual]
 AltNames = ["mouth","tongue"]
