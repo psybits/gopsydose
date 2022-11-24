@@ -1077,7 +1077,7 @@ func (cfg Config) GetLocalInfo(drug string, printit bool) []DrugInfo {
 			fmt.Println("GetLocalInfo:", err)
 			return nil
 		}
-		location, err := time.LoadLocation("Local")
+		location, err := time.LoadLocation(cfg.Timezone)
 		if err != nil {
 			fmt.Println("GetLocalInfo:", err)
 		}

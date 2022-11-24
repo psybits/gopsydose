@@ -15,22 +15,26 @@ type TimeTill struct {
 	TimeTillComeup int64
 	TimeTillPeak   int64
 	TimeTillOffset int64
+	TimeTillTotal  int64
 	// Percentage of completion
 	TotalCompleteMin float32
 	TotalCompleteMax float32
+	TotalCompleteAvg float32
 	// In unix time
 	StartDose int64
 	EnDose    int64
 }
 
-func (cfg Config) convertToSeconds(units string, min *float32, max *float32) {
+func (cfg Config) convertToSeconds(units string, values ...*float32) {
 	units = cfg.MatchAndReplace(units, "units")
 	if units == "hours" {
-		*min *= 60 * 60
-		*max *= 60 * 60
+		for _, value := range values {
+			*value *= 60 * 60
+		}
 	} else if units == "minutes" {
-		*min *= 60
-		*max *= 60
+		for _, value := range values {
+			*value *= 60
+		}
 	} else {
 		fmt.Println("convertToSeconds: unit:", units, "; is not valid, didn't convert")
 	}
@@ -55,9 +59,6 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 	}
 }
 
-// TODO: Add "Approximate Finish Time" bellow "Current Time"
-// which shows when according to the source data the effects should stop
-// completely
 func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill {
 	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none")
 	if gotLogs == nil {
@@ -173,6 +174,12 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 	comeupAvg := getAverage(gotInfoProper.ComeUpMin, gotInfoProper.ComeUpMax)
 	peakAvg := getAverage(gotInfoProper.PeakMin, gotInfoProper.PeakMax)
 	offsetAvg := getAverage(gotInfoProper.OffsetMin, gotInfoProper.OffsetMax)
+	totalAvg := getAverage(gotInfoProper.TotalDurMin, gotInfoProper.TotalDurMax)
+
+	timeTill.TotalCompleteAvg = 1 //100%
+	if float32(getDiffSinceLastLog) < totalAvg {
+		timeTill.TotalCompleteAvg = float32(getDiffSinceLastLog) / totalAvg
+	}
 
 	if onsetAvg != 0 {
 		calcTimeTill(&timeTill.TimeTillOnset, getDiffSinceLastLog, onsetAvg)
@@ -190,8 +197,14 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		calcTimeTill(&timeTill.TimeTillOffset, getDiffSinceLastLog, onsetAvg, comeupAvg, peakAvg, offsetAvg)
 	}
 
+	if totalAvg != 0 {
+		calcTimeTill(&timeTill.TimeTillTotal, getDiffSinceLastLog, totalAvg)
+	}
+
 	timeTill.StartDose = useLog.StartTime
 	timeTill.EnDose = useLog.EndTime
+
+	var approxEnd int64 = timeTill.StartDose + int64(totalAvg)
 
 	if printit {
 		location, err := time.LoadLocation(cfg.Timezone)
@@ -206,6 +219,11 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		fmt.Printf("Start Dose:\t%q (%d)\n",
 			time.Unix(useLog.StartTime, 0).In(location),
 			useLog.StartTime)
+		if approxEnd != useLog.StartTime {
+			fmt.Printf("Approx. End:\t%q (%d)\n",
+				time.Unix(approxEnd, 0).In(location),
+				approxEnd)
+		}
 
 		if useLog.EndTime != 0 {
 			fmt.Printf("End Dose:\t%q (%d)\n",
@@ -218,6 +236,7 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 			}
 		}
 		fmt.Printf("Current Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
+
 		fmt.Printf("Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
 		fmt.Println()
 
@@ -225,21 +244,7 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		fmt.Printf("Dose:\t%f\n", useLog.Dose)
 		fmt.Printf("Units:\t%q\n\n", useLog.DoseUnits)
 
-		fmt.Printf("Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
-			int(timeTill.TotalCompleteMin*100),
-			int(math.Round(float64(gotInfoProper.TotalDurMin)/60)),
-			int(timeTill.TotalCompleteMax*100),
-			int(math.Round(float64(gotInfoProper.TotalDurMax)/60)))
-
-		fmt.Println("Time left in minutes")
-		fmt.Printf("Total:\tMin: %d ; Max: %d\n",
-			int(math.Round(float64((gotInfoProper.TotalDurMin-
-				(timeTill.TotalCompleteMin*
-					gotInfoProper.TotalDurMin))/60))),
-
-			int(math.Round(float64((gotInfoProper.TotalDurMax-
-				(timeTill.TotalCompleteMax*
-					gotInfoProper.TotalDurMax))/60))))
+		fmt.Println("=== Time left in minutes until ===")
 
 		if onsetAvg != 0 {
 			fmt.Printf("Onset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOnset)/60)))
@@ -256,6 +261,32 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 		if offsetAvg != 0 {
 			fmt.Printf("Offset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOffset/60))))
 		}
+
+		if totalAvg != 0 {
+			fmt.Printf("Total:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillTotal/60))))
+		}
+
+		fmt.Printf("Total:\tMin: %d ; Max: %d\n",
+			int(math.Round(
+				float64(
+					(gotInfoProper.TotalDurMin-
+						(timeTill.TotalCompleteMin*gotInfoProper.TotalDurMin))/60))),
+			int(math.Round(
+				float64(
+					(gotInfoProper.TotalDurMax-
+						(timeTill.TotalCompleteMax*gotInfoProper.TotalDurMax))/60))))
+
+		fmt.Println("=== Percentage of time left completed ===")
+
+		fmt.Printf("Total:\t%d%% (of %d average minutes)\n",
+			int(timeTill.TotalCompleteAvg*100),
+			int(math.Round(float64(totalAvg)/60)))
+
+		fmt.Printf("Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
+			int(timeTill.TotalCompleteMin*100),
+			int(math.Round(float64(gotInfoProper.TotalDurMin)/60)),
+			int(timeTill.TotalCompleteMax*100),
+			int(math.Round(float64(gotInfoProper.TotalDurMax)/60)))
 	}
 
 	return &timeTill
