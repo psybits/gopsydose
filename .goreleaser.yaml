@@ -16,50 +16,9 @@ builds:
     ldflags:
       - -s
       - -w
-  -
-    main: .
-    id: "linux-CLI-arm64"
-    binary: dose
-    env:
-      - CGO_ENABLED=1
-      - CC=aarch64-suse-linux-gcc-12
-    goos:
-      - linux
-    goarch:
-      - arm64
-    ldflags:
-      - -s
-      - -w
-  -
-    main: .
-    id: "win-64-CLI"
-    binary: dose
-    env:
-      - CGO_ENABLED=1
-      - CC=x86_64-w64-mingw32-gcc
-    goos:
-      - windows
-    goarch:
-      - amd64
-    ldflags:
-      - -s
-      - -w
-  -
-    main: .
-    id: "win-32-CLI"
-    binary: dose
-    env:
-      - CGO_ENABLED=1
-      - CC=i686-w64-mingw32-gcc
-    goos:
-      - windows
-    goarch:
-      - 386
-    ldflags:
-      - -s
-      - -w
 archives:
   -
+    rlcp: true
     format_overrides:
       - goos: windows
         format: zip
