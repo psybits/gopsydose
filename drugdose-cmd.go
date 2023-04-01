@@ -571,14 +571,14 @@ func main() {
 		inputDose = true
 	}
 
-	if inputDose == true {
+	if inputDose == true || *dontLog == true && *drugname != "none" {
 		drugdose.VerbosePrint("Using API from settings.toml: "+gotsetcfg.UseSource, *verbose)
 		drugdose.VerbosePrint("Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_URL, *verbose)
 
 		cli := gotsetcfg.InitGraphqlClient()
 		if cli != nil {
 			if gotsetcfg.UseSource == "psychonautwiki" {
-				ret := gotsetcfg.FetchPsyWiki(*drugname, *drugroute, cli, true)
+				ret := gotsetcfg.FetchPsyWiki(*drugname, cli)
 				if !ret {
 					fmt.Println("Didn't fetch anything.")
 				}

@@ -78,7 +78,7 @@ func (cfg *Config) InitGraphqlClient() *graphql.Client {
 	return client
 }
 
-func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graphql.Client, printit bool) bool {
+func (cfg *Config) FetchPsyWiki(drugname string, client *graphql.Client) bool {
 	if !cfg.AutoFetch {
 		fmt.Println("Automatic fetching is disabled, returning.")
 		return false
@@ -93,23 +93,26 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 		nil,
 		drugname)
 	if ret {
-		if printit {
-			fmt.Println("Drug already in DB, returning.")
-		}
+		fmt.Println("Drug already in DB, returning.")
 		return false
 	}
 
 	fmt.Println("Fetching from source:", cfg.UseSource)
 
-	var q struct {
+	// This is the graphql query for Psychonautwiki.
+	// The way it works is, the full query is generated
+	// using the PsychonautwikiSubstance struct.
+	var query struct {
 		PsychonautwikiSubstance `graphql:"substances(query: $dn)"`
 	}
 
+	// Since the query has to be a string, the module has provided
+	// an argument allowing to map a variable to the string.
 	variables := map[string]interface{}{
 		"dn": drugname,
 	}
 
-	err := client.Query(context.Background(), &q, variables)
+	err := client.Query(context.Background(), &query, variables)
 	if err != nil {
 		fmt.Println("Error from Psychonautwiki API:", err)
 		return false
@@ -117,8 +120,8 @@ func (cfg *Config) FetchPsyWiki(drugname string, drugroute string, client *graph
 
 	InfoDrug := []DrugInfo{}
 
-	if len(q.PsychonautwikiSubstance) != 0 {
-		subs := q.PsychonautwikiSubstance
+	if len(query.PsychonautwikiSubstance) != 0 {
+		subs := query.PsychonautwikiSubstance
 		for i := 0; i < len(subs); i++ {
 			if len(subs[i].Roas) != 0 {
 				for o := 0; o < len(subs[i].Roas); o++ {
