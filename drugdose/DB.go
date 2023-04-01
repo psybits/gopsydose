@@ -333,6 +333,39 @@ func (cfg Config) CleanDB() bool {
 	return true
 }
 
+// Removes the currently configured info table.
+func (cfg Config) CleanInfo() bool {
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
+	if err != nil {
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
+	}
+	defer db.Close()
+
+	tx, err := db.Begin()
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	_, err = tx.Exec("drop table " + cfg.UseSource)
+	if err != nil {
+		fmt.Println("CleanInfo: tx.Exec():", err)
+		return false
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("CleanInfo: tx.Commit():", err)
+		return false
+	}
+
+	fmt.Println("The info table: " + cfg.UseSource + "; removed from DB.")
+
+	return true
+}
+
+// Removes the main names tables and the currently configured ones as well.
+// This means, that any old names generated for another source aren't removed.
 func (cfg Config) CleanNames() bool {
 	tableSuffix := "_" + cfg.UseSource
 	tableNames := [8]string{altNamesSubsTableName,

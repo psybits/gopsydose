@@ -104,6 +104,11 @@ var (
 		0,
 		"cleans the N number of oldest logs")
 
+	cleanDB = flag.Bool(
+		"clean-db",
+		false,
+		"remove all tables from the DB")
+
 	cleanLogs = flag.Bool(
 		"clean-logs",
 		false,
@@ -118,6 +123,15 @@ var (
 			"currently configured source\n"+
 			"when you reuse the name matching, it will\n"+
 			"recreate the tables with the present config files")
+
+	cleanInfo = flag.Bool(
+		"clean-info",
+		false,
+		"cleans the currently configured info table,\n"+
+		"meaning all remotely fetched dosage ranges and routes\n"+
+		"for all drugs, keep in mind that if you have configured a\n"+
+		"different source earlier, it will not be cleaned, unless\n"+
+		"you change the configuration back and use this flag again")
 
 	forID = flag.Int64(
 		"for-id",
@@ -192,15 +206,10 @@ var (
 		"only fetch info about drug to local DB,\n"+
 			"but don't log anything")
 
-	removeDrug = flag.String(
+	removeInfoDrug = flag.String(
 		"remove-info-drug",
 		"none",
-		"remove all entries of a single drug from the info DB")
-
-	cleanDB = flag.Bool(
-		"clean-db",
-		false,
-		"remove all tables from the DB")
+		"remove all entries of a single drug from the info DB")	
 
 	getTimes = flag.Bool(
 		"get-times",
@@ -382,6 +391,13 @@ func main() {
 		fmt.Println("Database path:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 	}
 
+	if *cleanInfo {
+		ret := gotsetcfg.CleanInfo()
+		if !ret {
+			fmt.Println("Info table: " + gotsetcfg.UseSource + "couldn't be removed because of an error.")
+		}
+	}
+
 	if *cleanDB {
 		ret := gotsetcfg.CleanDB()
 		if !ret {
@@ -394,10 +410,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *removeDrug != "none" {
-		ret := gotsetcfg.RemoveSingleDrugInfoDB(*removeDrug)
+	if *removeInfoDrug != "none" {
+		ret := gotsetcfg.RemoveSingleDrugInfoDB(*removeInfoDrug)
 		if !ret {
-			fmt.Println("Failed to remove single drug from info database:", *removeDrug)
+			fmt.Println("Failed to remove single drug from info database:", *removeInfoDrug)
 		}
 	}
 
@@ -537,7 +553,7 @@ func main() {
 	}
 
 	inputDose := false
-	if *changeLog == false && remembering == false {
+	if *changeLog == false && remembering == false && *dontLog == false {
 		if *drugname != "none" ||
 			*drugroute != "none" ||
 			*drugargdose != 0 ||
