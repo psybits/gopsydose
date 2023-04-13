@@ -2,7 +2,6 @@ package drugdose
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -36,6 +35,8 @@ const replaceDir = "replace-local-names-configs"
 const namesMagicWord = "!TheTableIsNotEmpty!"
 
 func GetNamesConfig(nameType string, source string) *SubstanceName {
+	const printN string = "GetNamesConfig()"
+
 	setdir := InitSettingsDir()
 	if setdir == "" {
 		return nil
@@ -57,14 +58,14 @@ func GetNamesConfig(nameType string, source string) *SubstanceName {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			fmt.Println("GetNamesConfig: Error:", err)
+			printName(printN, "Error:", err)
 		}
 		return nil
 	}
 
 	err = toml.Unmarshal(file, &subName)
 	if err != nil {
-		fmt.Println("GetNamesConfig: unmarshal error:", err)
+		printName(printN, "Unmarshal error:", err)
 		return nil
 	}
 
@@ -72,6 +73,8 @@ func GetNamesConfig(nameType string, source string) *SubstanceName {
 }
 
 func namesTables(nameType string) string {
+	const printN string = "namesTables()"
+
 	table := ""
 	if nameType == "substance" {
 		table = altNamesSubsTableName
@@ -82,13 +85,15 @@ func namesTables(nameType string) string {
 	} else if nameType == "convUnits" {
 		table = altNamesConvUnitsTableName
 	} else {
-		fmt.Println("namesTables: No nameType:", nameType)
+		printName(printN, "No nameType:", nameType)
 	}
 
 	return table
 }
 
 func namesFiles(nameType string) string {
+	const printN string = "namesFiles()"
+
 	file := ""
 	if nameType == "substance" {
 		file = namesSubstanceFilename
@@ -99,13 +104,15 @@ func namesFiles(nameType string) string {
 	} else if nameType == "convUnits" {
 		file = namesConvUnitsFilename
 	} else {
-		fmt.Println("namesFiles: No nameType:", nameType)
+		printName(printN, "No nameType:", nameType)
 	}
 
 	return file
 }
 
 func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
+	const printN string = "AddToSubstanceNamesTable()"
+
 	table := namesTables(nameType)
 	if table == "" {
 		return false
@@ -135,7 +142,7 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 
 	setdir := InitSettingsDir()
 	if setdir == "" {
-		fmt.Println("AddToSubstanceNamesTable: No settings directory found!")
+		printName(printN, "No settings directory found!")
 		return false
 	}
 	paths := [2]string{file, replaceDir}
@@ -146,7 +153,7 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 		if err == nil {
 			moveToPath := setdir + "/" + paths[i]
 
-			fmt.Println("Found config in working directory:", paths[i],
+			printName(printN, "Found config in working directory:", paths[i],
 				"; attempt moving to:", moveToPath)
 
 			// Check if files exist in config directory.
@@ -157,20 +164,20 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 				if errors.Is(err, os.ErrNotExist) {
 					err = os.Rename(paths[i], moveToPath)
 					if err != nil {
-						fmt.Println("AddToSubstanceNamesTable: Couldn't move file:", err)
+						printName(printN, "Couldn't move file:", err)
 						return false
 					}
 				} else {
-					fmt.Println("AddToSubstanceNamesTable:", err)
+					printName(printN, err)
 					return false
 				}
 			} else if err == nil {
-				fmt.Println("Name config already exists:", moveToPath,
+				printName(printN, "Name config already exists:", moveToPath,
 					"; will not move the file from the working directory:", paths[i])
 			}
 		} else if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
-				fmt.Println("AddToSubstanceNamesTable:", err)
+				printName(printN, err)
 				return false
 			}
 		}
@@ -196,20 +203,20 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 		"' (localName, alternativeName) " +
 		"values(?, ?)")
 	if err != nil {
-		fmt.Println("AddToSubstanceNamesTable:", err)
+		printName(printN, err)
 		return false
 	}
 	defer subsStmt.Close()
 
 	tx, err := db.Begin()
 	if err != nil {
-		fmt.Println("AddToSubstanceNamesTable:", err)
+		printName(printN, err)
 		return false
 	}
 
 	_, err = tx.Stmt(subsStmt).Exec(namesMagicWord, namesMagicWord)
 	if err != nil {
-		fmt.Println("AddToSubstanceNamesTable:", err)
+		printName(printN, err)
 		return false
 	}
 
@@ -219,7 +226,7 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 		for i := 0; i < len(altName); i++ {
 			_, err = tx.Stmt(subsStmt).Exec(locName, altName[i])
 			if err != nil {
-				fmt.Println("AddToSubstanceNamesTable:", err)
+				printName(printN, err)
 				return false
 			}
 		}
@@ -227,16 +234,18 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 
 	err = tx.Commit()
 	if err != nil {
-		fmt.Println("AddToSubstanceNamesTable:", err)
+		printName(printN, err)
 		return false
 	}
 
-	fmt.Println(nameType, "names initialized successfully!")
+	printNameVerbose(cfg.VerbosePrinting, printN, nameType, "names initialized successfully! replace:", replace)
 
 	return true
 }
 
 func (cfg Config) MatchName(inputName string, nameType string, replace bool) string {
+	const printN string = "MatchName()"
+
 	table := namesTables(nameType)
 	if table == "" {
 		return inputName
@@ -268,7 +277,7 @@ func (cfg Config) MatchName(inputName string, nameType string, replace bool) str
 			"' where "+checkCol[i]+" = ?", inputName).Scan(&gotDBName)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) == false {
-				fmt.Println("MatchName: For input:", inputName, "; Error:", err)
+				printName(printN, "For input:", inputName, "; Error:", err)
 				return inputName
 			}
 		}
@@ -287,7 +296,9 @@ func (cfg Config) MatchAndReplace(inputName string, nameType string) string {
 	return ret
 }
 
-func (cfg Config) GetAllNames(inputName string, nameType string, replace bool, verbose bool) []string {
+func (cfg Config) GetAllNames(inputName string, nameType string, replace bool) []string {
+	const printN string = "GetAllNames()"
+
 	table := namesTables(nameType)
 	if table == "" {
 		return nil
@@ -303,11 +314,9 @@ func (cfg Config) GetAllNames(inputName string, nameType string, replace bool, v
 	cfg.AddToSubstanceNamesTable(nameType, replace)
 
 	repName := cfg.MatchName(inputName, nameType, true)
-	if verbose {
-		if repName != inputName {
-			fmt.Println("For source:", cfg.UseSource,
-				"; Local name:", inputName, "; Is replaced with:", repName)
-		}
+	if repName != inputName {
+		printNameVerbose(cfg.VerbosePrinting, printN, "For source:", cfg.UseSource,
+			"; Local name:", inputName, "; Is replaced with:", repName)
 	}
 
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
@@ -321,14 +330,14 @@ func (cfg Config) GetAllNames(inputName string, nameType string, replace bool, v
 	rows, err := db.Query("select alternativeName from '"+table+
 		"' where localName = ?", repName)
 	if err != nil {
-		fmt.Println("GetAllNames: Error:", err)
+		printName(printN, "Error:", err)
 		return nil
 	}
 
 	for rows.Next() {
 		err = rows.Scan(&tempName)
 		if err != nil {
-			fmt.Println("GetAllNames: Scan: Error:", err)
+			printName(printN, "Scan: Error:", err)
 			return nil
 		}
 		allNames = append(allNames, tempName)
@@ -340,7 +349,7 @@ func (cfg Config) GetAllNames(inputName string, nameType string, replace bool, v
 	}
 
 	if len(allNames) == 0 {
-		fmt.Println("GetAllNames: No names found for:", repName, addToErrMsg)
+		printName(printN, "No names found for:", repName, addToErrMsg)
 	}
 
 	return allNames
@@ -355,6 +364,8 @@ func convPerc2Units(amount float32, perc float32) float32 {
 }
 
 func unitsFunctionsOutput(convertFunc string, unitInputs ...float32) float32 {
+	const printN string = "unitsFunctionsOutput()"
+
 	var output float32 = 0
 	if convertFunc == "ConvPerc2Units" || convertFunc == "ConvPerc2Units*10" {
 		gotLenOfUnitInputs := len(unitInputs)
@@ -364,21 +375,23 @@ func unitsFunctionsOutput(convertFunc string, unitInputs ...float32) float32 {
 				output *= 10
 			}
 		} else {
-			fmt.Println("unitsFunctionsOutput: ConvPerc2Units: Wrong amount of unitInputs:",
+			printName(printN, "ConvPerc2Units: Wrong amount of unitInputs:",
 				gotLenOfUnitInputs, "; needed 2")
 		}
 	} else {
-		fmt.Println("unitsFunctionsOutput: No convertFunc:", convertFunc)
+		printName(printN, "No convertFunc:", convertFunc)
 	}
 
 	return output
 }
 
 func (cfg Config) ConvertUnits(substance string, unitInputs ...float32) (float32, string) {
-	allNames := cfg.GetAllNames(substance, "convUnits", true, false)
+	const printN string = "ConvertUnits()"
+
+	allNames := cfg.GetAllNames(substance, "convUnits", true)
 	gotAllNamesLen := len(allNames)
 	if gotAllNamesLen != 2 {
-		fmt.Println("ConvertUnits: wrong amount of names:", gotAllNamesLen,
+		printName(printN, "Wrong amount of names:", gotAllNamesLen,
 			"; should be 2:", allNames)
 		return 0, ""
 	}

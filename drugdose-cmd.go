@@ -263,11 +263,6 @@ var (
 		false,
 		"show info about the current configured database driver")
 
-	printSettings = flag.Bool(
-		"print-settings",
-		false,
-		"print the settings")
-
 	noGetLimit = flag.Bool(
 		"no-get-limit",
 		false,
@@ -282,6 +277,22 @@ var (
 		"none",
 		"search all columns for specific string")
 )
+
+// Print strings properly formatted for the Command Line Interface (CLI) program.
+// This is so that when using the CLI program, the user can better understand
+// where a string is coming from.
+// If you only need to add a newline, don't use this function!
+func printCLI(str ...any) {
+	fmt.Print("gopsydose: CLI: ")
+	fmt.Println(str...)
+}
+
+// Same as printCLI(), but only for verbose output and is optional.
+func printCLIVerbose(verbose bool, str ...any) {
+	if verbose == true {
+		printCLI(str...)
+	}
+}
 
 func main() {
 	flag.Usage = func() {
@@ -315,34 +326,38 @@ func main() {
 		drugdose.DefaultTimezone,
 	)
 	if setcfg == nil {
-		fmt.Println("Settings struct not initialised.")
+		printCLI("Settings struct not initialised.")
 		os.Exit(1)
-	}
+	}	
 
-	ret := setcfg.InitSettings(*recreateSettings)
+	ret := setcfg.InitSettings(*recreateSettings, *verbose)
 	if !ret {
-		drugdose.VerbosePrint("Settings weren't initialised.", *verbose)
+		printCLIVerbose(*verbose, "Settings weren't initialised.")
 	}
 
-	gotsetcfg := drugdose.GetSettings(*printSettings)
+	gotsetcfg := drugdose.GetSettings()	
+
+	if *verbose == true {
+		gotsetcfg.VerbosePrinting = true
+	}
 
 	gotsrc := drugdose.InitSourceStruct(gotsetcfg.UseSource, *apiURL)
 	ret = gotsetcfg.InitSourceSettings(gotsrc, *recreateSources)
 	if !ret {
-		drugdose.VerbosePrint("Sources file wasn't initialised.", *verbose)
+		printCLIVerbose(*verbose, "Sources file wasn't initialised.")
 	}
 
 	gotsrcData := drugdose.GetSourceData()
 
 	if *getDirs {
-		fmt.Println("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
-		fmt.Println("Settings Dir:", drugdose.InitSettingsDir())
+		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
+		printCLI("Settings Dir:", drugdose.InitSettingsDir())
 	}
 
 	if *forget {
 		ret := gotsetcfg.ForgetConfig(*forUser)
 		if !ret {
-			fmt.Println("Couldn't forget remember config, because of an error.")
+			printCLI("Couldn't forget remember config, because of an error.")
 		}
 	}
 
@@ -352,7 +367,7 @@ func main() {
 		if got != "" && got != "9999999999" {
 			remCfg := gotsetcfg.RememberConfig(*forUser)
 			if remCfg != nil {
-				fmt.Println("Remembering from config using ID:", got)
+				printCLI("Remembering from config using ID:", got)
 				*forUser = remCfg.Username
 				*drugname = remCfg.DrugName
 				*drugroute = remCfg.DrugRoute
@@ -363,57 +378,59 @@ func main() {
 	}
 
 	if *stopOnCfgInit {
-		fmt.Println("Stopping after config file initialization.")
+		printCLI("Stopping after config file initialization.")
 		os.Exit(0)
 	}
 
-	if gotsetcfg.DBDriver == "sqlite3" {
-		gotsetcfg.InitDBFileStructure()
+	if *cleanDB == false {
+		if gotsetcfg.DBDriver == "sqlite3" {
+			gotsetcfg.InitDBFileStructure()
 
-		ret = gotsetcfg.InitAllDBTables()
-		if !ret {
-			fmt.Println("Database didn't get initialised, because of an error, exiting.")
+			ret = gotsetcfg.InitAllDBTables()
+			if !ret {
+				printCLI("Database didn't get initialised, because of an error, exiting.")
+				os.Exit(1)
+			}
+		} else if gotsetcfg.DBDriver == "mysql" {
+			ret = gotsetcfg.InitAllDBTables()
+			if !ret {
+				printCLI("Database didn't get initialised, because of an error, exiting.")
+				os.Exit(1)
+			}
+		} else {
+			printCLI("No proper driver selected. Choose sqlite3 or mysql!")
 			os.Exit(1)
 		}
-	} else if gotsetcfg.DBDriver == "mysql" {
-		ret = gotsetcfg.InitAllDBTables()
-		if !ret {
-			fmt.Println("Database didn't get initialised, because of an error, exiting.")
-			os.Exit(1)
-		}
-	} else {
-		fmt.Println("No proper driver selected. Choose sqlite3 or mysql!")
-		os.Exit(1)
 	}
 
 	if *dbDriverInfo {
-		fmt.Println("Using database driver:", gotsetcfg.DBDriver)
-		fmt.Println("Database path:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
+		printCLI("Using database driver:", gotsetcfg.DBDriver)
+		printCLI("Database path:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 	}
 
 	if *cleanInfo {
 		ret := gotsetcfg.CleanInfo()
 		if !ret {
-			fmt.Println("Info table: " + gotsetcfg.UseSource + "couldn't be removed because of an error.")
+			printCLI("Info table: " + gotsetcfg.UseSource + "couldn't be removed because of an error.")
 		}
 	}
 
 	if *cleanDB {
 		ret := gotsetcfg.CleanDB()
 		if !ret {
-			fmt.Println("Database couldn't be cleaned, because of an error.")
+			printCLI("Database couldn't be cleaned, because of an error.")
 		}
 	}
 
 	if *stopOnDbInit {
-		fmt.Println("Stopping after database initialization.")
+		printCLI("Stopping after database initialization.")
 		os.Exit(0)
 	}
 
 	if *removeInfoDrug != "none" {
 		ret := gotsetcfg.RemoveSingleDrugInfoDB(*removeInfoDrug)
 		if !ret {
-			fmt.Println("Failed to remove single drug from info database:", *removeInfoDrug)
+			printCLI("Failed to remove single drug from info database:", *removeInfoDrug)
 		}
 	}
 
@@ -431,27 +448,27 @@ func main() {
 	if *cleanLogs || remAmount != 0 {
 		ret := gotsetcfg.RemoveLogs(*forUser, remAmount, revRem, *forID, *searchStr)
 		if !ret {
-			fmt.Println("Couldn't remove logs because of an error.")
+			printCLI("Couldn't remove logs because of an error.")
 		}
 	}
 
 	if *cleanNames {
 		ret := gotsetcfg.CleanNames()
 		if !ret {
-			fmt.Println("Couldn't remove alt names from DB because of an error.")
+			printCLI("Couldn't remove alt names from DB because of an error.")
 		}
 	}
 
 	if *getDBSize {
 		ret := gotsetcfg.GetDBSize()
 		retMiB := (ret / 1024) / 1024
-		fmt.Println("Total DB size returned:", retMiB, "MiB ;", ret, "bytes")
+		printCLI("Total DB size returned:", retMiB, "MiB ;", ret, "bytes")
 	}
 
 	if *getUsers {
 		ret := gotsetcfg.GetUsers()
 		if len(ret) == 0 {
-			fmt.Println("Couldn't get users because of an error.")
+			printCLI("Couldn't get users because of an error.")
 		} else {
 			fmt.Print("All users: ")
 			for i := 0; i < len(ret); i++ {
@@ -463,7 +480,7 @@ func main() {
 
 	if *getLogsCount {
 		ret := gotsetcfg.GetLogsCount(*forUser)
-		fmt.Println("Total number of logs:", ret, "; for user:", *forUser)
+		printCLI("Total number of logs:", ret, "; for user:", *forUser)
 	}
 
 	if *getLogs {
@@ -473,30 +490,30 @@ func main() {
 		} else {
 			ret = gotsetcfg.GetLogs(100, *forID, *forUser, false, false, true, *searchStr)
 			if ret != nil && len(ret) == 100 {
-				fmt.Println("By default there is a limit of retrieving " +
+				printCLI("By default there is a limit of retrieving " +
 					"and printing a maximum of 100 entries. " +
 					"To avoid it, use the -no-get-limit option.")
 			}
 		}
 		if ret == nil {
-			fmt.Println("No logs could be returned.")
+			printCLI("No logs could be returned.")
 		}
 	} else if *getNewLogs != 0 {
 		ret := gotsetcfg.GetLogs(*getNewLogs, 0, *forUser, false, true, true, *searchStr)
 		if ret == nil {
-			fmt.Println("No logs could be returned.")
+			printCLI("No logs could be returned.")
 		}
 	} else if *getOldLogs != 0 {
 		ret := gotsetcfg.GetLogs(*getOldLogs, 0, *forUser, false, false, true, *searchStr)
 		if ret == nil {
-			fmt.Println("No logs could be returned.")
+			printCLI("No logs could be returned.")
 		}
 	}
 
 	if *getLocalInfoDrugs {
 		locinfolist := gotsetcfg.GetLocalInfoNames()
 		if len(locinfolist) == 0 {
-			fmt.Println("Couldn't get database list of drugs names from info table.")
+			printCLI("Couldn't get database list of drugs names from info table.")
 		} else {
 			fmt.Print("For source: " + gotsetcfg.UseSource + " ; All local drugs: ")
 			for i := 0; i < len(locinfolist); i++ {
@@ -507,9 +524,9 @@ func main() {
 	}
 
 	if *getSubNames != "" {
-		subsNames := gotsetcfg.GetAllNames(*getSubNames, "substance", false, true)
+		subsNames := gotsetcfg.GetAllNames(*getSubNames, "substance", false)
 		if subsNames == nil {
-			fmt.Println("Couldn't get substance names, because of an error.")
+			printCLI("Couldn't get substance names, because of an error.")
 		} else {
 			fmt.Print("For substance: " + *getSubNames + " ; Alternative names: ")
 			for i := 0; i < len(subsNames); i++ {
@@ -520,9 +537,9 @@ func main() {
 	}
 
 	if *getRouteNames != "" {
-		routeNames := gotsetcfg.GetAllNames(*getRouteNames, "route", false, true)
+		routeNames := gotsetcfg.GetAllNames(*getRouteNames, "route", false)
 		if routeNames == nil {
-			fmt.Println("Couldn't get route names, because of an error.")
+			printCLI("Couldn't get route names, because of an error.")
 		} else {
 			fmt.Print("For route: " + *getRouteNames + " ; Alternative names: ")
 			for i := 0; i < len(routeNames); i++ {
@@ -533,9 +550,9 @@ func main() {
 	}
 
 	if *getUnitsNames != "" {
-		unitsNames := gotsetcfg.GetAllNames(*getUnitsNames, "units", false, true)
+		unitsNames := gotsetcfg.GetAllNames(*getUnitsNames, "units", false)
 		if unitsNames == nil {
-			fmt.Println("Couldn't get units names, because of an error.")
+			printCLI("Couldn't get units names, because of an error.")
 		} else {
 			fmt.Print("For unit: " + *getUnitsNames + " ; Alternative names: ")
 			for i := 0; i < len(unitsNames); i++ {
@@ -548,7 +565,7 @@ func main() {
 	if *getLocalInfoDrug != "none" {
 		locinfo := gotsetcfg.GetLocalInfo(*getLocalInfoDrug, true)
 		if len(locinfo) == 0 {
-			fmt.Println("Couldn't get database info for drug:", *getLocalInfoDrug)
+			printCLI("Couldn't get database info for drug:", *getLocalInfoDrug)
 		}
 	}
 
@@ -560,19 +577,19 @@ func main() {
 			*drugunits != "none" {
 
 			if *drugname == "none" {
-				fmt.Println("No drug name specified, checkout: gopsydose -help")
+				printCLI("No drug name specified, checkout: gopsydose -help")
 			}
 
 			if *drugroute == "none" {
-				fmt.Println("No route specified, checkout: gopsydose -help")
+				printCLI("No route specified, checkout: gopsydose -help")
 			}
 
 			if *drugargdose == 0 {
-				fmt.Println("No dose specified, checkout: gopsydose -help")
+				printCLI("No dose specified, checkout: gopsydose -help")
 			}
 
 			if *drugunits == "none" {
-				fmt.Println("No units specified, checkout: gopsydose -help")
+				printCLI("No units specified, checkout: gopsydose -help")
 			}
 
 			if *drugname != "none" && *drugroute != "none" &&
@@ -588,18 +605,18 @@ func main() {
 	}
 
 	if inputDose == true || *dontLog == true && *drugname != "none" {
-		drugdose.VerbosePrint("Using API from settings.toml: "+gotsetcfg.UseSource, *verbose)
-		drugdose.VerbosePrint("Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_URL, *verbose)
+		printCLIVerbose(*verbose, "Using API from settings.toml: "+gotsetcfg.UseSource)
+		printCLIVerbose(*verbose, "Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_URL)
 
 		cli := gotsetcfg.InitGraphqlClient()
 		if cli != nil {
 			if gotsetcfg.UseSource == "psychonautwiki" {
 				ret := gotsetcfg.FetchPsyWiki(*drugname, cli)
 				if !ret {
-					fmt.Println("Didn't fetch anything.")
+					printCLIVerbose(*verbose, "Didn't fetch anything from:", gotsetcfg.UseSource)
 				}
 			} else {
-				fmt.Println("No valid API selected:", gotsetcfg.UseSource)
+				printCLI("No valid API selected:", gotsetcfg.UseSource)
 				os.Exit(1)
 			}
 
@@ -607,11 +624,11 @@ func main() {
 				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc), true)
 				if !ret {
-					fmt.Println("Dose wasn't logged.")
+					printCLI("Dose wasn't logged.")
 				}
 			}
 		} else {
-			fmt.Println("Something went wrong when initialising the client," +
+			printCLI("Something went wrong when initialising the client," +
 				"\nnothing was fetched or logged.")
 		}
 	}
@@ -621,7 +638,7 @@ func main() {
 			userSettingsForID := strconv.FormatInt(*forID, 10)
 			ret = gotsetcfg.SetUserSettings("useIDForRemember", *forUser, userSettingsForID)
 			if !ret {
-				fmt.Println("Couldn't remember config, because of an error.")
+				printCLI("Couldn't remember config, because of an error.")
 			}
 		}
 	}
@@ -651,14 +668,14 @@ func main() {
 
 		ret := gotsetcfg.SetUserLogs(setType, *forID, *forUser, setValue)
 		if !ret {
-			fmt.Println("Couldn't change user log, because of an error.")
+			printCLI("Couldn't change user log, because of an error.")
 		}
 	}
 
 	if *getTimes {
 		times := gotsetcfg.GetTimes(*forUser, *forID, true)
 		if times == nil {
-			fmt.Println("Times couldn't be retrieved because of an error.")
+			printCLI("Times couldn't be retrieved because of an error.")
 		}
 	}
 }

@@ -2,7 +2,6 @@ package drugdose
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/hasura/go-graphql-client"
 )
@@ -65,8 +64,10 @@ type PsychonautwikiSubstance []struct {
 }
 
 func (cfg *Config) InitGraphqlClient() *graphql.Client {
+	const printN string = "InitGraphqlClient()"
+
 	if !cfg.AutoFetch {
-		fmt.Println("Automatic fetching is disabled, returning.")
+		printName(printN, "Automatic fetching is disabled, returning.")
 		return nil
 	}
 
@@ -79,8 +80,10 @@ func (cfg *Config) InitGraphqlClient() *graphql.Client {
 }
 
 func (cfg *Config) FetchPsyWiki(drugname string, client *graphql.Client) bool {
+	const printN string = "FetchPsyWiki()"
+
 	if !cfg.AutoFetch {
-		fmt.Println("Automatic fetching is disabled, returning.")
+		printName(printN, "Automatic fetching is disabled, returning.")
 		return false
 	}
 
@@ -93,11 +96,11 @@ func (cfg *Config) FetchPsyWiki(drugname string, client *graphql.Client) bool {
 		nil,
 		drugname)
 	if ret {
-		fmt.Println("Drug already in DB, returning.")
+		printNameVerbose(cfg.VerbosePrinting, printN, "Drug already in DB, returning. No need to fetch anything from Psychonautwiki.")
 		return false
 	}
 
-	fmt.Println("Fetching from source:", cfg.UseSource)
+	printName(printN, "Fetching from source:", cfg.UseSource)
 
 	// This is the graphql query for Psychonautwiki.
 	// The way it works is, the full query is generated
@@ -114,7 +117,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, client *graphql.Client) bool {
 
 	err := client.Query(context.Background(), &query, variables)
 	if err != nil {
-		fmt.Println("Error from Psychonautwiki API:", err)
+		printName(printN, "Error from Psychonautwiki API:", err)
 		return false
 	}
 
@@ -125,7 +128,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, client *graphql.Client) bool {
 		for i := 0; i < len(subs); i++ {
 			if len(subs[i].Roas) != 0 {
 				for o := 0; o < len(subs[i].Roas); o++ {
-					fmt.Println("From source:", cfg.UseSource, "; Substance:", subs[i].Name,
+					printNameVerbose(cfg.VerbosePrinting, printN, "From source:", cfg.UseSource, "; Substance:", subs[i].Name,
 						"; Route:", subs[i].Roas[o])
 
 					tempInfoDrug := DrugInfo{}
@@ -159,23 +162,23 @@ func (cfg *Config) FetchPsyWiki(drugname string, client *graphql.Client) bool {
 					InfoDrug = append(InfoDrug, tempInfoDrug)
 				}
 			} else {
-				fmt.Println("FetchPsyWiki: No roas for:", subs[i])
+				printName(printN, "No roas for:", subs[i])
 			}
 		}
 
 		if len(InfoDrug) != 0 {
 			ret := cfg.AddToInfoDB(InfoDrug)
 			if !ret {
-				fmt.Println("Data couldn't be added to info DB, because of an error.")
+				printName(printN, "Data couldn't be added to info DB, because of an error.")
 				return false
 			}
-			fmt.Println("Data added to info DB successfully.")
+			printName(printN, "Data added to info DB successfully.")
 		} else {
-			fmt.Println("Struct array is empty, nothing added to DB.")
+			printName(printN, "Struct array is empty, nothing added to DB.")
 			return false
 		}
 	} else {
-		fmt.Println("The Psychonautwiki API returned nothing, so query is wrong or connection is broken.")
+		printName(printN, "The Psychonautwiki API returned nothing, so query is wrong or connection is broken.")
 		return false
 	}
 

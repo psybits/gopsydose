@@ -12,8 +12,10 @@ type SourceConfig struct {
 	API_URL string
 }
 
+type MaxLogsPerUserSize int16
+
 type Config struct {
-	MaxLogsPerUser  int16
+	MaxLogsPerUser  MaxLogsPerUserSize
 	UseSource       string
 	AutoFetch       bool
 	AutoRemove      bool
@@ -27,53 +29,78 @@ type DBSettings struct {
 	Path string
 }
 
-const PsychonautwikiAPI = "api.psychonautwiki.org"
+const PsychonautwikiAPI string = "api.psychonautwiki.org"
 
-const DefaultMaxLogsPerUser = 100
-const DefaultAPI = PsychonautwikiAPI
-const DefaultAutoFetch = true
-const DefaultDBDir = "GPD"
-const DefaultDBName = "gpd.db"
-const DefaultAutoRemove = false
-const DefaultDBDriver = "sqlite3"
-const DefaultMySQLAccess = "user:password@tcp(127.0.0.1:3306)/database"
-const DefaultVerbose = false
-const DefaultTimezone = "Local"
+const DefaultMaxLogsPerUser MaxLogsPerUserSize = 100
+const DefaultAPI string = PsychonautwikiAPI
+const DefaultAutoFetch bool = true
+const DefaultDBDir string = "GPD"
+const DefaultDBName string = "gpd.db"
+const DefaultAutoRemove bool = false
+const DefaultDBDriver string = "sqlite3"
+const DefaultMySQLAccess string = "user:password@tcp(127.0.0.1:3306)/database"
+const DefaultVerbose bool = false
+const DefaultTimezone string = "Local"
 
-const DefaultUsername = "defaultUser"
-const DefaultSource = "psychonautwiki"
+const DefaultUsername string = "defaultUser"
+const DefaultSource string = "psychonautwiki"
 
-const sourceSetFilename = "gpd-sources.toml"
-const setFilename = "gpd-settings.toml"
+const sourceSetFilename string = "gpd-sources.toml"
+const setFilename string = "gpd-settings.toml"
 
 func errorCantCreateConfig(filename string, err error) {
-	fmt.Println("Error, can't create config file:", filename, ";", err)
+	printName("errorCantCreateConfig()", "Error, can't create config file:", filename, ";", err)
 	exitProgram()
 }
 
 func errorCantCloseConfig(filename string, err error) {
-	fmt.Println("Error, can't close config file:", filename, ";", err)
+	printName("errorCantCloseConfig()", "Error, can't close config file:", filename, ";", err)
 	exitProgram()
 }
 
 func errorCantReadConfig(filename string, err error) {
-	fmt.Println("Error, can't read config file:", filename, ";", err)
+	printName("errorCantReadConfig()", "Error, can't read config file:", filename, ";", err)
 	exitProgram()
 }
 
 func errorCantChmodConfig(filename string, err error) {
-	fmt.Println("Error, can't change mode of config file:", filename, ";", err)
+	printName("errorCantChmodConfig()", "Error, can't change mode of config file:", filename, ";", err)
 	exitProgram()
 }
 
 func otherError(filename string, err error) {
-	fmt.Println("Other error for config file:", filename, ";", err)
+	printName("otherError()", "Other error for config file:", filename, ";", err)
 	exitProgram()
 }
 
-func VerbosePrint(prstr string, verbose bool) {
-	if verbose {
-		fmt.Println(prstr)
+// The name used when printing, to distinguish from other logs.
+const moduleName string = "gopsydose"
+
+// Print strings properly formatted for the module.
+// This is so that when the module is imported, the user can better understand
+// where a string is coming from.
+// If you only need to add a newline, don't use this function!
+func printName(name string, str ...any) {
+	fmt.Print(moduleName + ": " + name + ": ")
+	fmt.Println(str...)
+}
+
+// Variation of printName(), that doesn't output a newline at the end.
+func printNameNoNewline(name string, str ...any) {
+	fmt.Print(moduleName + ": " + name + ": ")
+	fmt.Print(str...)
+}
+
+// Variation of printName(), that uses fmt.Printf() formatting.
+func printNameF(name string, str string, variables ...any) {
+	fmt.Print(moduleName + ": " + name + ": ")
+	fmt.Printf(str, variables...)
+}
+
+// Same as printName(), but only for verbose output and is optional.
+func printNameVerbose(verbose bool, name string, str ...any) {
+	if verbose == true {
+		printName(name, str...)
 	}
 }
 
@@ -87,9 +114,11 @@ func InitSourceStruct(source string, api string) *map[string]SourceConfig {
 }
 
 func InitSettingsDir() string {
+	const printN string = "InitSettingsDir()"
+
 	configdir, err := os.UserConfigDir()
 	if err != nil {
-		fmt.Println(err)
+		printName(printN, err)
 		return ""
 	}
 	configdir = configdir + "/GPD"
@@ -98,21 +127,24 @@ func InitSettingsDir() string {
 		if errors.Is(err, os.ErrNotExist) {
 			err = os.Mkdir(configdir, 0700)
 			if err != nil {
-				fmt.Println("InitSettingsDir:", err)
+				printName(printN, err)
 				return ""
 			}
 		} else {
-			fmt.Println("InitSettingsDir:", err)
+			printName(printN, err)
 			return ""
 		}
 	}
 	return configdir
 }
 
+// Create the config file for the sources.
 func (cfg Config) InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool) bool {
+	const printN string = "InitSourceSettings()"
+
 	mcfg, err := toml.Marshal(newcfg)
 	if err != nil {
-		fmt.Println(err)
+		printName(printN, err)
 		return false
 	}
 
@@ -125,7 +157,7 @@ func (cfg Config) InitSourceSettings(newcfg *map[string]SourceConfig, recreate b
 	_, err = os.Stat(path)
 	if err != nil || recreate {
 		if errors.Is(err, os.ErrNotExist) || recreate {
-			fmt.Println("Initialising config file:", path)
+			printName(printN, "Initialising config file:", path)
 			file, err := os.Create(path)
 			if err != nil {
 				errorCantCreateConfig(path, err)
@@ -149,7 +181,7 @@ func (cfg Config) InitSourceSettings(newcfg *map[string]SourceConfig, recreate b
 			otherError(path, err)
 		}
 	} else if err == nil {
-		VerbosePrint("Config file: "+path+" ; already exists!", cfg.VerbosePrinting)
+		printNameVerbose(cfg.VerbosePrinting, printN, "Config file: "+path+" ; already exists!")
 		return false
 	}
 
@@ -179,14 +211,17 @@ func GetSourceData() map[string]SourceConfig {
 	return cfg
 }
 
-func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
+func InitSettingsStruct(maxulogs MaxLogsPerUserSize, source string, autofetch bool,
 	dbdir string, dbname string, autoremove bool,
 	dbdriver string, mysqlaccess string, verboseprinting bool,
 	timezone string) *Config {
+
+	const printN string = "InitSettingsStruct()"
+
 	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			fmt.Println(err)
+			printName(printN, err)
 			return nil
 		}
 
@@ -197,7 +232,7 @@ func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
 			home = path
 		} else if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
-				fmt.Println("InitSettingsStruct:", err)
+				printName(printN, err)
 				return nil
 			}
 		}
@@ -228,10 +263,12 @@ func InitSettingsStruct(maxulogs int16, source string, autofetch bool,
 	return &initConf
 }
 
-func (initconf *Config) InitSettings(recreate bool) bool {
+func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
+	const printN string = "InitSettings()"
+
 	mcfg, err := toml.Marshal(initconf)
 	if err != nil {
-		fmt.Println(err)
+		printName(printN, err)
 		return false
 	}
 
@@ -244,7 +281,7 @@ func (initconf *Config) InitSettings(recreate bool) bool {
 	_, err = os.Stat(path)
 	if err != nil || recreate {
 		if errors.Is(err, os.ErrNotExist) || recreate {
-			fmt.Println("Initialising config file:", path)
+			printName(printN, "Initialising config file:", path)
 			file, err := os.Create(path)
 			if err != nil {
 				errorCantCreateConfig(path, err)
@@ -267,15 +304,16 @@ func (initconf *Config) InitSettings(recreate bool) bool {
 		} else {
 			otherError(path, err)
 		}
-	} else if err == nil {
-		VerbosePrint("Config file: "+path+" ; already exists!", initconf.VerbosePrinting)
+	} else {
+		printNameVerbose(verbose, printN, "Config file: "+path+" ; already exists!")
 		return false
 	}
 
 	return true
 }
 
-func GetSettings(printfile bool) *Config {
+// Get the settings structure from the general settings config file.
+func GetSettings() *Config {
 	setdir := InitSettingsDir()
 	if setdir == "" {
 		return nil
@@ -288,10 +326,6 @@ func GetSettings(printfile bool) *Config {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		errorCantReadConfig(path, err)
-	}
-
-	if printfile {
-		fmt.Printf("%s", file)
 	}
 
 	err = toml.Unmarshal(file, &cfg)

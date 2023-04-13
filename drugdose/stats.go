@@ -26,6 +26,8 @@ type TimeTill struct {
 }
 
 func (cfg Config) convertToSeconds(units string, values ...*float32) {
+	const printN string = "convertToSeconds()"
+
 	units = cfg.MatchAndReplace(units, "units")
 	if units == "hours" {
 		for _, value := range values {
@@ -36,7 +38,7 @@ func (cfg Config) convertToSeconds(units string, values ...*float32) {
 			*value *= 60
 		}
 	} else {
-		fmt.Println("convertToSeconds: unit:", units, "; is not valid, didn't convert")
+		printName(printN, "unit:", units, "; is not valid, didn't convert")
 	}
 }
 
@@ -60,9 +62,11 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 }
 
 func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill {
+	const printN string = "GetTimes()"
+
 	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none")
 	if gotLogs == nil {
-		fmt.Println("GetTimes: No logs for getting the times.")
+		printName(printN, "No logs for getting the times.")
 		return nil
 	}
 
@@ -78,14 +82,14 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 	}
 
 	if gotInfoNum == -1 {
-		fmt.Println("GetTimes: Logged drug route doesn't match anything in info database.")
+		printName(printN, "Logged drug route doesn't match anything in info database.")
 		return nil
 	}
 
 	gotInfoProper := gotInfo[gotInfoNum]
 
 	if gotInfoProper.DoseUnits != useLog.DoseUnits {
-		fmt.Println("GetTimes: The logged dose units:", useLog.DoseUnits,
+		printName(printN, "The logged dose units:", useLog.DoseUnits,
 			"; don't match the local info database dose units:", gotInfoProper.DoseUnits)
 		return nil
 	}
@@ -93,8 +97,8 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 	// No need to do further calculation, because if the source is correct,
 	// in theory almost no effect should be accomplished with this dosage.
 	if gotInfoProper.Threshold != 0 && useLog.Dose < gotInfoProper.Threshold {
-		fmt.Println("GetTimes: The dosage is below the source threshold.")
-		fmt.Println("GetTimes: Will not calculate times.")
+		printName(printN, "The dosage is below the source threshold.")
+		printName(printN, "Will not calculate times.")
 		return nil
 	}
 
@@ -209,64 +213,64 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 	if printit {
 		location, err := time.LoadLocation(cfg.Timezone)
 		if err != nil {
-			fmt.Println("GetTimes: LoadLocation:", err)
+			printName(printN, "LoadLocation:", err)
 			return nil
 		}
 
-		fmt.Println("Warning: All data in here is approximations based on averages.")
-		fmt.Println("Please don't let that influence the experience too much!")
+		printName(printN, "Warning: All data in here is approximations based on averages.")
+		printName(printN, "Please don't let that influence the experience too much!")
 		fmt.Println()
-		fmt.Printf("Start Dose:\t%q (%d)\n",
+		printNameF(printN, "Start Dose:\t%q (%d)\n",
 			time.Unix(useLog.StartTime, 0).In(location),
 			useLog.StartTime)
 		if approxEnd != useLog.StartTime {
-			fmt.Printf("Approx. End:\t%q (%d)\n",
+			printNameF(printN, "Approx. End:\t%q (%d)\n",
 				time.Unix(approxEnd, 0).In(location),
 				approxEnd)
 		}
 
 		if useLog.EndTime != 0 {
-			fmt.Printf("End Dose:\t%q (%d)\n",
+			printNameF(printN, "End Dose:\t%q (%d)\n",
 				time.Unix(useLog.EndTime, 0).In(location),
 				useLog.EndTime)
 
 			if useLoggedTime != useLog.EndTime {
-				fmt.Printf("Offset End:\t%q (%d)\n",
+				printNameF(printN, "Offset End:\t%q (%d)\n",
 					time.Unix(useLoggedTime, 0).In(location), useLoggedTime)
 			}
 		}
-		fmt.Printf("Current Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
+		printNameF(printN, "Current Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
 
-		fmt.Printf("Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
+		printNameF(printN, "Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
 		fmt.Println()
 
-		fmt.Printf("Drug:\t%q\n", useLog.DrugName)
-		fmt.Printf("Dose:\t%f\n", useLog.Dose)
-		fmt.Printf("Units:\t%q\n\n", useLog.DoseUnits)
+		printNameF(printN, "Drug:\t%q\n", useLog.DrugName)
+		printNameF(printN, "Dose:\t%f\n", useLog.Dose)
+		printNameF(printN, "Units:\t%q\n\n", useLog.DoseUnits)
 
-		fmt.Println("=== Time left in minutes until ===")
+		printName(printN, "=== Time left in minutes until ===")
 
 		if onsetAvg != 0 {
-			fmt.Printf("Onset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOnset)/60)))
+			printNameF(printN, "Onset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOnset)/60)))
 		}
 
 		if comeupAvg != 0 {
-			fmt.Printf("Comeup:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillComeup/60))))
+			printNameF(printN, "Comeup:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillComeup/60))))
 		}
 
 		if peakAvg != 0 {
-			fmt.Printf("Peak:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillPeak/60))))
+			printNameF(printN, "Peak:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillPeak/60))))
 		}
 
 		if offsetAvg != 0 {
-			fmt.Printf("Offset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOffset/60))))
+			printNameF(printN, "Offset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOffset/60))))
 		}
 
 		if totalAvg != 0 {
-			fmt.Printf("Total:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillTotal/60))))
+			printNameF(printN, "Total:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillTotal/60))))
 		}
 
-		fmt.Printf("Total:\tMin: %d ; Max: %d\n",
+		printNameF(printN, "Total:\tMin: %d ; Max: %d\n",
 			int(math.Round(
 				float64(
 					(gotInfoProper.TotalDurMin-
@@ -276,13 +280,13 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill
 					(gotInfoProper.TotalDurMax-
 						(timeTill.TotalCompleteMax*gotInfoProper.TotalDurMax))/60))))
 
-		fmt.Println("=== Percentage of time left completed ===")
+		printName(printN, "=== Percentage of time left completed ===")
 
-		fmt.Printf("Total:\t%d%% (of %d average minutes)\n",
+		printNameF(printN, "Total:\t%d%% (of %d average minutes)\n",
 			int(timeTill.TotalCompleteAvg*100),
 			int(math.Round(float64(totalAvg)/60)))
 
-		fmt.Printf("Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
+		printNameF(printN, "Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
 			int(timeTill.TotalCompleteMin*100),
 			int(math.Round(float64(gotInfoProper.TotalDurMin)/60)),
 			int(timeTill.TotalCompleteMax*100),
