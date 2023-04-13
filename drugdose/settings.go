@@ -21,7 +21,6 @@ type Config struct {
 	AutoRemove      bool
 	DBDriver        string
 	VerbosePrinting bool
-	PrefixPrinting  bool
 	DBSettings      map[string]DBSettings
 	Timezone        string
 }
@@ -41,7 +40,6 @@ const DefaultAutoRemove bool = false
 const DefaultDBDriver string = "sqlite3"
 const DefaultMySQLAccess string = "user:password@tcp(127.0.0.1:3306)/database"
 const DefaultVerbose bool = false
-const DefaultPrefix bool = false
 const DefaultTimezone string = "Local"
 
 const DefaultUsername string = "defaultUser"

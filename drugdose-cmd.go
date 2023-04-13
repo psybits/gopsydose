@@ -320,7 +320,6 @@ func main() {
 		AutoRemove:      drugdose.DefaultAutoRemove,
 		DBDriver:        drugdose.DefaultDBDriver,
 		VerbosePrinting: drugdose.DefaultVerbose,
-		PrefixPrinting:  drugdose.DefaultPrefix,
 		DBSettings:      nil,
 		Timezone:        drugdose.DefaultTimezone,
 	}

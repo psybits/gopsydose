@@ -302,14 +302,6 @@ Example: user:password@tcp(127.0.0.1:3306)/database
 #### VerbosePrinting
 If set to true, functions which print more verbose information, will print it.
 
-#### PrefixPrinting
-If set to true, all print function wrappers add the project's name and the name
-of the code from which the printing is done.
-
-This is mostly useful when importing the module into another project to
-have a better distinction between different text information.
-It can help with debugging a bit as well, but don't rely on it too much!
-
 #### Timezone
 This by default is "Local", which means the code tries to figure out the local
 time zone using the operating system settings. If this fails, you can use
