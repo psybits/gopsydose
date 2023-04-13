@@ -984,6 +984,13 @@ func (cfg Config) GetLogsCount(user string) int {
 	return count
 }
 
+// num - amount of logs to return (limit)
+// id - if not 0, will return the exact log matching that id for the given user
+// user - must be supplied, because only logs for a particular user are always returned
+// all - ignores num and returns all logs if id is not set
+// reverse - go from high values to low
+// printit - print the logs
+// search - return logs only matching this string
 func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 	reverse bool, printit bool, search string) []UserLog {
 	
