@@ -29,6 +29,12 @@ const altNamesRouteTableName string = "routeNames"
 const altNamesUnitsTableName string = "unitsNames"
 const altNamesConvUnitsTableName string = "convUnitsNames"
 
+// When this number is set as the reference ID for remembering
+// a particular input, it means that it's now "forgotten"
+// and there should be no attempts to "remember" any inputs.
+// This is related to the RememberConfig() and ForgetConfig() functions.
+const ForgetInputConfigMagicNumber string = "9999999999"
+
 func exitProgram() {
 	printName("exitProgram()", "Exiting")
 	os.Exit(1)
@@ -1575,7 +1581,7 @@ func (cfg Config) RememberConfig(username string) *UserLog {
 func (cfg Config) ForgetConfig(username string) bool {
 	const printN string = "ForgetConfig()"
 
-	ret := cfg.SetUserSettings("useIDForRemember", username, "9999999999")
+	ret := cfg.SetUserSettings("useIDForRemember", username, ForgetInputConfigMagicNumber)
 	if ret == false {
 		printName(printN, "Couldn't set setting: useIDForRemember")
 		return false

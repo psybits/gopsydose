@@ -73,7 +73,7 @@ func (cfg *Config) InitGraphqlClient() *graphql.Client {
 
 	gotsrcData := GetSourceData()
 
-	api := gotsrcData[cfg.UseSource].API_URL
+	api := gotsrcData[cfg.UseSource].API_ADDRESS
 
 	client := graphql.NewClient("https://"+api, nil)
 	return client

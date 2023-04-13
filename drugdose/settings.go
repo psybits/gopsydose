@@ -9,7 +9,7 @@ import (
 )
 
 type SourceConfig struct {
-	API_URL string
+	API_ADDRESS string
 }
 
 type MaxLogsPerUserSize int16
@@ -21,6 +21,7 @@ type Config struct {
 	AutoRemove      bool
 	DBDriver        string
 	VerbosePrinting bool
+	PrefixPrinting  bool
 	DBSettings      map[string]DBSettings
 	Timezone        string
 }
@@ -40,13 +41,14 @@ const DefaultAutoRemove bool = false
 const DefaultDBDriver string = "sqlite3"
 const DefaultMySQLAccess string = "user:password@tcp(127.0.0.1:3306)/database"
 const DefaultVerbose bool = false
+const DefaultPrefix bool = false
 const DefaultTimezone string = "Local"
 
 const DefaultUsername string = "defaultUser"
 const DefaultSource string = "psychonautwiki"
 
 const sourceSetFilename string = "gpd-sources.toml"
-const setFilename string = "gpd-settings.toml"
+const settingsFilename string = "gpd-settings.toml"
 
 func errorCantCreateConfig(filename string, err error) {
 	printName("errorCantCreateConfig()", "Error, can't create config file:", filename, ";", err)
@@ -104,15 +106,6 @@ func printNameVerbose(verbose bool, name string, str ...any) {
 	}
 }
 
-func InitSourceStruct(source string, api string) *map[string]SourceConfig {
-	newcfg := map[string]SourceConfig{
-		source: {
-			API_URL: api,
-		},
-	}
-	return &newcfg
-}
-
 func InitSettingsDir() string {
 	const printN string = "InitSettingsDir()"
 
@@ -139,7 +132,7 @@ func InitSettingsDir() string {
 }
 
 // Create the config file for the sources.
-func (cfg Config) InitSourceSettings(newcfg *map[string]SourceConfig, recreate bool) bool {
+func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bool) bool {
 	const printN string = "InitSourceSettings()"
 
 	mcfg, err := toml.Marshal(newcfg)
@@ -211,18 +204,15 @@ func GetSourceData() map[string]SourceConfig {
 	return cfg
 }
 
-func InitSettingsStruct(maxulogs MaxLogsPerUserSize, source string, autofetch bool,
-	dbdir string, dbname string, autoremove bool,
-	dbdriver string, mysqlaccess string, verboseprinting bool,
-	timezone string) *Config {
+func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) bool {
 
-	const printN string = "InitSettingsStruct()"
+	const printN string = "InitDBSettings()"
 
 	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			printName(printN, err)
-			return nil
+			return false
 		}
 
 		path := home + "/.local/share"
@@ -233,7 +223,7 @@ func InitSettingsStruct(maxulogs MaxLogsPerUserSize, source string, autofetch bo
 		} else if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				printName(printN, err)
-				return nil
+				return false
 			}
 		}
 
@@ -242,29 +232,20 @@ func InitSettingsStruct(maxulogs MaxLogsPerUserSize, source string, autofetch bo
 
 	var dbSettings = map[string]DBSettings{
 		"sqlite3": {
-			Path: dbdir + "/" + DefaultDBName,
+			Path: dbdir + "/" + dbname,
 		},
 		"mysql": {
 			Path: mysqlaccess,
 		},
 	}
 
-	initConf := Config{
-		MaxLogsPerUser:  maxulogs,
-		UseSource:       source,
-		AutoFetch:       autofetch,
-		AutoRemove:      autoremove,
-		DBDriver:        dbdriver,
-		VerbosePrinting: verboseprinting,
-		DBSettings:      dbSettings,
-		Timezone:        timezone,
-	}
+	initcfg.DBSettings = dbSettings
 
-	return &initConf
+	return true
 }
 
-func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
-	const printN string = "InitSettings()"
+func (initconf Config) InitSettingsFile(recreate bool, verbose bool) bool {
+	const printN string = "InitSettingsFile()"
 
 	mcfg, err := toml.Marshal(initconf)
 	if err != nil {
@@ -277,7 +258,7 @@ func (initconf *Config) InitSettings(recreate bool, verbose bool) bool {
 		return false
 	}
 
-	path := setdir + "/" + setFilename
+	path := setdir + "/" + settingsFilename
 	_, err = os.Stat(path)
 	if err != nil || recreate {
 		if errors.Is(err, os.ErrNotExist) || recreate {
@@ -319,7 +300,7 @@ func GetSettings() *Config {
 		return nil
 	}
 
-	path := setdir + "/" + setFilename
+	path := setdir + "/" + settingsFilename
 
 	cfg := Config{}
 

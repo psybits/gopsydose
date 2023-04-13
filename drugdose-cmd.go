@@ -313,26 +313,27 @@ func main() {
 
 	flag.Parse()
 
-	setcfg := drugdose.InitSettingsStruct(
-		drugdose.DefaultMaxLogsPerUser,
-		*sourcecfg,
-		drugdose.DefaultAutoFetch,
-		*dbDir,
-		drugdose.DefaultDBName,
-		drugdose.DefaultAutoRemove,
-		drugdose.DefaultDBDriver,
-		drugdose.DefaultMySQLAccess,
-		drugdose.DefaultVerbose,
-		drugdose.DefaultTimezone,
-	)
-	if setcfg == nil {
-		printCLI("Settings struct not initialised.")
+	setcfg := drugdose.Config {
+		MaxLogsPerUser:  drugdose.DefaultMaxLogsPerUser,
+		UseSource:       *sourcecfg,
+		AutoFetch:       drugdose.DefaultAutoFetch,
+		AutoRemove:      drugdose.DefaultAutoRemove,
+		DBDriver:        drugdose.DefaultDBDriver,
+		VerbosePrinting: drugdose.DefaultVerbose,
+		PrefixPrinting:  drugdose.DefaultPrefix,
+		DBSettings:      nil,
+		Timezone:        drugdose.DefaultTimezone,
+	}
+
+	ret := setcfg.InitDBSettings(*dbDir, drugdose.DefaultDBName, drugdose.DefaultMySQLAccess)
+	if !ret {
+		printCLI("DBSettings not initialised properly.")
 		os.Exit(1)
 	}	
 
-	ret := setcfg.InitSettings(*recreateSettings, *verbose)
+	ret = setcfg.InitSettingsFile(*recreateSettings, *verbose)
 	if !ret {
-		printCLIVerbose(*verbose, "Settings weren't initialised.")
+		printCLIVerbose(*verbose, "The settings file wasn't initialised.")
 	}
 
 	gotsetcfg := drugdose.GetSettings()	
@@ -341,10 +342,15 @@ func main() {
 		gotsetcfg.VerbosePrinting = true
 	}
 
-	gotsrc := drugdose.InitSourceStruct(gotsetcfg.UseSource, *apiURL)
+	gotsrc := map[string]drugdose.SourceConfig{
+		gotsetcfg.UseSource: {
+			API_ADDRESS: *apiURL,
+		},
+	}
+
 	ret = gotsetcfg.InitSourceSettings(gotsrc, *recreateSources)
 	if !ret {
-		printCLIVerbose(*verbose, "Sources file wasn't initialised.")
+		printCLIVerbose(*verbose, "The sources file wasn't initialised.")
 	}
 
 	gotsrcData := drugdose.GetSourceData()
@@ -357,14 +363,14 @@ func main() {
 	if *forget {
 		ret := gotsetcfg.ForgetConfig(*forUser)
 		if !ret {
-			printCLI("Couldn't forget remember config, because of an error.")
+			printCLI("Couldn't 'forget' the remember config, because of an error.")
 		}
 	}
 
 	remembering := false
 	if *drugargdose != 0 && *drugname == "none" && *changeLog == false {
 		got := gotsetcfg.GetUserSettings("useIDForRemember", *forUser)
-		if got != "" && got != "9999999999" {
+		if got != "" && got != drugdose.ForgetInputConfigMagicNumber {
 			remCfg := gotsetcfg.RememberConfig(*forUser)
 			if remCfg != nil {
 				printCLI("Remembering from config using ID:", got)
@@ -606,7 +612,7 @@ func main() {
 
 	if inputDose == true || *dontLog == true && *drugname != "none" {
 		printCLIVerbose(*verbose, "Using API from settings.toml: "+gotsetcfg.UseSource)
-		printCLIVerbose(*verbose, "Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_URL)
+		printCLIVerbose(*verbose, "Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_ADDRESS)
 
 		cli := gotsetcfg.InitGraphqlClient()
 		if cli != nil {
