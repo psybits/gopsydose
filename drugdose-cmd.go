@@ -128,10 +128,10 @@ var (
 		"clean-info",
 		false,
 		"cleans the currently configured info table,\n"+
-		"meaning all remotely fetched dosage ranges and routes\n"+
-		"for all drugs, keep in mind that if you have configured a\n"+
-		"different source earlier, it will not be cleaned, unless\n"+
-		"you change the configuration back and use this flag again")
+			"meaning all remotely fetched dosage ranges and routes\n"+
+			"for all drugs, keep in mind that if you have configured a\n"+
+			"different source earlier, it will not be cleaned, unless\n"+
+			"you change the configuration back and use this flag again")
 
 	forID = flag.Int64(
 		"for-id",
@@ -209,7 +209,7 @@ var (
 	removeInfoDrug = flag.String(
 		"remove-info-drug",
 		"none",
-		"remove all entries of a single drug from the info DB")	
+		"remove all entries of a single drug from the info DB")
 
 	getTimes = flag.Bool(
 		"get-times",
@@ -313,7 +313,7 @@ func main() {
 
 	flag.Parse()
 
-	setcfg := drugdose.Config {
+	setcfg := drugdose.Config{
 		MaxLogsPerUser:  drugdose.DefaultMaxLogsPerUser,
 		UseSource:       *sourcecfg,
 		AutoFetch:       drugdose.DefaultAutoFetch,
@@ -328,14 +328,14 @@ func main() {
 	if !ret {
 		printCLI("DBSettings not initialised properly.")
 		os.Exit(1)
-	}	
+	}
 
 	ret = setcfg.InitSettingsFile(*recreateSettings, *verbose)
 	if !ret {
 		printCLIVerbose(*verbose, "The settings file wasn't initialised.")
 	}
 
-	gotsetcfg := drugdose.GetSettings()	
+	gotsetcfg := drugdose.GetSettings()
 
 	if *verbose == true {
 		gotsetcfg.VerbosePrinting = true

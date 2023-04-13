@@ -100,7 +100,7 @@ func xtrastmt(col string, logical string) string {
 
 func checkIfExistsDB(col string, table string, driver string,
 	path string, xtrastmt []string, values ...interface{}) bool {
-	
+
 	const printN string = "checkIfExistsDB()"
 
 	db, err := sql.Open(driver, path)
@@ -387,7 +387,7 @@ func (cfg Config) CleanInfo() bool {
 		return false
 	}
 
-	printName(printN, "The info table: " + cfg.UseSource + "; removed from DB.")
+	printName(printN, "The info table: "+cfg.UseSource+"; removed from DB.")
 
 	return true
 }
@@ -573,7 +573,7 @@ func (cfg Config) InitDrugDB() bool {
 		return false
 	}
 
-	printNameVerbose(cfg.VerbosePrinting, printN, "Created: '" + cfg.UseSource + "' table for drug info in database.")
+	printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+cfg.UseSource+"' table for drug info in database.")
 
 	return true
 }
@@ -706,7 +706,7 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 			return false
 		}
 
-		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '" + altNamesSubsTableName + tableSuffix + "' table in database.")
+		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesSubsTableName+tableSuffix+"' table in database.")
 	}
 
 	if !routesExists {
@@ -721,7 +721,7 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 			return false
 		}
 
-		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '" + altNamesRouteTableName + tableSuffix + "' table in database.")
+		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesRouteTableName+tableSuffix+"' table in database.")
 	}
 
 	if !unitsExists {
@@ -736,7 +736,7 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 			return false
 		}
 
-		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '" + altNamesUnitsTableName + tableSuffix + "' table in database.")
+		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesUnitsTableName+tableSuffix+"' table in database.")
 	}
 
 	if !convUnitsExists {
@@ -751,7 +751,7 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 			return false
 		}
 
-		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '" + altNamesConvUnitsTableName + tableSuffix + "' table in database.")
+		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesConvUnitsTableName+tableSuffix+"' table in database.")
 	}
 
 	return true
@@ -813,9 +813,9 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 		cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
 		xtrs[:], drug, route, units)
 	if !ret {
-		printName(printN, "Combo of Drug(" + drug +
-			"), Route(" + route +
-			") and Units(" + units +
+		printName(printN, "Combo of Drug("+drug+
+			"), Route("+route+
+			") and Units("+units+
 			") doesn't exist in local information database.")
 		return false
 	}
@@ -993,7 +993,7 @@ func (cfg Config) GetLogsCount(user string) int {
 // search - return logs only matching this string
 func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 	reverse bool, printit bool, search string) []UserLog {
-	
+
 	const printN string = "GetLogs()"
 
 	numstr := strconv.Itoa(num)
