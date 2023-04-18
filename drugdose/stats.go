@@ -61,8 +61,13 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 	}
 }
 
-func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill {
-	const printN string = "GetTimes()"
+func (cfg Config) GetTimes(username string, getid int64, printit bool, prefix bool) *TimeTill {
+	var printN string
+	if prefix == true {
+		printN = "GetTimes()"
+	} else {
+		printN = ""
+	}
 
 	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none", false)
 	if gotLogs == nil {

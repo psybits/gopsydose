@@ -667,7 +667,7 @@ func main() {
 	}
 
 	if *getTimes {
-		times := gotsetcfg.GetTimes(*forUser, *forID, true)
+		times := gotsetcfg.GetTimes(*forUser, *forID, true, false)
 		if times == nil {
 			printCLI("Times couldn't be retrieved because of an error.")
 		}
