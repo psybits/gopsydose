@@ -991,10 +991,16 @@ func (cfg Config) GetLogsCount(user string) int {
 // reverse - go from high values to low
 // printit - print the logs
 // search - return logs only matching this string
+// prefix - whether the name, before the logs should be printed
 func (cfg Config) GetLogs(num int, id int64, user string, all bool,
-	reverse bool, printit bool, search string) []UserLog {
+	reverse bool, printit bool, search string, prefix bool) []UserLog {
 
-	const printN string = "GetLogs()"
+	var printN string
+	if prefix == true {
+		printN = "GetLogs()"
+	} else {
+		printN = ""
+	}
 
 	numstr := strconv.Itoa(num)
 
@@ -1131,8 +1137,13 @@ func (cfg Config) GetLocalInfoNames() []string {
 	return drugList
 }
 
-func (cfg Config) GetLocalInfo(drug string, printit bool) []DrugInfo {
-	const printN string = "GetLocalInfo()"
+func (cfg Config) GetLocalInfo(drug string, printit bool, prefix bool) []DrugInfo {
+	var printN string
+	if prefix == true {
+		printN = "GetLocalInfo()"
+	} else {
+		printN = ""
+	}
 
 	drug = cfg.MatchAndReplace(drug, "substance")
 
@@ -1240,7 +1251,7 @@ func (cfg Config) RemoveLogs(username string, amount int, reverse bool,
 			getAll = true
 		}
 
-		gotLogs := cfg.GetLogs(amount, 0, username, getAll, reverse, false, search)
+		gotLogs := cfg.GetLogs(amount, 0, username, getAll, reverse, false, search, false)
 		if gotLogs == nil {
 			printName(printN, "Couldn't get logs, because of an error, no logs will be removed.")
 			return false
@@ -1361,7 +1372,7 @@ func (cfg Config) SetUserLogs(set string, id int64, username string, setValue st
 	}
 
 	if id == 0 {
-		gotLogs := cfg.GetLogs(1, 0, username, false, true, false, "")
+		gotLogs := cfg.GetLogs(1, 0, username, false, true, false, "", false)
 		if gotLogs == nil {
 			printName(printN, "Couldn't get last log to get the ID.")
 			return false
@@ -1482,7 +1493,7 @@ func (cfg Config) SetUserSettings(set string, username string, setValue string) 
 		}
 
 		if setValue == "0" || setValue == "none" {
-			gotLogs := cfg.GetLogs(1, 0, username, false, true, false, "none")
+			gotLogs := cfg.GetLogs(1, 0, username, false, true, false, "none", false)
 			if gotLogs == nil {
 				printName(printN, "No logs to remember.")
 				return false
@@ -1576,7 +1587,7 @@ func (cfg Config) RememberConfig(username string) *UserLog {
 		return nil
 	}
 
-	gotLogs := cfg.GetLogs(1, gotInt, username, false, false, false, "")
+	gotLogs := cfg.GetLogs(1, gotInt, username, false, false, false, "", false)
 	if gotLogs == nil {
 		printName(printN, "No logs returned for:", gotInt)
 		return nil

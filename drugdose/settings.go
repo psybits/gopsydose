@@ -76,24 +76,32 @@ func otherError(filename string, err error) {
 // The name used when printing, to distinguish from other logs.
 const moduleName string = "gopsydose"
 
+// Print the name set by the caller,
+// so that it's easier to track the origin of text output.
+func printPrefix(name string) {
+	if name != "" {
+		fmt.Print(moduleName + ": " + name + ": ")
+	}
+}
+
 // Print strings properly formatted for the module.
 // This is so that when the module is imported, the user can better understand
 // where a string is coming from.
 // If you only need to add a newline, don't use this function!
 func printName(name string, str ...any) {
-	fmt.Print(moduleName + ": " + name + ": ")
+	printPrefix(name)
 	fmt.Println(str...)
 }
 
 // Variation of printName(), that doesn't output a newline at the end.
 func printNameNoNewline(name string, str ...any) {
-	fmt.Print(moduleName + ": " + name + ": ")
+	printPrefix(name)
 	fmt.Print(str...)
 }
 
 // Variation of printName(), that uses fmt.Printf() formatting.
 func printNameF(name string, str string, variables ...any) {
-	fmt.Print(moduleName + ": " + name + ": ")
+	printPrefix(name)
 	fmt.Printf(str, variables...)
 }
 

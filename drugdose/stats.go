@@ -64,14 +64,14 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 func (cfg Config) GetTimes(username string, getid int64, printit bool) *TimeTill {
 	const printN string = "GetTimes()"
 
-	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none")
+	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none", false)
 	if gotLogs == nil {
 		printName(printN, "No logs for getting the times.")
 		return nil
 	}
 
 	useLog := gotLogs[0]
-	gotInfo := cfg.GetLocalInfo(useLog.DrugName, false)
+	gotInfo := cfg.GetLocalInfo(useLog.DrugName, false, false)
 
 	gotInfoNum := -1
 	for i := 0; i < len(gotInfo); i++ {

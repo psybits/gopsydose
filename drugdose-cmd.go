@@ -480,9 +480,9 @@ func main() {
 	if *getLogs {
 		var ret []drugdose.UserLog
 		if *noGetLimit {
-			ret = gotsetcfg.GetLogs(0, *forID, *forUser, true, false, true, *searchStr)
+			ret = gotsetcfg.GetLogs(0, *forID, *forUser, true, false, true, *searchStr, false)
 		} else {
-			ret = gotsetcfg.GetLogs(100, *forID, *forUser, false, false, true, *searchStr)
+			ret = gotsetcfg.GetLogs(100, *forID, *forUser, false, false, true, *searchStr, false)
 			if ret != nil && len(ret) == 100 {
 				printCLI("By default there is a limit of retrieving " +
 					"and printing a maximum of 100 entries. " +
@@ -493,12 +493,12 @@ func main() {
 			printCLI("No logs could be returned.")
 		}
 	} else if *getNewLogs != 0 {
-		ret := gotsetcfg.GetLogs(*getNewLogs, 0, *forUser, false, true, true, *searchStr)
+		ret := gotsetcfg.GetLogs(*getNewLogs, 0, *forUser, false, true, true, *searchStr, false)
 		if ret == nil {
 			printCLI("No logs could be returned.")
 		}
 	} else if *getOldLogs != 0 {
-		ret := gotsetcfg.GetLogs(*getOldLogs, 0, *forUser, false, false, true, *searchStr)
+		ret := gotsetcfg.GetLogs(*getOldLogs, 0, *forUser, false, false, true, *searchStr, false)
 		if ret == nil {
 			printCLI("No logs could be returned.")
 		}
@@ -557,7 +557,7 @@ func main() {
 	}
 
 	if *getLocalInfoDrug != "none" {
-		locinfo := gotsetcfg.GetLocalInfo(*getLocalInfoDrug, true)
+		locinfo := gotsetcfg.GetLocalInfo(*getLocalInfoDrug, true, false)
 		if len(locinfo) == 0 {
 			printCLI("Couldn't get database info for drug:", *getLocalInfoDrug)
 		}
