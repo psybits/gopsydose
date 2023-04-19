@@ -124,6 +124,13 @@ var (
 			"when you reuse the name matching, it will\n"+
 			"recreate the tables with the present config files")
 
+	overwriteNames = flag.Bool(
+		"overwrite-names",
+		false,
+		"overwrite the alternative names in the DB,\n"+
+			"it will delete the old directory and tables\n"+
+			"and replace them with the currently present ones")
+
 	cleanInfo = flag.Bool(
 		"clean-info",
 		false,
@@ -346,6 +353,10 @@ func main() {
 	if *getDirs {
 		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 		printCLI("Settings Dir:", drugdose.InitSettingsDir())
+	}
+
+	if *overwriteNames {
+		gotsetcfg.MatchAndReplace("asd", "substance", true)
 	}
 
 	if *forget {

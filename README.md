@@ -39,27 +39,36 @@ the local database.
 
 ## Examples
 
+### Basic options
+
 If you want to log a dose:
 
-`gopsydose -drug alcohol -route oral -dose 355 -units ml -perc 4.5`
+`gopsydose -drug alcohol -route drink -dose 500 -units ml -perc 6`
 
 or
 
-`gopsydose -drug weed -route smoked -dose 100 -units "mg (THC)"`
+`gopsydose -drug weed -route smoked -dose 60 -units mg -perc 5`
 
-Since both of these aren't consumed at once, there is a command to mark
-when the dosing has ended.
+or
+
+`gopsydose -drug mdma -route oral -dose 90 -units mg`
+
+Since Cannabis and Alcohol aren't usually consumed at once, there is a command
+to mark when the dosing has ended.
 
 `gopsydose -change-log -end-time now`
 
-This will set when you finished your dose for the last log. You can use an unix timestamp like in the example below instead of `now`.
+This will set when you finished your dose for the last log. You can use an
+unix timestamp like in the example below instead of `now`.
 
-To change the start time of dose use: `gopsydose -change-log -start-time 1655443322`
+To change the start time of dose use:
+`gopsydose -change-log -start-time 1655443322`
 
-Changing the start time also changes the "id" of a dose. This means, if you're looking for the last dose and you've changed the start time to an earlier moment, it will get pushed back in the list.
+Changing the start time also changes the "id" of a dose.
+This means, if you're looking for the last dose and you've changed the start
+time to an earlier moment, it will get pushed back in the list.
 
 You can set the times for a specific id by using the `-for-id` command like so:
-
 `gopsydose -change-log -end-time now -for-id 1655443322`
 
 This works for both times.
@@ -82,23 +91,27 @@ You can combine `-get-logs` or `-get-times` with: `-for-id`
 
 to get information for a specific ID.
 
-You can see all IDs using: `gopsydose -get-logs`
+### Extra options
 
 If you want a log to be remembered and only set the dose for the next log:
 
-`gopsydose -remember -drug weed -route smoked -dose 100 -units "mg (THC)"`
+`gopsydose -remember -drug weed -route smoked -dose 60 -units mg -perc 5`
 
-Remembers the config and then for the next dose: `gopsydose -dose 100`
+Remembers the config and then for the next dose: `gopsydose -dose 60 -perc 5`
+
+Not everything needs `-perc`.
 
 Forgetting the last config: `gopsydose -forget`
 
 If you're running Linux or another UNIX-like OS with GNU Watch,
 you can do:
 
-`watch -n 60 gopsydose -get-times`
+`watch -n 600 gopsydose -get-times`
 
-This will run the command every minute and show you
+This will run the command every 10 minutes and show you
 the latest results.
+
+Don't run it too fast, because it's bad for your storage device!
 
 There is a limit set in a config file about how many dosages you can do,
 the default is 100, when the limit is reached it will not allow anymore,
@@ -256,12 +269,14 @@ Then you need to run in a terminal:
 Afterwards you can do a quick test with: `gopsydose -help`
 
 There are a lot of commands and currently it isn't very clear, but
-a few examples and explanations will be left in this document.
+a few examples and explanations are present in this document.
 
 ## Viewing/Editing the database
 
-If you wish to view/edit the database manually you can
+If you wish to view/edit the sqlite3 database manually, you can
 use the [SQLite Browser](https://sqlitebrowser.org/dl/).
+
+For MariaDB/MySQL you can use [DBeaver](https://dbeaver.io/).
 
 Get the database directory using: `gopsydose -get-dirs`
 
@@ -273,7 +288,7 @@ Get the database directory using: `gopsydose -get-dirs`
 How many logs a user can make. You can log as a different user using the
 `-user` command.
 
-#### UseAPI
+#### UseSource
 The name of the API set in `gpd-sources.toml`. The API needs to have an
 implementation, currently only psychonautwiki has one.
 
@@ -281,23 +296,12 @@ implementation, currently only psychonautwiki has one.
 Whether to fetch info from an API when logging. If set to false the
 source table needs to be manually filled using other tools.
 
-#### DBDir
-This is relevant to sqlite.
-
-The directory where the database file will be created. If changing this,
-don't forget to check the old directory for any files left!
-
 #### AutoRemove
 If set to true, will remove the oldest log when adding a new one, if the
 `MaxLogsPerUser` limit is reached, without telling the user.
 
 #### DBDriver
 Which database driver to use. Current options are "sqlite3" or "mysql".
-
-#### MySQLAccess
-Credentials to access a MySQL database.
-
-Example: user:password@tcp(127.0.0.1:3306)/database
 
 #### VerbosePrinting
 If set to true, functions which print more verbose information, will print it.
@@ -313,11 +317,30 @@ the one in that area.
 All info about this string can be found here:
 https://pkg.go.dev/time#LoadLocation
 
+#### DBSettings
+
+##### DBSettings.mysql
+
+Path - Credentials to access a MariaDB/MySQL database.
+
+The database needs to be created in advance.
+
+Example: user:password@tcp(127.0.0.1:3306)/database
+
+##### DBSettings.sqlite3
+
+Path - Disk location to access the sqlite3 db file.
+
+The database file will be automatically created, no need
+to do it in advance.
+
+Example: /home/computer-user/.local/share/GPD/gpd.db
+
 ### gpd-sources.toml
 
 ```
 [NameOfTheApi]
-ApiUrl = 'api.whereitis.com'
+API_ADDRESS = 'api.whereitis.com'
 ```
 
 An implementation needs to be present in the code for the name here.

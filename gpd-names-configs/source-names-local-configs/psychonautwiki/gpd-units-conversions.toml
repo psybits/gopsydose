@@ -5,8 +5,8 @@
 [LocalName]
 # Units Conversions ###########################################################
 [LocalName.Alcohol]
-AltNames = ["ConvPerc2Units*10", "mL EtOH"]
+AltNames = ["Convert-Milliliters-To-Grams", "g"]
 
 [LocalName.Cannabis]
-AltNames = ["ConvPerc2Units*10", "mg (THC)"]
+AltNames = ["Convert-Percent-To-Pure", "mg"]
 

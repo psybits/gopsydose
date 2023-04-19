@@ -15,6 +15,8 @@ import (
 
 	// SQLite driver needed for sql module
 	_ "github.com/mattn/go-sqlite3"
+
+	cp "github.com/otiai10/copy"
 )
 
 type AlternativeNames struct {
@@ -25,15 +27,20 @@ type SubstanceName struct {
 	LocalName map[string]AlternativeNames
 }
 
-const namesSubstanceFilename = "gpd-substance-names.toml"
-const namesRouteFilename = "gpd-route-names.toml"
-const namesUnitsFilename = "gpd-units-names.toml"
-const namesConvUnitsFilename = "gpd-units-conversions.toml"
+const namesSubstanceFilename string = "gpd-substance-names.toml"
+const namesRouteFilename string = "gpd-route-names.toml"
+const namesUnitsFilename string = "gpd-units-names.toml"
+const namesConvUnitsFilename string = "gpd-units-conversions.toml"
 
-const replaceDir = "replace-local-names-configs"
+const sourceNamesDir string = "source-names-local-configs"
 
-const namesMagicWord = "!TheTableIsNotEmpty!"
+const allNamesConfigsDir string = "gpd-names-configs"
 
+const namesMagicWord string = "!TheTableIsNotEmpty!"
+
+// Read the config file for matching names and return the proper struct.
+// nameType - checkout namesFiles()
+// source - if not empty, will read the source specific config
 func GetNamesConfig(nameType string, source string) *SubstanceName {
 	const printN string = "GetNamesConfig()"
 
@@ -48,7 +55,9 @@ func GetNamesConfig(nameType string, source string) *SubstanceName {
 	}
 
 	if source != "" {
-		gotFile = replaceDir + "/" + source + "/" + gotFile
+		gotFile = allNamesConfigsDir + "/" + sourceNamesDir + "/" + source + "/" + gotFile
+	} else {
+		gotFile = allNamesConfigsDir + "/" + gotFile
 	}
 
 	path := setdir + "/" + gotFile
@@ -110,8 +119,44 @@ func namesFiles(nameType string) string {
 	return file
 }
 
-func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
+// Copy the config files to the proper directory and read them to
+// create the proper tables in the database, which will later be used
+// to match alternative names to local names.
+// nameType - checkout namesTables() and namesFiles()
+// sourceNames - if true, will add data to the source specific config tables
+// overwrite - force overwrite of directory and tables
+func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, overwrite bool) bool {
 	const printN string = "AddToSubstanceNamesTable()"
+
+	var setdir string = InitSettingsDir()
+	if setdir == "" {
+		printName(printN, "No settings directory found!")
+		return false
+	}
+
+	var CopyToPath string = setdir + "/" + allNamesConfigsDir
+
+	if overwrite == true {
+		ret := cfg.CleanNames()
+		if ret == false {
+			printName(printN, "Couldn't clean names from database for overwrite.")
+			return false
+		}
+
+		ret = cfg.InitAllDBTables()
+		if !ret {
+			printName(printN, "Database didn't get initialised, because of an error.")
+			return false
+		}
+
+		err := os.RemoveAll(CopyToPath)
+		if err != nil {
+			printName(printN, err)
+			return false
+		} else {
+			printName(printN, "Deleted directory:", CopyToPath)
+		}
+	}
 
 	table := namesTables(nameType)
 	if table == "" {
@@ -119,16 +164,11 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 	}
 
 	tableSuffix := ""
-	if replace {
+	if sourceNames {
 		tableSuffix = "_" + cfg.UseSource
 	}
 
 	table = table + tableSuffix
-
-	file := namesFiles(nameType)
-	if file == "" {
-		return false
-	}
 
 	ret := checkIfExistsDB("localName",
 		table,
@@ -140,51 +180,44 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 		return true
 	}
 
-	setdir := InitSettingsDir()
-	if setdir == "" {
-		printName(printN, "No settings directory found!")
-		return false
-	}
-	paths := [2]string{file, replaceDir}
-	for i := 0; i < len(paths); i++ {
-		// Check if files exist in current working directory.
-		// If they do, try to move them to the config directory.
-		_, err := os.Stat(paths[i])
-		if err == nil {
-			moveToPath := setdir + "/" + paths[i]
+	// Check if names directory exists in config directory.
+	// If it doen't, continue.
+	_, err := os.Stat(CopyToPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// Check if names directory exists in working directory.
+			// If it does, copy it to config directory.
+			_, err := os.Stat(allNamesConfigsDir)
+			if err == nil {
+				printName(printN, "Found the config directory in the working directory:",
+					allNamesConfigsDir, "; attempt at making a copy to:", CopyToPath)
 
-			printName(printN, "Found config in working directory:", paths[i],
-				"; attempt moving to:", moveToPath)
-
-			// Check if files exist in config directory.
-			// If they don't, move them to config directory.
-			// If they do, don't move them, because you will overwrite the old files.
-			_, err := os.Stat(moveToPath)
-			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					err = os.Rename(paths[i], moveToPath)
-					if err != nil {
-						printName(printN, "Couldn't move file:", err)
-						return false
-					}
-				} else {
-					printName(printN, err)
-					return false
+				// Sync (true) - flush everything to disk, to make sure everything is immediately copied
+				cpOpt := cp.Options{
+					Sync: true,
 				}
-			} else if err == nil {
-				printName(printN, "Name config already exists:", moveToPath,
-					"; will not move the file from the working directory:", paths[i])
-			}
-		} else if err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
+				err = cp.Copy(allNamesConfigsDir, CopyToPath, cpOpt)
+				if err != nil {
+					printName(printN, "Couldn't move file:", err)
+					return false
+				} else if err == nil {
+					printName(printN, "Done copying to:", CopyToPath)
+				}
+			} else {
 				printName(printN, err)
 				return false
 			}
+		} else {
+			printName(printN, err)
+			return false
 		}
+	} else if err == nil {
+		printNameVerbose(cfg.VerbosePrinting, printN, "Name config already exists:", CopyToPath,
+			"; will not copy the config directory from the working directory:", allNamesConfigsDir)
 	}
 
 	getCfgSrc := ""
-	if replace {
+	if sourceNames {
 		getCfgSrc = cfg.UseSource
 	}
 
@@ -238,12 +271,18 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, replace bool) bool {
 		return false
 	}
 
-	printNameVerbose(cfg.VerbosePrinting, printN, nameType, "names initialized successfully! replace:", replace)
+	printName(printN, nameType, "names initialized successfully! sourceNames:", sourceNames)
 
 	return true
 }
 
-func (cfg Config) MatchName(inputName string, nameType string, replace bool) string {
+// Returns the local name for a given alternative name.
+// inputName - the alternative name
+// nameType - checkout namesTables()
+// sourceNames - if true, it will use the config for the source,
+// meaning the names specific for the source
+// overwrite - if true will overwrite the names config directory and tables with the currently present ones
+func (cfg Config) MatchName(inputName string, nameType string, sourceNames bool, overwrite bool) string {
 	const printN string = "MatchName()"
 
 	table := namesTables(nameType)
@@ -252,13 +291,13 @@ func (cfg Config) MatchName(inputName string, nameType string, replace bool) str
 	}
 
 	tableSuffix := ""
-	if replace {
+	if sourceNames {
 		tableSuffix = "_" + cfg.UseSource
 	}
 
 	table = table + tableSuffix
 
-	ret := cfg.AddToSubstanceNamesTable(nameType, replace)
+	ret := cfg.AddToSubstanceNamesTable(nameType, sourceNames, overwrite)
 	if !ret {
 		return inputName
 	}
@@ -290,13 +329,15 @@ func (cfg Config) MatchName(inputName string, nameType string, replace bool) str
 	return inputName
 }
 
-func (cfg Config) MatchAndReplace(inputName string, nameType string) string {
-	ret := cfg.MatchName(inputName, nameType, false)
-	ret = cfg.MatchName(ret, nameType, true)
+// Returns the local name, using both the global config and the source specific config.
+func (cfg Config) MatchAndReplace(inputName string, nameType string, overwrite bool) string {
+	ret := cfg.MatchName(inputName, nameType, false, overwrite)
+	ret = cfg.MatchName(ret, nameType, true, false)
 	return ret
 }
 
-func (cfg Config) GetAllNames(inputName string, nameType string, replace bool) []string {
+// Returns all alternative names for a given local name.
+func (cfg Config) GetAllNames(inputName string, nameType string, sourceNames bool) []string {
 	const printN string = "GetAllNames()"
 
 	table := namesTables(nameType)
@@ -305,18 +346,18 @@ func (cfg Config) GetAllNames(inputName string, nameType string, replace bool) [
 	}
 
 	tableSuffix := ""
-	if replace {
+	if sourceNames {
 		tableSuffix = "_" + cfg.UseSource
 	}
 
 	table = table + tableSuffix
 
-	cfg.AddToSubstanceNamesTable(nameType, replace)
+	cfg.AddToSubstanceNamesTable(nameType, sourceNames, false)
 
-	repName := cfg.MatchName(inputName, nameType, true)
+	repName := cfg.MatchName(inputName, nameType, true, false)
 	if repName != inputName {
 		printNameVerbose(cfg.VerbosePrinting, printN, "For source:", cfg.UseSource,
-			"; Local name:", inputName, "; Is replaced with:", repName)
+			"; Local name:", inputName, "; Is sourceNamesd with:", repName)
 	}
 
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
@@ -344,7 +385,7 @@ func (cfg Config) GetAllNames(inputName string, nameType string, replace bool) [
 	}
 
 	addToErrMsg := ""
-	if replace {
+	if sourceNames {
 		addToErrMsg = "; for source: " + cfg.UseSource
 	}
 
@@ -355,32 +396,66 @@ func (cfg Config) GetAllNames(inputName string, nameType string, replace bool) [
 	return allNames
 }
 
-func convPerc2Units(amount float32, perc float32) float32 {
+// Converts percentage to pure substance.
+// input 0 - the total dose
+// input 1 - the percentage
+// output - pure substance calculated using the percentage
+func convPerc2Pure(substance string, unitInputs ...float32) float32 {
 	av := alconvert.NewAV()
-	av.UserSet.Milliliters = amount
-	av.UserSet.Percent = perc
-	av.CalcGotUnits()
-	return av.GotUnits()
+	av.UserSet.Milliliters = unitInputs[0]
+	av.UserSet.Percent = unitInputs[1]
+	av.CalcPureAmount()
+	return av.GotPure()
 }
 
-func unitsFunctionsOutput(convertFunc string, unitInputs ...float32) float32 {
-	const printN string = "unitsFunctionsOutput()"
+// Converts pure amount to grams.
+// input 0 - the total dose
+// input 1 - the percentage
+// output - pure substance ml converted to grams using a constant density
+func convMl2Grams(substance string, unitInputs ...float32) float32 {
+	const printN string = "convMl2Grams()"
 
-	var output float32 = 0
-	if convertFunc == "ConvPerc2Units" || convertFunc == "ConvPerc2Units*10" {
-		gotLenOfUnitInputs := len(unitInputs)
-		if gotLenOfUnitInputs == 2 {
-			output = convPerc2Units(unitInputs[0], unitInputs[1])
-			if convertFunc == "ConvPerc2Units*10" {
-				output *= 10
-			}
-		} else {
-			printName(printN, "ConvPerc2Units: Wrong amount of unitInputs:",
-				gotLenOfUnitInputs, "; needed 2")
-		}
-	} else {
-		printName(printN, "No convertFunc:", convertFunc)
+	var multiplier float32 = 0
+
+	// g/sm3
+	substancesDensities := map[string]float32{
+		"Alcohol": 0.79283, // At 16 C temperature
 	}
+
+	multiplier = substancesDensities[substance]
+
+	if multiplier == 0 {
+		printName(printN, "No density for substance:", substance)
+	}
+
+	return convPerc2Pure(substance, unitInputs...) * multiplier
+}
+
+type convF func(string, ...float32) float32
+
+func addConversion(cF convF, output float32, name string, inputName string, inputsAmount int, substance string, unitInputs ...float32) float32 {
+	if output != 0 {
+		return output
+	}
+
+	const printN string = "addConversion()"
+
+	if inputName == name {
+		gotLenOfUnitInputs := len(unitInputs)
+		if gotLenOfUnitInputs == inputsAmount {
+			output = cF(substance, unitInputs...)
+		} else {
+			printName(printN, "Wrong amount of unitInputs:",
+				gotLenOfUnitInputs, "; needed", inputsAmount)
+		}
+	}
+
+	return output
+}
+
+func unitsFunctionsOutput(inputName string, substance string, unitInputs ...float32) float32 {
+	output := addConversion(convPerc2Pure, 0, "Convert-Percent-To-Pure", inputName, 2, substance, unitInputs...)
+	output = addConversion(convMl2Grams, output, "Convert-Milliliters-To-Grams", inputName, 2, substance, unitInputs...)
 
 	return output
 }
@@ -399,7 +474,7 @@ func (cfg Config) ConvertUnits(substance string, unitInputs ...float32) (float32
 	convertFunc := allNames[0]
 	convertUnit := allNames[1]
 
-	output := unitsFunctionsOutput(convertFunc, unitInputs...)
+	output := unitsFunctionsOutput(convertFunc, substance, unitInputs...)
 
 	return output, convertUnit
 }

@@ -87,7 +87,7 @@ func (cfg *Config) FetchPsyWiki(drugname string, client *graphql.Client) bool {
 		return false
 	}
 
-	drugname = cfg.MatchAndReplace(drugname, "substance")
+	drugname = cfg.MatchAndReplace(drugname, "substance", false)
 
 	ret := checkIfExistsDB("drugName",
 		"psychonautwiki",

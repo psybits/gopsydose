@@ -28,7 +28,7 @@ type TimeTill struct {
 func (cfg Config) convertToSeconds(units string, values ...*float32) {
 	const printN string = "convertToSeconds()"
 
-	units = cfg.MatchAndReplace(units, "units")
+	units = cfg.MatchAndReplace(units, "units", false)
 	if units == "hours" {
 		for _, value := range values {
 			*value *= 60 * 60
@@ -213,7 +213,7 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool, prefix bo
 	timeTill.StartDose = useLog.StartTime
 	timeTill.EnDose = useLog.EndTime
 
-	var approxEnd int64 = timeTill.StartDose + int64(totalAvg)
+	var approxEnd int64 = useLoggedTime + int64(totalAvg)
 
 	if printit {
 		location, err := time.LoadLocation(cfg.Timezone)
@@ -235,14 +235,12 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool, prefix bo
 		}
 
 		if useLog.EndTime != 0 {
-			printNameF(printN, "End Dose:\t%q (%d)\n",
+			printNameF(printN, "Finish Dose:\t%q (%d)\n",
 				time.Unix(useLog.EndTime, 0).In(location),
 				useLog.EndTime)
 
-			if useLoggedTime != useLog.EndTime {
-				printNameF(printN, "Offset End:\t%q (%d)\n",
-					time.Unix(useLoggedTime, 0).In(location), useLoggedTime)
-			}
+			printNameF(printN, "Adjust Finish:\t%q (%d)\n",
+				time.Unix(useLoggedTime, 0).In(location), useLoggedTime)
 		}
 		printNameF(printN, "Current Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
 

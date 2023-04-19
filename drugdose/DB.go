@@ -200,7 +200,7 @@ func (cfg Config) checkDBFileStruct() bool {
 func (cfg Config) RemoveSingleDrugInfoDB(drug string) bool {
 	const printN string = "RemoveSingleDrugInfoDB()"
 
-	drug = cfg.MatchAndReplace(drug, "substance")
+	drug = cfg.MatchAndReplace(drug, "substance", false)
 
 	ret := checkIfExistsDB("drugName",
 		cfg.UseSource,
@@ -478,7 +478,7 @@ func (cfg Config) AddToInfoDB(subs []DrugInfo) bool {
 	}
 	defer stmt.Close()
 	for i := 0; i < len(subs); i++ {
-		subs[i].DoseUnits = cfg.MatchAndReplace(subs[i].DoseUnits, "units")
+		subs[i].DoseUnits = cfg.MatchAndReplace(subs[i].DoseUnits, "units", false)
 		_, err = stmt.Exec(
 			subs[i].DrugName,
 			subs[i].DrugRoute,
@@ -795,15 +795,15 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 
 	const printN string = "AddToDoseDB()"
 
-	drug = cfg.MatchAndReplace(drug, "substance")
-	route = cfg.MatchAndReplace(route, "route")
-	units = cfg.MatchAndReplace(units, "units")
+	drug = cfg.MatchAndReplace(drug, "substance", false)
+	route = cfg.MatchAndReplace(route, "route", false)
+	units = cfg.MatchAndReplace(units, "units", false)
 
 	if perc != 0 {
 		dose, units = cfg.ConvertUnits(drug, dose, perc)
-		if dose == 0 && units == "" {
+		if dose == 0 || units == "" {
 			printName(printN, "Error converting units for drug:", drug,
-				"; dose:", dose, "; perc:", perc)
+				"; dose:", dose, "; perc:", perc, "; units:", units)
 			return false
 		}
 	}
@@ -1145,7 +1145,7 @@ func (cfg Config) GetLocalInfo(drug string, printit bool, prefix bool) []DrugInf
 		printN = ""
 	}
 
-	drug = cfg.MatchAndReplace(drug, "substance")
+	drug = cfg.MatchAndReplace(drug, "substance", false)
 
 	ret := checkIfExistsDB("drugName",
 		cfg.UseSource,
@@ -1379,6 +1379,12 @@ func (cfg Config) SetUserLogs(set string, id int64, username string, setValue st
 		}
 
 		id = gotLogs[0].StartTime
+	} else {
+		gotLogs := cfg.GetLogs(1, id, username, false, true, false, "", false)
+		if gotLogs == nil {
+			printName(printN, "Couldn't get log with id:", id)
+			return false
+		}
 	}
 
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
@@ -1404,7 +1410,6 @@ func (cfg Config) SetUserLogs(set string, id int64, username string, setValue st
 	defer stmt.Close()
 
 	_, err = stmt.Exec(setValue, id)
-
 	if err != nil {
 		printName(printN, "stmt.Exec():", err)
 		return false

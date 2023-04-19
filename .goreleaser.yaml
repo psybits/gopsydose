@@ -5,7 +5,6 @@ builds:
   -
     main: .
     id: "linux-CLI"
-    binary: dose
     env:
       - CGO_ENABLED=1
     goos:
@@ -13,9 +12,6 @@ builds:
     goarch:
       - amd64
       - 386
-    ldflags:
-      - -s
-      - -w
 archives:
   -
     rlcp: true
@@ -27,11 +23,7 @@ archives:
       - LICENSE.txt
       - README.md
       - example.alias
-      - src: 'names-configs/*.toml'
-        strip_parent: true
-      - src: 'names-configs/replace-local-names-configs/psychonautwiki/*'
-        dst: 'replace-local-names-configs/psychonautwiki'
-        strip_parent: true
+      - gpd-names-configs/*
 checksum:
   name_template: 'checksums.txt'
 
