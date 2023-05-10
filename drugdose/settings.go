@@ -210,15 +210,18 @@ func GetSourceData() map[string]SourceConfig {
 	return cfg
 }
 
-func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) bool {
-
+func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) Config {
 	const printN string = "InitDBSettings()"
 
 	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			printName(printN, err)
-			return false
+			// Return Config struct unchanged, but
+			// there needs to be code to handle
+			// the unchanged value.
+			// Same for all other errors below.
+			return initcfg
 		}
 
 		path := home + "/.local/share"
@@ -229,7 +232,7 @@ func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess s
 		} else if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				printName(printN, err)
-				return false
+				return initcfg
 			}
 		}
 
@@ -247,7 +250,7 @@ func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess s
 
 	initcfg.DBSettings = dbSettings
 
-	return true
+	return initcfg
 }
 
 func (initconf Config) InitSettingsFile(recreate bool, verbose bool) bool {
@@ -300,15 +303,19 @@ func (initconf Config) InitSettingsFile(recreate bool, verbose bool) bool {
 }
 
 // Get the settings structure from the general settings config file.
-func GetSettings() *Config {
+func GetSettings() Config {
+	cfg := Config{}
+
+	// Return an empty struct to avoid looking
+	// at the wrong path.
+	// There needs to be code which can
+	// handle the empty struct properly.
 	setdir := InitSettingsDir()
 	if setdir == "" {
-		return nil
+		return cfg
 	}
 
 	path := setdir + "/" + settingsFilename
-
-	cfg := Config{}
 
 	file, err := os.ReadFile(path)
 	if err != nil {
@@ -320,5 +327,5 @@ func GetSettings() *Config {
 		errorCantReadConfig(path, err)
 	}
 
-	return &cfg
+	return cfg
 }

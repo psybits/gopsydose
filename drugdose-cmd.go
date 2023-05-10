@@ -320,18 +320,22 @@ func main() {
 		Timezone:        drugdose.DefaultTimezone,
 	}
 
-	ret := setcfg.InitDBSettings(*dbDir, drugdose.DefaultDBName, drugdose.DefaultMySQLAccess)
-	if !ret {
+	setcfg = setcfg.InitDBSettings(*dbDir, drugdose.DefaultDBName, drugdose.DefaultMySQLAccess)
+	if setcfg.DBSettings == nil {
 		printCLI("DBSettings not initialised properly.")
 		os.Exit(1)
 	}
 
-	ret = setcfg.InitSettingsFile(*recreateSettings, *verbose)
+	ret := setcfg.InitSettingsFile(*recreateSettings, *verbose)
 	if !ret {
 		printCLIVerbose(*verbose, "The settings file wasn't initialised.")
 	}
 
 	gotsetcfg := drugdose.GetSettings()
+	if len(gotsetcfg.DBDriver) == 0 {
+		printCLI("Config struct wasn't initialised properly.")
+		os.Exit(1)
+	}
 
 	if *verbose == true {
 		gotsetcfg.VerbosePrinting = true
@@ -613,8 +617,8 @@ func main() {
 		printCLIVerbose(*verbose, "Using API from settings.toml: "+gotsetcfg.UseSource)
 		printCLIVerbose(*verbose, "Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_ADDRESS)
 
-		cli := gotsetcfg.InitGraphqlClient()
-		if cli != nil {
+		ret, cli := gotsetcfg.InitGraphqlClient()
+		if ret == true {
 			if gotsetcfg.UseSource == "psychonautwiki" {
 				ret := gotsetcfg.FetchPsyWiki(*drugname, cli)
 				if !ret {

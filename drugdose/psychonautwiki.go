@@ -63,23 +63,25 @@ type PsychonautwikiSubstance []struct {
 	}
 }
 
-func (cfg *Config) InitGraphqlClient() *graphql.Client {
+func (cfg Config) InitGraphqlClient() (bool, graphql.Client) {
 	const printN string = "InitGraphqlClient()"
+
+	client := graphql.Client{}
 
 	if !cfg.AutoFetch {
 		printName(printN, "Automatic fetching is disabled, returning.")
-		return nil
+		return false, client
 	}
 
 	gotsrcData := GetSourceData()
 
 	api := gotsrcData[cfg.UseSource].API_ADDRESS
 
-	client := graphql.NewClient("https://"+api, nil)
-	return client
+	client_new := graphql.NewClient("https://"+api, nil)
+	return true, *client_new
 }
 
-func (cfg *Config) FetchPsyWiki(drugname string, client *graphql.Client) bool {
+func (cfg Config) FetchPsyWiki(drugname string, client graphql.Client) bool {
 	const printN string = "FetchPsyWiki()"
 
 	if !cfg.AutoFetch {
