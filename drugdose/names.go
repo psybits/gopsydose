@@ -232,8 +232,8 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 	}
 	defer db.Close()
 
-	subsStmt, err := db.Prepare("insert into '" + table +
-		"' (localName, alternativeName) " +
+	subsStmt, err := db.Prepare("insert into " + table +
+		" (localName, alternativeName) " +
 		"values(?, ?)")
 	if err != nil {
 		printName(printN, err)
@@ -312,8 +312,8 @@ func (cfg Config) MatchName(inputName string, nameType string, sourceNames bool,
 	var gotDBName string
 	for i := 0; i < len(checkCol); i++ {
 		gotDBName = ""
-		err = db.QueryRow("select localName from '"+table+
-			"' where "+checkCol[i]+" = ?", inputName).Scan(&gotDBName)
+		err = db.QueryRow("select localName from "+table+
+			" where "+checkCol[i]+" = ?", inputName).Scan(&gotDBName)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) == false {
 				printName(printN, "For input:", inputName, "; Error:", err)
@@ -368,8 +368,8 @@ func (cfg Config) GetAllNames(inputName string, nameType string, sourceNames boo
 
 	var allNames []string
 	var tempName string
-	rows, err := db.Query("select alternativeName from '"+table+
-		"' where localName = ?", repName)
+	rows, err := db.Query("select alternativeName from "+table+
+		" where localName = ?", repName)
 	if err != nil {
 		printName(printN, "Error:", err)
 		return nil

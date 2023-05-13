@@ -534,7 +534,7 @@ func (cfg Config) InitDrugDB() bool {
 	}
 	defer db.Close()
 
-	caseInsensitive := ""
+	caseInsensitive := " "
 	if cfg.DBDriver == "sqlite3" {
 		caseInsensitive = " COLLATE NOCASE "
 	}
@@ -592,7 +592,7 @@ func (cfg Config) InitLogDB() bool {
 	}
 	defer db.Close()
 
-	caseInsensitive := ""
+	caseInsensitive := " "
 	if cfg.DBDriver == "sqlite3" {
 		caseInsensitive = " COLLATE NOCASE "
 	}
@@ -689,14 +689,14 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 	}
 	defer db.Close()
 
-	caseInsensitive := ""
+	caseInsensitive := " "
 	if cfg.DBDriver == "sqlite3" {
 		caseInsensitive = " COLLATE NOCASE "
 	}
 
 	if !subsExists {
-		initDBsql := "create table '" + altNamesSubsTableName + tableSuffix +
-			"' (localName varchar(255)" + caseInsensitive + "not null," +
+		initDBsql := "create table " + altNamesSubsTableName + tableSuffix +
+			" (localName varchar(255)" + caseInsensitive + "not null," +
 			"alternativeName varchar(255)" + caseInsensitive + "not null," +
 			"primary key (localName, alternativeName));"
 
@@ -710,8 +710,8 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 	}
 
 	if !routesExists {
-		initDBsql := "create table '" + altNamesRouteTableName + tableSuffix +
-			"' (localName varchar(255)" + caseInsensitive + "not null," +
+		initDBsql := "create table " + altNamesRouteTableName + tableSuffix +
+			" (localName varchar(255)" + caseInsensitive + "not null," +
 			"alternativeName varchar(255)" + caseInsensitive + "not null," +
 			"primary key (localName, alternativeName));"
 
@@ -725,8 +725,8 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 	}
 
 	if !unitsExists {
-		initDBsql := "create table '" + altNamesUnitsTableName + tableSuffix +
-			"' (localName varchar(255)" + caseInsensitive + "not null," +
+		initDBsql := "create table " + altNamesUnitsTableName + tableSuffix +
+			" (localName varchar(255)" + caseInsensitive + "not null," +
 			"alternativeName varchar(255)" + caseInsensitive + "not null," +
 			"primary key (localName, alternativeName));"
 
@@ -740,8 +740,8 @@ func (cfg Config) InitAltNamesDB(replace bool) bool {
 	}
 
 	if !convUnitsExists {
-		initDBsql := "create table '" + altNamesConvUnitsTableName + tableSuffix +
-			"' (localName varchar(255)" + caseInsensitive + "not null," +
+		initDBsql := "create table " + altNamesConvUnitsTableName + tableSuffix +
+			" (localName varchar(255)" + caseInsensitive + "not null," +
 			"alternativeName varchar(255)" + caseInsensitive + "not null," +
 			"primary key (localName, alternativeName));"
 
