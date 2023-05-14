@@ -984,16 +984,26 @@ func (cfg Config) GetLogsCount(user string) int {
 	return count
 }
 
+// outputChannel - the goroutine channel used to return the logs
+//
 // num - amount of logs to return (limit)
+//
 // id - if not 0, will return the exact log matching that id for the given user
-// user - must be supplied, because only logs for a particular user are always returned
+//
+// user - the user which owns the logs
+//
 // all - ignores num and returns all logs if id is not set
+//
 // reverse - go from high values to low
+//
 // printit - print the logs
+//
 // search - return logs only matching this string
-// prefix - whether the name, before the logs should be printed
-func (cfg Config) GetLogs(num int, id int64, user string, all bool,
-	reverse bool, printit bool, search string, prefix bool) []UserLog {
+//
+// prefix - whether the name of the function should be shown when writing to console
+func (cfg Config) GetLogs(outputChannel chan []UserLog, num int, id int64,
+	user string, all bool, reverse bool, printit bool,
+	search string, prefix bool) {
 
 	var printN string
 	if prefix == true {
@@ -1031,7 +1041,8 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 	}
 	if err != nil {
 		printName(printN, "Query:", err)
-		return nil
+		outputChannel <- nil
+		return
 	}
 	defer rows.Close()
 
@@ -1042,13 +1053,15 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute)
 		if err != nil {
 			printName(printN, "Scan:", err)
-			return nil
+			outputChannel <- nil
+			return
 		}
 
 		location, err := time.LoadLocation(cfg.Timezone)
 		if err != nil {
 			printName(printN, "LoadLocation:", err)
-			return nil
+			outputChannel <- nil
+			return
 		}
 
 		match := true
@@ -1093,12 +1106,15 @@ func (cfg Config) GetLogs(num int, id int64, user string, all bool,
 	err = rows.Err()
 	if err != nil {
 		printName(printN, "rows.Err():", err)
-		return nil
+		outputChannel <- nil
+		return
 	}
 	if len(userlogs) == 0 {
-		return nil
+		outputChannel <- nil
+		return
 	}
-	return userlogs
+
+	outputChannel <- userlogs
 }
 
 func (cfg Config) GetLocalInfoNames() []string {
@@ -1251,7 +1267,11 @@ func (cfg Config) RemoveLogs(username string, amount int, reverse bool,
 			getAll = true
 		}
 
-		gotLogs := cfg.GetLogs(amount, 0, username, getAll, reverse, false, search, false)
+		logsChannel := make(chan []UserLog)
+		var gotLogs []UserLog
+		go cfg.GetLogs(logsChannel, amount, 0, username, getAll, reverse, false, search, false)
+		gotLogs = <-logsChannel
+
 		if gotLogs == nil {
 			printName(printN, "Couldn't get logs, because of an error, no logs will be removed.")
 			return false
@@ -1371,8 +1391,12 @@ func (cfg Config) SetUserLogs(set string, id int64, username string, setValue st
 		"route":      "drugRoute",
 	}
 
+	logsChannel := make(chan []UserLog)
+	var gotLogs []UserLog
+
 	if id == 0 {
-		gotLogs := cfg.GetLogs(1, 0, username, false, true, false, "", false)
+		go cfg.GetLogs(logsChannel, 1, 0, username, false, true, false, "", false)
+		gotLogs = <-logsChannel
 		if gotLogs == nil {
 			printName(printN, "Couldn't get last log to get the ID.")
 			return false
@@ -1380,7 +1404,8 @@ func (cfg Config) SetUserLogs(set string, id int64, username string, setValue st
 
 		id = gotLogs[0].StartTime
 	} else {
-		gotLogs := cfg.GetLogs(1, id, username, false, true, false, "", false)
+		go cfg.GetLogs(logsChannel, 1, id, username, false, true, false, "", false)
+		gotLogs = <-logsChannel
 		if gotLogs == nil {
 			printName(printN, "Couldn't get log with id:", id)
 			return false
@@ -1498,7 +1523,10 @@ func (cfg Config) SetUserSettings(set string, username string, setValue string) 
 		}
 
 		if setValue == "0" || setValue == "none" {
-			gotLogs := cfg.GetLogs(1, 0, username, false, true, false, "none", false)
+			logsChannel := make(chan []UserLog)
+			var gotLogs []UserLog
+			go cfg.GetLogs(logsChannel, 1, 0, username, false, true, false, "none", false)
+			gotLogs = <-logsChannel
 			if gotLogs == nil {
 				printName(printN, "No logs to remember.")
 				return false
@@ -1592,7 +1620,10 @@ func (cfg Config) RememberConfig(username string) *UserLog {
 		return nil
 	}
 
-	gotLogs := cfg.GetLogs(1, gotInt, username, false, false, false, "", false)
+	var logsChannel = make(chan []UserLog)
+	var gotLogs []UserLog
+	go cfg.GetLogs(logsChannel, 1, gotInt, username, false, false, false, "", false)
+	gotLogs = <-logsChannel
 	if gotLogs == nil {
 		printName(printN, "No logs returned for:", gotInt)
 		return nil

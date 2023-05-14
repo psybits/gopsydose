@@ -69,7 +69,11 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool, prefix bo
 		printN = ""
 	}
 
-	gotLogs := cfg.GetLogs(1, getid, username, false, true, false, "none", false)
+	logsChannel := make(chan []UserLog)
+	var gotLogs []UserLog
+
+	cfg.GetLogs(logsChannel, 1, getid, username, false, true, false, "none", false)
+	gotLogs = <-logsChannel
 	if gotLogs == nil {
 		printName(printN, "No logs for getting the times.")
 		return nil

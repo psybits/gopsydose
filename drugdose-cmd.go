@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-
 	"github.com/psybits/gopsydose/drugdose"
 )
 
@@ -492,29 +491,38 @@ func main() {
 		printCLI("Total number of logs:", ret, "; for user:", *forUser)
 	}
 
+	logsChannel := make(chan []drugdose.UserLog)
+	var retLogs []drugdose.UserLog
+	var gettingLogs bool = false
+	var logsLimit bool = false
+
 	if *getLogs {
-		var ret []drugdose.UserLog
 		if *noGetLimit {
-			ret = gotsetcfg.GetLogs(0, *forID, *forUser, true, false, true, *searchStr, false)
+			go gotsetcfg.GetLogs(logsChannel, 0, *forID, *forUser, true, false, true, *searchStr, false)
 		} else {
-			ret = gotsetcfg.GetLogs(100, *forID, *forUser, false, false, true, *searchStr, false)
-			if ret != nil && len(ret) == 100 {
+			go gotsetcfg.GetLogs(logsChannel, 100, *forID, *forUser, false, false, true, *searchStr, false)
+			logsLimit = true
+		}
+		gettingLogs = true
+	} else if *getNewLogs != 0 {
+		go gotsetcfg.GetLogs(logsChannel, *getNewLogs, 0, *forUser, false, true, true, *searchStr, false)
+		gettingLogs = true
+	} else if *getOldLogs != 0 {
+		go gotsetcfg.GetLogs(logsChannel, *getOldLogs, 0, *forUser, false, false, true, *searchStr, false)
+		gettingLogs = true
+	}
+
+	if gettingLogs == true {
+		retLogs = <-logsChannel
+		if logsLimit == true {
+			if retLogs != nil && len(retLogs) == 100 {
 				printCLI("By default there is a limit of retrieving " +
 					"and printing a maximum of 100 entries. " +
 					"To avoid it, use the -no-get-limit option.")
 			}
 		}
-		if ret == nil {
-			printCLI("No logs could be returned.")
-		}
-	} else if *getNewLogs != 0 {
-		ret := gotsetcfg.GetLogs(*getNewLogs, 0, *forUser, false, true, true, *searchStr, false)
-		if ret == nil {
-			printCLI("No logs could be returned.")
-		}
-	} else if *getOldLogs != 0 {
-		ret := gotsetcfg.GetLogs(*getOldLogs, 0, *forUser, false, false, true, *searchStr, false)
-		if ret == nil {
+
+		if retLogs == nil {
 			printCLI("No logs could be returned.")
 		}
 	}
