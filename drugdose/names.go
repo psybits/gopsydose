@@ -38,6 +38,12 @@ const allNamesConfigsDir string = "gpd-names-configs"
 
 const namesMagicWord string = "!TheTableIsNotEmpty!"
 
+// Constants used for matching names
+const nameTypeSubstance = "substance"
+const nameTypeRoute = "route"
+const nameTypeUnits = "units"
+const nameTypeConvertUnits = "convUnits"
+
 // Read the config file for matching names and return the proper struct.
 // nameType - checkout namesFiles()
 // source - if not empty, will read the source specific config
@@ -85,13 +91,13 @@ func namesTables(nameType string) string {
 	const printN string = "namesTables()"
 
 	table := ""
-	if nameType == "substance" {
+	if nameType == nameTypeSubstance {
 		table = altNamesSubsTableName
-	} else if nameType == "route" {
+	} else if nameType == nameTypeRoute {
 		table = altNamesRouteTableName
-	} else if nameType == "units" {
+	} else if nameType == nameTypeUnits {
 		table = altNamesUnitsTableName
-	} else if nameType == "convUnits" {
+	} else if nameType == nameTypeConvertUnits {
 		table = altNamesConvUnitsTableName
 	} else {
 		printName(printN, "No nameType:", nameType)
@@ -104,13 +110,13 @@ func namesFiles(nameType string) string {
 	const printN string = "namesFiles()"
 
 	file := ""
-	if nameType == "substance" {
+	if nameType == nameTypeSubstance {
 		file = namesSubstanceFilename
-	} else if nameType == "route" {
+	} else if nameType == nameTypeRoute {
 		file = namesRouteFilename
-	} else if nameType == "units" {
+	} else if nameType == nameTypeUnits {
 		file = namesUnitsFilename
-	} else if nameType == "convUnits" {
+	} else if nameType == nameTypeConvertUnits {
 		file = namesConvUnitsFilename
 	} else {
 		printName(printN, "No nameType:", nameType)
@@ -122,8 +128,11 @@ func namesFiles(nameType string) string {
 // Copy the config files to the proper directory and read them to
 // create the proper tables in the database, which will later be used
 // to match alternative names to local names.
+//
 // nameType - checkout namesTables() and namesFiles()
+//
 // sourceNames - if true, will add data to the source specific config tables
+//
 // overwrite - force overwrite of directory and tables
 func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, overwrite bool) bool {
 	const printN string = "AddToSubstanceNamesTable()"
@@ -276,12 +285,17 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 	return true
 }
 
-// Returns the local name for a given alternative name.
 // inputName - the alternative name
+//
 // nameType - checkout namesTables()
+//
 // sourceNames - if true, it will use the config for the source,
+//
 // meaning the names specific for the source
+//
 // overwrite - if true will overwrite the names config directory and tables with the currently present ones
+//
+// Returns the local name for a given alternative name.
 func (cfg Config) MatchName(inputName string, nameType string, sourceNames bool, overwrite bool) string {
 	const printN string = "MatchName()"
 
@@ -330,10 +344,22 @@ func (cfg Config) MatchName(inputName string, nameType string, sourceNames bool,
 }
 
 // Returns the local name, using both the global config and the source specific config.
-func (cfg Config) MatchAndReplace(inputName string, nameType string, overwrite bool) string {
-	ret := cfg.MatchName(inputName, nameType, false, overwrite)
+func (cfg Config) MatchAndReplace(inputName string, nameType string) string {
+	ret := cfg.MatchName(inputName, nameType, false, false)
 	ret = cfg.MatchName(ret, nameType, true, false)
 	return ret
+}
+
+// Tries matching a single string to all alternative names.
+func (cfg Config) MatchAndReplaceAll(inputName string) string {
+	allNameTypes := []string{nameTypeSubstance, nameTypeRoute, nameTypeUnits, nameTypeConvertUnits}
+	for _, elem := range allNameTypes {
+		retName := cfg.MatchAndReplace(inputName, elem)
+		if retName != inputName {
+			return retName
+		}
+	}
+	return inputName
 }
 
 // Returns all alternative names for a given local name.

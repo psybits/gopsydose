@@ -359,7 +359,7 @@ func main() {
 	}
 
 	if *overwriteNames {
-		gotsetcfg.MatchAndReplace("asd", "substance", true)
+		gotsetcfg.MatchName("asd", "substance", false, true)
 	}
 
 	if *forget {

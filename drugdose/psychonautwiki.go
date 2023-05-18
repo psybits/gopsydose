@@ -63,6 +63,11 @@ type PsychonautwikiSubstance []struct {
 	}
 }
 
+// Used to initialise the GraphQL struct, using the source address from
+// the drugdose Config struct.
+//
+// returns: bool (true if client is initialised, false otherwise),
+// client (the GraphQL struct used with github.com/hasura/go-graphql-client
 func (cfg Config) InitGraphqlClient() (bool, graphql.Client) {
 	const printN string = "InitGraphqlClient()"
 
@@ -89,7 +94,7 @@ func (cfg Config) FetchPsyWiki(drugname string, client graphql.Client) bool {
 		return false
 	}
 
-	drugname = cfg.MatchAndReplace(drugname, "substance", false)
+	drugname = cfg.MatchAndReplace(drugname, "substance")
 
 	ret := checkIfExistsDB("drugName",
 		"psychonautwiki",

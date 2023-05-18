@@ -200,7 +200,7 @@ func (cfg Config) checkDBFileStruct() bool {
 func (cfg Config) RemoveSingleDrugInfoDB(drug string) bool {
 	const printN string = "RemoveSingleDrugInfoDB()"
 
-	drug = cfg.MatchAndReplace(drug, "substance", false)
+	drug = cfg.MatchAndReplace(drug, "substance")
 
 	ret := checkIfExistsDB("drugName",
 		cfg.UseSource,
@@ -478,7 +478,7 @@ func (cfg Config) AddToInfoDB(subs []DrugInfo) bool {
 	}
 	defer stmt.Close()
 	for i := 0; i < len(subs); i++ {
-		subs[i].DoseUnits = cfg.MatchAndReplace(subs[i].DoseUnits, "units", false)
+		subs[i].DoseUnits = cfg.MatchAndReplace(subs[i].DoseUnits, "units")
 		_, err = stmt.Exec(
 			subs[i].DrugName,
 			subs[i].DrugRoute,
@@ -795,9 +795,9 @@ func (cfg Config) AddToDoseDB(user string, drug string, route string,
 
 	const printN string = "AddToDoseDB()"
 
-	drug = cfg.MatchAndReplace(drug, "substance", false)
-	route = cfg.MatchAndReplace(route, "route", false)
-	units = cfg.MatchAndReplace(units, "units", false)
+	drug = cfg.MatchAndReplace(drug, "substance")
+	route = cfg.MatchAndReplace(route, "route")
+	units = cfg.MatchAndReplace(units, "units")
 
 	if perc != 0 {
 		dose, units = cfg.ConvertUnits(drug, dose, perc)
@@ -1032,10 +1032,32 @@ func (cfg Config) GetLogs(outputChannel chan []UserLog, num int, id int64,
 		orientation = "desc"
 	}
 
+	searchStmt := ""
+	var searchArr []any
+	if search != "none" && search != "" {
+		search = cfg.MatchAndReplaceAll(search)
+		searchColumns := []string{"drugName",
+			"dose",
+			"doseUnits",
+			"drugRoute"}
+		searchArr = append(searchArr, user)
+		searchStmt += "and " + searchColumns[0] + " like ? "
+		searchArr = append(searchArr, "%" + search + "%")
+		for i := 1; i < len(searchColumns); i++ {
+			searchStmt += "or " + searchColumns[i] + " like ? "
+			searchArr = append(searchArr, "%" + search + "%")
+		}
+	}
+
+	mainQuery := "select * from "+loggingTableName+" where username = ? "+searchStmt+
+		"order by timeOfDoseStart "+orientation+endstmt
 	var rows *sql.Rows
 	if id == 0 {
-		rows, err = db.Query("select * from "+loggingTableName+" where username = ? order by timeOfDoseStart "+
-			orientation+endstmt, user)
+		if search == "none" || search == "" {
+			rows, err = db.Query(mainQuery, user)
+		} else {
+			rows, err = db.Query(mainQuery, searchArr...)
+		}
 	} else {
 		rows, err = db.Query("select * from "+loggingTableName+" where username = ? and timeOfDoseStart = ?", user, id)
 	}
@@ -1064,44 +1086,22 @@ func (cfg Config) GetLogs(outputChannel chan []UserLog, num int, id int64,
 			return
 		}
 
-		match := true
-		if search != "none" && search != "" {
-			var tempArr = [7]string{
-				strconv.FormatInt(tempul.StartTime, 10),
-				tempul.Username,
-				strconv.FormatInt(tempul.EndTime, 10),
-				tempul.DrugName,
-				strconv.FormatFloat(float64(tempul.Dose), 'f', 2, 32),
-				tempul.DoseUnits,
-				tempul.DrugRoute,
+		if printit {
+			printNameF(printN, "Start:\t%q (%d) < ID\n",
+				time.Unix(int64(tempul.StartTime), 0).In(location), tempul.StartTime)
+			if tempul.EndTime != 0 {
+				printNameF(printN, "End:\t%q (%d)\n",
+					time.Unix(int64(tempul.EndTime), 0).In(location), tempul.EndTime)
 			}
-			match = false
-			for i := 0; i < len(tempArr); i++ {
-				if strings.Contains(tempArr[i], search) {
-					match = true
-					break
-				}
-			}
+			printNameF(printN, "Drug:\t%q\n", tempul.DrugName)
+			printNameF(printN, "Dose:\t%g\n", tempul.Dose)
+			printNameF(printN, "Units:\t%q\n", tempul.DoseUnits)
+			printNameF(printN, "Route:\t%q\n", tempul.DrugRoute)
+			printNameF(printN, "User:\t%q\n", tempul.Username)
+			printName(printN, "=========================")
 		}
 
-		if match {
-			if printit {
-				printNameF(printN, "Start:\t%q (%d) < ID\n",
-					time.Unix(int64(tempul.StartTime), 0).In(location), tempul.StartTime)
-				if tempul.EndTime != 0 {
-					printNameF(printN, "End:\t%q (%d)\n",
-						time.Unix(int64(tempul.EndTime), 0).In(location), tempul.EndTime)
-				}
-				printNameF(printN, "Drug:\t%q\n", tempul.DrugName)
-				printNameF(printN, "Dose:\t%g\n", tempul.Dose)
-				printNameF(printN, "Units:\t%q\n", tempul.DoseUnits)
-				printNameF(printN, "Route:\t%q\n", tempul.DrugRoute)
-				printNameF(printN, "User:\t%q\n", tempul.Username)
-				printName(printN, "=========================")
-			}
-
-			userlogs = append(userlogs, tempul)
-		}
+		userlogs = append(userlogs, tempul)
 	}
 	err = rows.Err()
 	if err != nil {
@@ -1161,7 +1161,7 @@ func (cfg Config) GetLocalInfo(drug string, printit bool, prefix bool) []DrugInf
 		printN = ""
 	}
 
-	drug = cfg.MatchAndReplace(drug, "substance", false)
+	drug = cfg.MatchAndReplace(drug, "substance")
 
 	ret := checkIfExistsDB("drugName",
 		cfg.UseSource,

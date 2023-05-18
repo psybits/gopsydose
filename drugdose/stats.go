@@ -28,7 +28,7 @@ type TimeTill struct {
 func (cfg Config) convertToSeconds(units string, values ...*float32) {
 	const printN string = "convertToSeconds()"
 
-	units = cfg.MatchAndReplace(units, "units", false)
+	units = cfg.MatchAndReplace(units, "units")
 	if units == "hours" {
 		for _, value := range values {
 			*value *= 60 * 60
