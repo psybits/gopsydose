@@ -4,6 +4,14 @@ import (
 	"context"
 
 	"github.com/hasura/go-graphql-client"
+
+	"database/sql"
+
+	// MySQL driver needed for sql module
+	_ "github.com/go-sql-driver/mysql"
+
+	// SQLite driver needed for sql module
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type PsychonautwikiSubstance []struct {
@@ -86,7 +94,8 @@ func (cfg Config) InitGraphqlClient() (bool, graphql.Client) {
 	return true, *client_new
 }
 
-func (cfg Config) FetchPsyWiki(drugname string, client graphql.Client) bool {
+func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
+	drugname string, client graphql.Client) bool {
 	const printN string = "FetchPsyWiki()"
 
 	if !cfg.AutoFetch {
@@ -94,9 +103,10 @@ func (cfg Config) FetchPsyWiki(drugname string, client graphql.Client) bool {
 		return false
 	}
 
-	drugname = cfg.MatchAndReplace(drugname, "substance")
+	drugname = cfg.MatchAndReplace(db, ctx, drugname, "substance")
 
-	ret := checkIfExistsDB("drugName",
+	ret := checkIfExistsDB(db, ctx,
+		"drugName",
 		"psychonautwiki",
 		cfg.DBDriver,
 		cfg.DBSettings[cfg.DBDriver].Path,
@@ -174,7 +184,7 @@ func (cfg Config) FetchPsyWiki(drugname string, client graphql.Client) bool {
 		}
 
 		if len(InfoDrug) != 0 {
-			ret := cfg.AddToInfoDB(InfoDrug)
+			ret := cfg.AddToInfoDB(db, ctx, InfoDrug)
 			if !ret {
 				printName(printN, "Data couldn't be added to info DB, because of an error.")
 				return false

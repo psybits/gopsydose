@@ -1,6 +1,7 @@
 package drugdose
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -134,7 +135,8 @@ func namesFiles(nameType string) string {
 // sourceNames - if true, will add data to the source specific config tables
 //
 // overwrite - force overwrite of directory and tables
-func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, overwrite bool) bool {
+func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
+	nameType string, sourceNames bool, overwrite bool) bool {
 	const printN string = "AddToSubstanceNamesTable()"
 
 	var setdir string = InitSettingsDir()
@@ -146,13 +148,13 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 	var CopyToPath string = setdir + "/" + allNamesConfigsDir
 
 	if overwrite == true {
-		ret := cfg.CleanNames()
+		ret := cfg.CleanNames(db, ctx)
 		if ret == false {
 			printName(printN, "Couldn't clean names from database for overwrite.")
 			return false
 		}
 
-		ret = cfg.InitAllDBTables()
+		ret = cfg.InitAllDBTables(db, ctx)
 		if !ret {
 			printName(printN, "Database didn't get initialised, because of an error.")
 			return false
@@ -179,7 +181,8 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 
 	table = table + tableSuffix
 
-	ret := checkIfExistsDB("localName",
+	ret := checkIfExistsDB(db, ctx,
+		"localName",
 		table,
 		cfg.DBDriver,
 		cfg.DBSettings[cfg.DBDriver].Path,
@@ -233,15 +236,9 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 	namesCfg := GetNamesConfig(nameType, getCfgSrc)
 	if namesCfg == nil {
 		return false
-	}
+	}	
 
-	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
-	if err != nil {
-		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
-	}
-	defer db.Close()
-
-	subsStmt, err := db.Prepare("insert into " + table +
+	subsStmt, err := db.PrepareContext(ctx, "insert into " + table +
 		" (localName, alternativeName) " +
 		"values(?, ?)")
 	if err != nil {
@@ -256,7 +253,7 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 		return false
 	}
 
-	_, err = tx.Stmt(subsStmt).Exec(namesMagicWord, namesMagicWord)
+	_, err = tx.Stmt(subsStmt).ExecContext(ctx, namesMagicWord, namesMagicWord)
 	if err != nil {
 		printName(printN, err)
 		return false
@@ -266,7 +263,7 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 		locName = strings.ReplaceAll(locName, "_", " ")
 		altName := altNames.AltNames
 		for i := 0; i < len(altName); i++ {
-			_, err = tx.Stmt(subsStmt).Exec(locName, altName[i])
+			_, err = tx.Stmt(subsStmt).ExecContext(ctx, locName, altName[i])
 			if err != nil {
 				printName(printN, err)
 				return false
@@ -285,6 +282,10 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 	return true
 }
 
+// db - open database connection
+//
+// ctx - context to passed to sql query function
+//
 // inputName - the alternative name
 //
 // nameType - checkout namesTables()
@@ -296,7 +297,8 @@ func (cfg Config) AddToSubstanceNamesTable(nameType string, sourceNames bool, ov
 // overwrite - if true will overwrite the names config directory and tables with the currently present ones
 //
 // Returns the local name for a given alternative name.
-func (cfg Config) MatchName(inputName string, nameType string, sourceNames bool, overwrite bool) string {
+func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
+	nameType string, sourceNames bool, overwrite bool) string {
 	const printN string = "MatchName()"
 
 	table := namesTables(nameType)
@@ -311,22 +313,16 @@ func (cfg Config) MatchName(inputName string, nameType string, sourceNames bool,
 
 	table = table + tableSuffix
 
-	ret := cfg.AddToSubstanceNamesTable(nameType, sourceNames, overwrite)
+	ret := cfg.AddToSubstanceNamesTable(db, ctx, nameType, sourceNames, overwrite)
 	if !ret {
 		return inputName
 	}
-
-	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
-	if err != nil {
-		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
-	}
-	defer db.Close()
 
 	checkCol := []string{"localName", "alternativeName"}
 	var gotDBName string
 	for i := 0; i < len(checkCol); i++ {
 		gotDBName = ""
-		err = db.QueryRow("select localName from "+table+
+		err := db.QueryRowContext(ctx, "select localName from "+table+
 			" where "+checkCol[i]+" = ?", inputName).Scan(&gotDBName)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) == false {
@@ -344,17 +340,18 @@ func (cfg Config) MatchName(inputName string, nameType string, sourceNames bool,
 }
 
 // Returns the local name, using both the global config and the source specific config.
-func (cfg Config) MatchAndReplace(inputName string, nameType string) string {
-	ret := cfg.MatchName(inputName, nameType, false, false)
-	ret = cfg.MatchName(ret, nameType, true, false)
+func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
+	inputName string, nameType string) string {
+	ret := cfg.MatchName(db, ctx, inputName, nameType, false, false)
+	ret = cfg.MatchName(db, ctx, ret, nameType, true, false)
 	return ret
 }
 
 // Tries matching a single string to all alternative names.
-func (cfg Config) MatchAndReplaceAll(inputName string) string {
+func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context, inputName string) string {
 	allNameTypes := []string{nameTypeSubstance, nameTypeRoute, nameTypeUnits, nameTypeConvertUnits}
 	for _, elem := range allNameTypes {
-		retName := cfg.MatchAndReplace(inputName, elem)
+		retName := cfg.MatchAndReplace(db, ctx, inputName, elem)
 		if retName != inputName {
 			return retName
 		}
@@ -363,7 +360,7 @@ func (cfg Config) MatchAndReplaceAll(inputName string) string {
 }
 
 // Returns all alternative names for a given local name.
-func (cfg Config) GetAllNames(inputName string, nameType string, sourceNames bool) []string {
+func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context, inputName string, nameType string, sourceNames bool) []string {
 	const printN string = "GetAllNames()"
 
 	table := namesTables(nameType)
@@ -378,23 +375,17 @@ func (cfg Config) GetAllNames(inputName string, nameType string, sourceNames boo
 
 	table = table + tableSuffix
 
-	cfg.AddToSubstanceNamesTable(nameType, sourceNames, false)
+	cfg.AddToSubstanceNamesTable(db, ctx, nameType, sourceNames, false)
 
-	repName := cfg.MatchName(inputName, nameType, true, false)
+	repName := cfg.MatchName(db, ctx, inputName, nameType, true, false)
 	if repName != inputName {
 		printNameVerbose(cfg.VerbosePrinting, printN, "For source:", cfg.UseSource,
 			"; Local name:", inputName, "; Is sourceNamesd with:", repName)
 	}
 
-	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
-	if err != nil {
-		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
-	}
-	defer db.Close()
-
 	var allNames []string
 	var tempName string
-	rows, err := db.Query("select alternativeName from "+table+
+	rows, err := db.QueryContext(ctx, "select alternativeName from "+table+
 		" where localName = ?", repName)
 	if err != nil {
 		printName(printN, "Error:", err)
@@ -486,10 +477,10 @@ func unitsFunctionsOutput(inputName string, substance string, unitInputs ...floa
 	return output
 }
 
-func (cfg Config) ConvertUnits(substance string, unitInputs ...float32) (float32, string) {
+func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string, unitInputs ...float32) (float32, string) {
 	const printN string = "ConvertUnits()"
 
-	allNames := cfg.GetAllNames(substance, "convUnits", true)
+	allNames := cfg.GetAllNames(db, ctx, substance, "convUnits", true)
 	gotAllNamesLen := len(allNames)
 	if gotAllNamesLen != 2 {
 		printName(printN, "Wrong amount of names:", gotAllNamesLen,

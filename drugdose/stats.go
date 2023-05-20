@@ -1,11 +1,17 @@
 package drugdose
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
 
-	// SQLite driver needed for sql module, present in DB.go
+	"database/sql"
+
+	// MySQL driver needed for sql module
+	_ "github.com/go-sql-driver/mysql"
+
+	// SQLite driver needed for sql module
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -25,10 +31,11 @@ type TimeTill struct {
 	EnDose    int64
 }
 
-func (cfg Config) convertToSeconds(units string, values ...*float32) {
+func (cfg Config) convertToSeconds(db *sql.DB, ctx context.Context,
+	units string, values ...*float32) {
 	const printN string = "convertToSeconds()"
 
-	units = cfg.MatchAndReplace(units, "units")
+	units = cfg.MatchAndReplace(db, ctx, units, "units")
 	if units == "hours" {
 		for _, value := range values {
 			*value *= 60 * 60
@@ -61,7 +68,8 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 	}
 }
 
-func (cfg Config) GetTimes(username string, getid int64, printit bool, prefix bool) *TimeTill {
+func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
+	username string, getid int64, printit bool, prefix bool) *TimeTill {
 	var printN string
 	if prefix == true {
 		printN = "GetTimes()"
@@ -70,9 +78,9 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool, prefix bo
 	}
 
 	logsChannel := make(chan []UserLog)
-	var gotLogs []UserLog
+	var gotLogs []UserLog	
 
-	cfg.GetLogs(logsChannel, 1, getid, username, false, true, false, "none", false)
+	go cfg.GetLogs(db, logsChannel, ctx, 1, getid, username, true, "none")
 	gotLogs = <-logsChannel
 	if gotLogs == nil {
 		printName(printN, "No logs for getting the times.")
@@ -80,7 +88,7 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool, prefix bo
 	}
 
 	useLog := gotLogs[0]
-	gotInfo := cfg.GetLocalInfo(useLog.DrugName, false, false)
+	gotInfo := cfg.GetLocalInfo(db, ctx, useLog.DrugName)
 
 	gotInfoNum := -1
 	for i := 0; i < len(gotInfo); i++ {
@@ -111,19 +119,24 @@ func (cfg Config) GetTimes(username string, getid int64, printit bool, prefix bo
 		return nil
 	}
 
-	cfg.convertToSeconds(gotInfoProper.OnsetUnits,
+	cfg.convertToSeconds(db, ctx,
+		gotInfoProper.OnsetUnits,
 		&gotInfoProper.OnsetMin,
 		&gotInfoProper.OnsetMax)
-	cfg.convertToSeconds(gotInfoProper.ComeUpUnits,
+	cfg.convertToSeconds(db, ctx,
+		gotInfoProper.ComeUpUnits,
 		&gotInfoProper.ComeUpMin,
 		&gotInfoProper.ComeUpMax)
-	cfg.convertToSeconds(gotInfoProper.PeakUnits,
+	cfg.convertToSeconds(db, ctx,
+		gotInfoProper.PeakUnits,
 		&gotInfoProper.PeakMin,
 		&gotInfoProper.PeakMax)
-	cfg.convertToSeconds(gotInfoProper.OffsetUnits,
+	cfg.convertToSeconds(db, ctx,
+		gotInfoProper.OffsetUnits,
 		&gotInfoProper.OffsetMin,
 		&gotInfoProper.OffsetMax)
-	cfg.convertToSeconds(gotInfoProper.TotalDurUnits,
+	cfg.convertToSeconds(db, ctx,
+		gotInfoProper.TotalDurUnits,
 		&gotInfoProper.TotalDurMin,
 		&gotInfoProper.TotalDurMax)
 

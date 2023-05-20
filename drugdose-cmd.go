@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
+
 	"github.com/psybits/gopsydose/drugdose"
 )
 
@@ -150,10 +152,10 @@ var (
 		"the name of the API that you want to initialise for\n"+
 			"settings and sources config files")
 
-	apiURL = flag.String(
-		"apiurl",
+	apiAddress = flag.String(
+		"api-address",
 		drugdose.DefaultAPI,
-		"the URL of the API that you want to initialise for\n"+
+		"the address of the API that you want to initialise for\n"+
 			"sources config file combined with -source")
 
 	recreateSettings = flag.Bool(
@@ -301,6 +303,7 @@ func printCLIVerbose(verbose bool, str ...any) {
 }
 
 func main() {
+	// Initialisation /////////////////////////////////////////////////////
 	flag.Parse()
 
 	if flag.NFlag() == 0 {
@@ -308,16 +311,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setcfg := drugdose.Config{
-		MaxLogsPerUser:  drugdose.DefaultMaxLogsPerUser,
-		UseSource:       *sourcecfg,
-		AutoFetch:       drugdose.DefaultAutoFetch,
-		AutoRemove:      drugdose.DefaultAutoRemove,
-		DBDriver:        drugdose.DefaultDBDriver,
-		VerbosePrinting: drugdose.DefaultVerbose,
-		DBSettings:      nil,
-		Timezone:        drugdose.DefaultTimezone,
-	}
+	setcfg := drugdose.InitConfigStruct(*sourcecfg)
 
 	setcfg = setcfg.InitDBSettings(*dbDir, drugdose.DefaultDBName, drugdose.DefaultMySQLAccess)
 	if setcfg.DBSettings == nil {
@@ -340,11 +334,7 @@ func main() {
 		gotsetcfg.VerbosePrinting = true
 	}
 
-	gotsrc := map[string]drugdose.SourceConfig{
-		gotsetcfg.UseSource: {
-			API_ADDRESS: *apiURL,
-		},
-	}
+	gotsrc := gotsetcfg.InitSourceMap(*apiAddress)
 
 	ret = gotsetcfg.InitSourceSettings(gotsrc, *recreateSources)
 	if !ret {
@@ -353,17 +343,23 @@ func main() {
 
 	gotsrcData := drugdose.GetSourceData()
 
+	ctx := context.Background()
+
+	db := gotsetcfg.OpenDBConnection(ctx)
+	defer db.Close()
+	///////////////////////////////////////////////////////////////////////
+
 	if *getDirs {
 		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 		printCLI("Settings Dir:", drugdose.InitSettingsDir())
 	}
 
 	if *overwriteNames {
-		gotsetcfg.MatchName("asd", "substance", false, true)
+		gotsetcfg.MatchName(db, ctx, "asd", "substance", false, true)
 	}
 
 	if *forget {
-		ret := gotsetcfg.ForgetConfig(*forUser)
+		ret := gotsetcfg.ForgetConfig(db, ctx, *forUser)
 		if !ret {
 			printCLI("Couldn't 'forget' the remember config, because of an error.")
 		}
@@ -371,9 +367,9 @@ func main() {
 
 	remembering := false
 	if *drugargdose != 0 && *drugname == "none" && *changeLog == false {
-		got := gotsetcfg.GetUserSettings("useIDForRemember", *forUser)
+		got := gotsetcfg.GetUserSettings(db, ctx, "useIDForRemember", *forUser)
 		if got != "" && got != drugdose.ForgetInputConfigMagicNumber {
-			remCfg := gotsetcfg.RememberConfig(*forUser)
+			remCfg := gotsetcfg.RememberConfig(db, ctx, *forUser)
 			if remCfg != nil {
 				printCLI("Remembering from config using ID:", got)
 				*forUser = remCfg.Username
@@ -394,13 +390,13 @@ func main() {
 		if gotsetcfg.DBDriver == "sqlite3" {
 			gotsetcfg.InitDBFileStructure()
 
-			ret = gotsetcfg.InitAllDBTables()
+			ret = gotsetcfg.InitAllDBTables(db, ctx)
 			if !ret {
 				printCLI("Database didn't get initialised, because of an error, exiting.")
 				os.Exit(1)
 			}
 		} else if gotsetcfg.DBDriver == "mysql" {
-			ret = gotsetcfg.InitAllDBTables()
+			ret = gotsetcfg.InitAllDBTables(db, ctx)
 			if !ret {
 				printCLI("Database didn't get initialised, because of an error, exiting.")
 				os.Exit(1)
@@ -424,7 +420,7 @@ func main() {
 	}
 
 	if *cleanDB {
-		ret := gotsetcfg.CleanDB()
+		ret := gotsetcfg.CleanDB(db, ctx)
 		if !ret {
 			printCLI("Database couldn't be cleaned, because of an error.")
 		}
@@ -436,7 +432,7 @@ func main() {
 	}
 
 	if *removeInfoDrug != "none" {
-		ret := gotsetcfg.RemoveSingleDrugInfoDB(*removeInfoDrug)
+		ret := gotsetcfg.RemoveSingleDrugInfoDB(db, ctx, *removeInfoDrug)
 		if !ret {
 			printCLI("Failed to remove single drug from info database:", *removeInfoDrug)
 		}
@@ -454,14 +450,14 @@ func main() {
 	}
 
 	if *cleanLogs || remAmount != 0 {
-		ret := gotsetcfg.RemoveLogs(*forUser, remAmount, revRem, *forID, *searchStr)
+		ret := gotsetcfg.RemoveLogs(db, ctx, *forUser, remAmount, revRem, *forID, *searchStr)
 		if !ret {
 			printCLI("Couldn't remove logs because of an error.")
 		}
 	}
 
 	if *cleanNames {
-		ret := gotsetcfg.CleanNames()
+		ret := gotsetcfg.CleanNames(db, ctx)
 		if !ret {
 			printCLI("Couldn't remove alt names from DB because of an error.")
 		}
@@ -474,7 +470,7 @@ func main() {
 	}
 
 	if *getUsers {
-		ret := gotsetcfg.GetUsers()
+		ret := gotsetcfg.GetUsers(db, ctx)
 		if len(ret) == 0 {
 			printCLI("Couldn't get users because of an error.")
 		} else {
@@ -487,7 +483,7 @@ func main() {
 	}
 
 	if *getLogsCount {
-		ret := gotsetcfg.GetLogsCount(*forUser)
+		ret := gotsetcfg.GetLogsCount(db, ctx, *forUser)
 		printCLI("Total number of logs:", ret, "; for user:", *forUser)
 	}
 
@@ -498,17 +494,17 @@ func main() {
 
 	if *getLogs {
 		if *noGetLimit {
-			go gotsetcfg.GetLogs(logsChannel, 0, *forID, *forUser, true, false, true, *searchStr, false)
+			go gotsetcfg.GetLogs(db, logsChannel, ctx, 0, *forID, *forUser, false, *searchStr)
 		} else {
-			go gotsetcfg.GetLogs(logsChannel, 100, *forID, *forUser, false, false, true, *searchStr, false)
+			go gotsetcfg.GetLogs(db, logsChannel, ctx, 100, *forID, *forUser, false, *searchStr)
 			logsLimit = true
 		}
 		gettingLogs = true
 	} else if *getNewLogs != 0 {
-		go gotsetcfg.GetLogs(logsChannel, *getNewLogs, 0, *forUser, false, true, true, *searchStr, false)
+		go gotsetcfg.GetLogs(db, logsChannel, ctx, *getNewLogs, 0, *forUser, true, *searchStr)
 		gettingLogs = true
 	} else if *getOldLogs != 0 {
-		go gotsetcfg.GetLogs(logsChannel, *getOldLogs, 0, *forUser, false, false, true, *searchStr, false)
+		go gotsetcfg.GetLogs(db, logsChannel, ctx, *getOldLogs, 0, *forUser, false, *searchStr)
 		gettingLogs = true
 	}
 
@@ -524,11 +520,13 @@ func main() {
 
 		if retLogs == nil {
 			printCLI("No logs could be returned.")
+		} else {
+			gotsetcfg.PrintLogs(retLogs, false)
 		}
 	}
 
 	if *getLocalInfoDrugs {
-		locinfolist := gotsetcfg.GetLocalInfoNames()
+		locinfolist := gotsetcfg.GetLocalInfoNames(db, ctx)
 		if len(locinfolist) == 0 {
 			printCLI("Couldn't get database list of drugs names from info table.")
 		} else {
@@ -541,7 +539,7 @@ func main() {
 	}
 
 	if *getSubNames != "" {
-		subsNames := gotsetcfg.GetAllNames(*getSubNames, "substance", false)
+		subsNames := gotsetcfg.GetAllNames(db, ctx, *getSubNames, "substance", false)
 		if subsNames == nil {
 			printCLI("Couldn't get substance names, because of an error.")
 		} else {
@@ -554,7 +552,7 @@ func main() {
 	}
 
 	if *getRouteNames != "" {
-		routeNames := gotsetcfg.GetAllNames(*getRouteNames, "route", false)
+		routeNames := gotsetcfg.GetAllNames(db, ctx, *getRouteNames, "route", false)
 		if routeNames == nil {
 			printCLI("Couldn't get route names, because of an error.")
 		} else {
@@ -567,7 +565,7 @@ func main() {
 	}
 
 	if *getUnitsNames != "" {
-		unitsNames := gotsetcfg.GetAllNames(*getUnitsNames, "units", false)
+		unitsNames := gotsetcfg.GetAllNames(db, ctx, *getUnitsNames, "units", false)
 		if unitsNames == nil {
 			printCLI("Couldn't get units names, because of an error.")
 		} else {
@@ -580,9 +578,11 @@ func main() {
 	}
 
 	if *getLocalInfoDrug != "none" {
-		locinfo := gotsetcfg.GetLocalInfo(*getLocalInfoDrug, true, false)
+		locinfo := gotsetcfg.GetLocalInfo(db, ctx, *getLocalInfoDrug)
 		if len(locinfo) == 0 {
 			printCLI("Couldn't get database info for drug:", *getLocalInfoDrug)
+		} else {
+			gotsetcfg.PrintLocalInfo(locinfo, false)
 		}
 	}
 
@@ -628,7 +628,7 @@ func main() {
 		ret, cli := gotsetcfg.InitGraphqlClient()
 		if ret == true {
 			if gotsetcfg.UseSource == "psychonautwiki" {
-				ret := gotsetcfg.FetchPsyWiki(*drugname, cli)
+				ret := gotsetcfg.FetchPsyWiki(db, ctx, *drugname, cli)
 				if !ret {
 					printCLIVerbose(*verbose, "Didn't fetch anything from:", gotsetcfg.UseSource)
 				}
@@ -638,7 +638,7 @@ func main() {
 			}
 
 			if *dontLog == false {
-				ret := gotsetcfg.AddToDoseDB(*forUser, *drugname, *drugroute,
+				ret := gotsetcfg.AddToDoseDB(db, ctx, *forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc), true)
 				if !ret {
 					printCLI("Dose wasn't logged.")
@@ -653,7 +653,7 @@ func main() {
 	if *dontLog == false {
 		if *remember {
 			userSettingsForID := strconv.FormatInt(*forID, 10)
-			ret = gotsetcfg.SetUserSettings("useIDForRemember", *forUser, userSettingsForID)
+			ret = gotsetcfg.SetUserSettings(db, ctx, "useIDForRemember", *forUser, userSettingsForID)
 			if !ret {
 				printCLI("Couldn't remember config, because of an error.")
 			}
@@ -683,14 +683,14 @@ func main() {
 			setValue = *drugroute
 		}
 
-		ret := gotsetcfg.SetUserLogs(setType, *forID, *forUser, setValue)
+		ret := gotsetcfg.SetUserLogs(db, ctx, setType, *forID, *forUser, setValue)
 		if !ret {
 			printCLI("Couldn't change user log, because of an error.")
 		}
 	}
 
 	if *getTimes {
-		times := gotsetcfg.GetTimes(*forUser, *forID, true, false)
+		times := gotsetcfg.GetTimes(db, ctx, *forUser, *forID, true, false)
 		if times == nil {
 			printCLI("Times couldn't be retrieved because of an error.")
 		}

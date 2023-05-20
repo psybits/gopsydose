@@ -112,6 +112,34 @@ func printNameVerbose(verbose bool, name string, str ...any) {
 	}
 }
 
+// Initialise the Config struct using the default values.
+//
+// sourcecfg - The name of the implemented source to use.
+// The meaning of "source" is for example an API server for which
+// code is present in this repository.
+func InitConfigStruct(sourcecfg string) Config {
+	cfg := Config{
+		MaxLogsPerUser:  DefaultMaxLogsPerUser,
+		UseSource:       sourcecfg,
+		AutoFetch:       DefaultAutoFetch,
+		AutoRemove:      DefaultAutoRemove,
+		DBDriver:        DefaultDBDriver,
+		VerbosePrinting: DefaultVerbose,
+		DBSettings:      nil,
+		Timezone:        DefaultTimezone,
+	}
+	return cfg
+}
+
+func (cfg Config) InitSourceMap(apiAddress string) map[string]SourceConfig {
+	srcmap := map[string]SourceConfig{
+		cfg.UseSource: {
+			API_ADDRESS: apiAddress,
+		},
+	}
+	return srcmap
+}
+
 func InitSettingsDir() string {
 	const printN string = "InitSettingsDir()"
 
