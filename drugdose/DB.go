@@ -154,11 +154,6 @@ func (cfg Config) PingDB(db *sql.DB, ctx context.Context) {
 // Don't forget to run: defer db.Close()
 //
 // db being the name of the returned *sql.DB variable
-//
-// TODO: The config must contain values for SetConnMaxLifetime() and etc.
-// MySQL Example: https://github.com/go-sql-driver/mysql#parameters ; 
-// Sqlite Example: https://github.com/mattn/go-sqlite3#connection-string ; 
-// General: https://pkg.go.dev/database/sql#DB.SetConnMaxIdleTime
 func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
