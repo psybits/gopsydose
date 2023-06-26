@@ -26,9 +26,6 @@ import (
 
 // TODO: Functions need comments.
 
-// TODO: A function which interprets a string and extracts dose, route and etc.
-// from it would be useful when using the code without CLI flags.
-
 const loggingTableName string = "userLogs"
 const userSetTableName string = "userSettings"
 const altNamesSubsTableName string = "substanceNames"
