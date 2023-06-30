@@ -389,19 +389,15 @@ func main() {
 	if *cleanDB == false {
 		if gotsetcfg.DBDriver == "sqlite3" {
 			gotsetcfg.InitDBFileStructure()
+		}
 
-			ret = gotsetcfg.InitAllDBTables(db, ctx)
-			if !ret {
-				printCLI("Database didn't get initialised, because of an error, exiting.")
-				os.Exit(1)
-			}
-		} else if gotsetcfg.DBDriver == "mysql" {
-			ret = gotsetcfg.InitAllDBTables(db, ctx)
-			if !ret {
-				printCLI("Database didn't get initialised, because of an error, exiting.")
-				os.Exit(1)
-			}
-		} else {
+		ret = gotsetcfg.InitAllDBTables(db, ctx)
+		if !ret {
+			printCLI("Database didn't get initialised, because of an error, exiting.")
+			os.Exit(1)
+		}
+
+		if gotsetcfg.DBDriver != "mysql" && gotsetcfg.DBDriver != "sqlite3"{
 			printCLI("No proper driver selected. Choose sqlite3 or mysql!")
 			os.Exit(1)
 		}
@@ -413,7 +409,7 @@ func main() {
 	}
 
 	if *cleanInfo {
-		ret := gotsetcfg.CleanInfo()
+		ret := gotsetcfg.CleanInfo(db, ctx)
 		if !ret {
 			printCLI("Info table: " + gotsetcfg.UseSource + "couldn't be removed because of an error.")
 		}

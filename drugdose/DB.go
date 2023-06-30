@@ -138,7 +138,11 @@ func checkIfExistsDB(db *sql.DB, ctx context.Context,
 }
 
 // Ping verifies a connection to the database is still alive,
-// establishing a connection if necessary. 
+// establishing a connection if necessary.
+//
+// db - open database connection
+//
+// ctx - context to be passed to PingContext()
 func (cfg Config) PingDB(db *sql.DB, ctx context.Context) {
 	err := db.PingContext(ctx)
 	if err != nil {
@@ -148,9 +152,11 @@ func (cfg Config) PingDB(db *sql.DB, ctx context.Context) {
 
 // Open a database connection using the Config struct.
 //
-// Don't forget to run: defer db.Close()
+// After calling this function, don't forget to run: defer db.Close()
 //
 // db being the name of the returned *sql.DB variable
+//
+// ctx - context to be passed to PingDB(), first passing through WithTimeout()
 func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
@@ -164,14 +170,50 @@ func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
 	return db
 }
 
+// CheckDBFileStruct returns true if the file structure is already created,
+// false otherwise. Checks whether the db directory and minimum amount of files
+// exist with the proper names in it. This is currently only useful for sqlite.
+// If Config.DBDriver is not set to "sqlite3" it will return false.
+func (cfg Config) CheckDBFileStruct() bool {
+	const printN string = "CheckDBFileStruct()"
+
+	if cfg.DBDriver != "sqlite3" {
+		return false
+	}
+
+	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
+
+	_, err := os.Stat(dbFileLocat)
+	if err == nil {
+		printNameVerbose(cfg.VerbosePrinting, printN, dbFileLocat+": Exists")
+	} else if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			printName(printN, dbFileLocat+": Doesn't seem to exist:", err)
+			return false
+		} else {
+			printName(printN, err)
+			return false
+		}
+	}
+
+	return true
+}
+
 // InitDBFileStructure creates the basic file structure for the database.
-// This should be run only once!
-func (cfg Config) InitDBFileStructure() bool {
+// This should be run only once! The function calls CheckDBFileStruct,
+// so there's no need to do it manually before calling it!
+// This is currently only useful for sqlite.
+// If Config.DBDriver is not set to "sqlite3" it will return.
+func (cfg Config) InitDBFileStructure() {
 	const printN string = "InitDBFileStructure()"
 
-	ret := cfg.checkDBFileStruct()
+	if cfg.DBDriver != "sqlite3" {
+		return
+	}
+
+	ret := cfg.CheckDBFileStruct()
 	if ret == true {
-		return true
+		return
 	}
 
 	dirOnly := path.Dir(cfg.DBSettings[cfg.DBDriver].Path)
@@ -195,35 +237,18 @@ func (cfg Config) InitDBFileStructure() bool {
 	}
 
 	printName(printN, "Initialised the DB file structure.")
-
-	return true
 }
 
-// checkDBFileStruct Returns true if the file structure is already created,
-// false otherwise. Checks whether the db directory and minimum amount of files
-// exist with the proper names in it.
-func (cfg Config) checkDBFileStruct() bool {
-	const printN string = "checkDBFileStruct()"
-
-	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
-
-	_, err := os.Stat(dbFileLocat)
-	if err == nil {
-		printNameVerbose(cfg.VerbosePrinting, printN, dbFileLocat+": Exists")
-	} else if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			printName(printN, dbFileLocat+": Doesn't seem to exist:", err)
-			return false
-		} else {
-			printName(printN, err)
-			return false
-		}
-	}
-
-	return true
-}
-
-// RemoveSingleDrugInfoDB Remove all entries of a single drug from the local info DB, instead of deleting the whole DB.
+// RemoveSingleDrugInfoDB removes all entries of a single drug from the local
+// info DB, instead of deleting the whole DB. For example if there's a need to
+// clear all information about dosage and timing for a specific drug if it's
+// old or incorrect.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// drug - name of drug to be removed from source table
 func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context, drug string) bool {
 	const printN string = "RemoveSingleDrugInfoDB()"
 
@@ -241,20 +266,20 @@ func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context, drug s
 		return false
 	}	
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, err)
 		return false
 	}
 
-	stmt, err := tx.PrepareContext(ctx, "delete from " + cfg.UseSource +
+	stmt, err := tx.Prepare("delete from " + cfg.UseSource +
 		" where drugName = ?")
 	if err != nil {
 		printName(printN, "tx.Prepare():", err)
 		return false
 	}
 	defer stmt.Close()
-	_, err = stmt.ExecContext(ctx, drug)
+	_, err = stmt.Exec(drug)
 	if err != nil {
 		printName(printN, "stmt.Exec():", err)
 		return false
@@ -271,6 +296,10 @@ func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context, drug s
 	return true
 }
 
+// Function which generates and returns a query for looking up table
+// names in the database.
+// If tableName is empty, query returns all tables in the database.
+// If tableName is not empty, query returns a specific table if it exists.
 func (cfg Config) getTableNamesQuery(tableName string) string {
 	var queryStr string
 	andTable := ""
@@ -290,6 +319,15 @@ func (cfg Config) getTableNamesQuery(tableName string) string {
 	return queryStr
 }
 
+// CheckDBTables returns true if a table exists in the database with the name
+// tableName. It returns false in case of error or if the table isn't found.
+// If tableName is empty it will search for all tables in the database.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// tableName - name of table to check if it exists
 func (cfg Config) CheckDBTables(db *sql.DB, ctx context.Context, tableName string) bool {
 	const printN string = "CheckDBTables()"	
 
@@ -315,6 +353,15 @@ func (cfg Config) CheckDBTables(db *sql.DB, ctx context.Context, tableName strin
 	return len(tableList) != 0
 }
 
+// CleanDB deletes all tables in the database. This is why it's a good idea
+// to separate the data for drug logs from anything else. Create a separate
+// database for that data only!
+//
+// Returns false on error.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
 func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 	const printN string = "CleanDB()"
 
@@ -326,7 +373,7 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 	}
 	defer rows.Close()
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, err)
 		return false
@@ -347,7 +394,7 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 			fmt.Print(name + ", ")
 		}
 
-		_, err = tx.ExecContext(ctx, "drop table " + name)
+		_, err = tx.Exec("drop table " + name)
 		if err != nil {
 			fmt.Println()
 			printName(printN, "tx.Exec():", err)
@@ -369,17 +416,20 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 	return true
 }
 
-// Removes the currently configured info table.
-func (cfg Config) CleanInfo() bool {
-	const printN string = "CleanInfo()"
+// CleanInfo removes the currently configured info table. For example if source
+// is set to "psychonautwiki" it will delete the table with the same name as
+// the source, containing all data like dosages and timings. All user dosages
+// aren't touched since they're not apart of the drug general information.
+//
+// Returns false on error.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) bool {
+	const printN string = "CleanInfo()"	
 
-	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
-	if err != nil {
-		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
-	}
-	defer db.Close()
-
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, err)
 		return false
@@ -402,8 +452,15 @@ func (cfg Config) CleanInfo() bool {
 	return true
 }
 
-// Removes the main names tables and the currently configured ones as well.
+// CleanNames removes the main names tables and the currently configured ones
+// as well. Names are "alternative names" like "weed" for "cannabis" and etc.
+// Main names are global, they apply to all sources. Currently configured ones
+// are source specific and are chosen based on the currently used source.
 // This means, that any old names generated for another source aren't removed.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
 func (cfg Config) CleanNames(db *sql.DB, ctx context.Context) bool {
 	const printN string = "CleanNames()"
 
@@ -447,16 +504,25 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context) bool {
 	return true
 }
 
+// AddToInfoDB uses subs[] to fill up the currently configured source table
+// in the database. subs[] has to be filled prior to calling the function.
+// This is usually achieved by fetching data from a source using it's API.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// subs - all substances of type DrugInfo to go through to add to source table
 func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, subs []DrugInfo) bool {
 	const printN string = "AddToInfoDB()"	
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, err)
 		return false
 	}
 
-	stmt, err := tx.PrepareContext(ctx, "insert into " + cfg.UseSource +
+	stmt, err := tx.Prepare("insert into " + cfg.UseSource +
 		" (drugName, drugRoute, " +
 		"threshold, " +
 		"lowDoseMin, lowDoseMax, " +
@@ -477,8 +543,7 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, subs []DrugInfo) 
 	defer stmt.Close()
 	for i := 0; i < len(subs); i++ {
 		subs[i].DoseUnits = cfg.MatchAndReplace(db, ctx, subs[i].DoseUnits, "units")
-		_, err = stmt.ExecContext(ctx,
-			subs[i].DrugName,
+		_, err = stmt.Exec(subs[i].DrugName,
 			subs[i].DrugRoute,
 			subs[i].Threshold,
 			subs[i].LowDoseMin,
@@ -518,7 +583,16 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, subs []DrugInfo) 
 	return true
 }
 
-func (cfg Config) InitDrugDB(db *sql.DB, ctx context.Context) bool {
+// InitInfoDB creates the table for the currently configured source if it
+// doesn't exist. It will use the source's name to set the table's name.
+// It's called "Info", because it stores general information like dosages and
+// timings for every route of administration.
+// The function returns false on error.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) bool {
 	const printN string = "InitDrugDB()"
 
 	ret := cfg.CheckDBTables(db, ctx, cfg.UseSource)
@@ -570,6 +644,12 @@ func (cfg Config) InitDrugDB(db *sql.DB, ctx context.Context) bool {
 	return true
 }
 
+// InitLogDB creates the table for all user drug logs if it doesn't exist.
+// It returns false on error.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
 func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) bool {
 	const printN string = "InitLogDB()"
 
@@ -603,6 +683,12 @@ func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) bool {
 	return true
 }
 
+// InitUserSetDB creates the table for all user settings if it doesn't exist.
+// It returns false on error.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
 func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) bool {
 	const printN string = "InitUserSetDB()"
 
@@ -626,6 +712,17 @@ func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) bool {
 	return true
 }
 
+// InitAltNamesDB creates all alternative names tables if they don't exist.
+// Alternative names are names like "weed" instead of "cannabis" and etc.
+// There are global tables which are used for any source. There are also source
+// specific names which "replace" the global names.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// replace - if true, creates the tables for the currently configured source
+// only, meaning for alt names specific to the source
 func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) bool {
 	const printN string = "InitAltNamesDB()"
 
@@ -732,10 +829,19 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 	return true
 }
 
+// InitAllDBTables creates all tables needed to run the program properly.
+// This function should be sufficient on it's own for most use cases.
+// Even if the function is called every time the program is started, it should
+// not be an issue, since all called functions first check if the tables they're
+// trying to create already exist. The function returns false on error.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
 func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) bool {
 	const printN string = "InitAllDBTables()"
 
-	ret := cfg.InitDrugDB(db, ctx)
+	ret := cfg.InitInfoDB(db, ctx)
 	if !ret {
 		return false
 	}
@@ -851,6 +957,7 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug
 	return true
 }
 
+// GetDBSize returns the total size of the database in bytes.
 func (cfg Config) GetDBSize() int64 {
 	const printN string = "GetDBSize()"
 
@@ -903,6 +1010,12 @@ func (cfg Config) GetDBSize() int64 {
 	return 0
 }
 
+// GetUsers returns all unique usernames
+// currently present in the drug log table.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
 func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) []string {
 	const printN string = "GetUsers()"
 
@@ -927,10 +1040,18 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) []string {
 	return allUsers
 }
 
-func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) int {
+// GetLogsCount returns total amount of logs in
+// the drug log table for username set in user parameter.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// user - user to get log count for
+func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) uint32 {
 	const printN string = "GetLogsCount()"	
 
-	var count int
+	var count uint32
 
 	row := db.QueryRowContext(ctx, "select count(*) from "+loggingTableName+" where username = ?", user)
 	err := row.Scan(&count)
@@ -1041,9 +1162,12 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 	outputChannel <- userlogs
 }
 
+// PrintLogs writes all logs present in userLogs to console.
+//
 // userLogs - the logs slice returned from GetLogs()
 //
-// prefix - whether the name of the function should be shown when writing to console
+// prefix - if true the name of the function should be shown
+// when writing to console
 func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
 	var printN string
 	if prefix == true {
@@ -1074,12 +1198,12 @@ func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
 	}
 }
 
+// GetLocalInfoNames returns a slice containing all unique names of drugs
+// present in the local database gotten from a source.
+//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-//
-// Returns a slice containing all unique names of drugs present in the local
-// database gotten from a source.
 func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context) []string {
 	const printN string = "GetLocalInfoNames()"
 
@@ -1110,13 +1234,13 @@ func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context) []string {
 	return drugList
 }
 
+// GetLocalInfo returns a slice containing all information about a drug.
+//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // drug - drug to get information about
-//
-// Returns a slice containing all information about a drug.
 func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 	drug string) []DrugInfo {
 	printN := "GerLocalInfo()"
@@ -1170,11 +1294,12 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 	return infoDrug
 }
 
+// PrintLocalInfo prints the information gotten from the source, present in the
+// local database.
+//
 // drugInfo - slice returned from GetLocalInfo()
 //
 // prefix - whether to add the function name to console output
-//
-// Prints the information gotten from the source present in the local database.
 func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 	var printN string
 	if prefix == true {
@@ -1233,7 +1358,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 
 	stmtStr := "delete from " + loggingTableName + " where username = ?"
 	if amount != 0 && remID == 0 || search != "none" {
-		if search != "none" || search != "" {
+		if search != "none" && search != "" {
 			amount = 0
 		}
 
