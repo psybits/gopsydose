@@ -148,7 +148,7 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 	var CopyToPath string = setdir + "/" + allNamesConfigsDir
 
 	if overwrite == true {
-		ret := cfg.CleanNames(db, ctx)
+		ret := cfg.CleanNames(db, ctx, false)
 		if ret == false {
 			printName(printN, "Couldn't clean names from database for overwrite.")
 			return false
@@ -236,10 +236,10 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 	namesCfg := GetNamesConfig(nameType, getCfgSrc)
 	if namesCfg == nil {
 		return false
-	}	
+	}
 
-	subsStmt, err := db.PrepareContext(ctx, "insert into " + table +
-		" (localName, alternativeName) " +
+	subsStmt, err := db.PrepareContext(ctx, "insert into "+table+
+		" (localName, alternativeName) "+
 		"values(?, ?)")
 	if err != nil {
 		printName(printN, err)

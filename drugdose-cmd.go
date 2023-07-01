@@ -311,35 +311,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	setcfg := drugdose.InitConfigStruct(*sourcecfg)
-
-	setcfg = setcfg.InitDBSettings(*dbDir, drugdose.DefaultDBName, drugdose.DefaultMySQLAccess)
-	if setcfg.DBSettings == nil {
-		printCLI("DBSettings not initialised properly.")
-		os.Exit(1)
-	}
-
-	ret := setcfg.InitSettingsFile(*recreateSettings, *verbose)
-	if !ret {
-		printCLIVerbose(*verbose, "The settings file wasn't initialised.")
-	}
-
-	gotsetcfg := drugdose.GetSettings()
-	if len(gotsetcfg.DBDriver) == 0 {
-		printCLI("Config struct wasn't initialised properly.")
-		os.Exit(1)
-	}
-
-	if *verbose == true {
-		gotsetcfg.VerbosePrinting = true
-	}
-
-	gotsrc := gotsetcfg.InitSourceMap(*apiAddress)
-
-	ret = gotsetcfg.InitSourceSettings(gotsrc, *recreateSources)
-	if !ret {
-		printCLIVerbose(*verbose, "The sources file wasn't initialised.")
-	}
+	gotsetcfg := drugdose.InitAllSettings(*sourcecfg, *dbDir, drugdose.DefaultDBName,
+		drugdose.DefaultMySQLAccess, *recreateSettings, *recreateSources,
+		*verbose, *apiAddress)
 
 	gotsrcData := drugdose.GetSourceData()
 
@@ -387,20 +361,7 @@ func main() {
 	}
 
 	if *cleanDB == false {
-		if gotsetcfg.DBDriver == "sqlite3" {
-			gotsetcfg.InitDBFileStructure()
-		}
-
-		ret = gotsetcfg.InitAllDBTables(db, ctx)
-		if !ret {
-			printCLI("Database didn't get initialised, because of an error, exiting.")
-			os.Exit(1)
-		}
-
-		if gotsetcfg.DBDriver != "mysql" && gotsetcfg.DBDriver != "sqlite3"{
-			printCLI("No proper driver selected. Choose sqlite3 or mysql!")
-			os.Exit(1)
-		}
+		gotsetcfg.InitAllDB(db, ctx)
 	}
 
 	if *dbDriverInfo {
@@ -453,7 +414,7 @@ func main() {
 	}
 
 	if *cleanNames {
-		ret := gotsetcfg.CleanNames(db, ctx)
+		ret := gotsetcfg.CleanNames(db, ctx, false)
 		if !ret {
 			printCLI("Couldn't remove alt names from DB because of an error.")
 		}
@@ -649,7 +610,10 @@ func main() {
 	if *dontLog == false {
 		if *remember {
 			userSettingsForID := strconv.FormatInt(*forID, 10)
-			ret = gotsetcfg.SetUserSettings(db, ctx, "useIDForRemember", *forUser, userSettingsForID)
+			if userSettingsForID == "0" {
+				userSettingsForID = "remember"
+			}
+			ret := gotsetcfg.SetUserSettings(db, ctx, "useIDForRemember", *forUser, userSettingsForID)
 			if !ret {
 				printCLI("Couldn't remember config, because of an error.")
 			}

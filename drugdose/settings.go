@@ -284,21 +284,21 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 func (initconf Config) InitSettingsFile(recreate bool, verbose bool) bool {
 	const printN string = "InitSettingsFile()"
 
-	mcfg, err := toml.Marshal(initconf)
-	if err != nil {
-		printName(printN, err)
-		return false
-	}
-
 	setdir := InitSettingsDir()
 	if setdir == "" {
 		return false
 	}
 
 	path := setdir + "/" + settingsFilename
-	_, err = os.Stat(path)
+	_, err := os.Stat(path)
 	if err != nil || recreate {
 		if errors.Is(err, os.ErrNotExist) || recreate {
+			mcfg, err := toml.Marshal(initconf)
+			if err != nil {
+				printName(printN, err)
+				return false
+			}
+
 			printName(printN, "Initialising config file:", path)
 			file, err := os.Create(path)
 			if err != nil {
@@ -309,7 +309,6 @@ func (initconf Config) InitSettingsFile(recreate bool, verbose bool) bool {
 			if err != nil {
 				errorCantChmodConfig(path, err)
 			}
-
 			_, err = file.WriteString(string(mcfg))
 			if err != nil {
 				errorCantCreateConfig(path, err)
@@ -356,4 +355,41 @@ func GetSettings() Config {
 	}
 
 	return cfg
+}
+
+func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess string,
+	recreateSettings bool, recreateSources bool, verbose bool, apiAddress string) Config {
+	const printN string = "InitAllSettings()"
+
+	setcfg := InitConfigStruct(sourcecfg)
+
+	setcfg = setcfg.InitDBSettings(dbDir, dbName, mysqlAccess)
+	if setcfg.DBSettings == nil {
+		printName(printN, "DBSettings not initialised properly.")
+		os.Exit(1)
+	}
+
+	ret := setcfg.InitSettingsFile(recreateSettings, verbose)
+	if !ret {
+		printNameVerbose(verbose, "The settings file wasn't initialised.")
+	}
+
+	gotsetcfg := GetSettings()
+	if len(gotsetcfg.DBDriver) == 0 {
+		printName(printN, "Config struct wasn't initialised properly.")
+		os.Exit(1)
+	}
+
+	if verbose == true {
+		gotsetcfg.VerbosePrinting = true
+	}
+
+	gotsrc := gotsetcfg.InitSourceMap(apiAddress)
+
+	ret = gotsetcfg.InitSourceSettings(gotsrc, recreateSources)
+	if !ret {
+		printNameVerbose(gotsetcfg.VerbosePrinting, "The sources file wasn't initialised.")
+	}
+
+	return gotsetcfg
 }

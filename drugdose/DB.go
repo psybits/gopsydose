@@ -37,7 +37,7 @@ const altNamesConvUnitsTableName string = "convUnitsNames"
 // a particular input, it means that it's now "forgotten"
 // and there should be no attempts to "remember" any inputs.
 // This is related to the RememberConfig() and ForgetConfig() functions.
-const ForgetInputConfigMagicNumber string = "9999999999"
+const ForgetInputConfigMagicNumber string = "0"
 
 func exitProgram() {
 	printName("exitProgram()", "Exiting")
@@ -106,7 +106,7 @@ func checkIfExistsDB(db *sql.DB, ctx context.Context,
 	col string, table string, driver string,
 	path string, xtrastmt []string, values ...interface{}) bool {
 
-	const printN string = "checkIfExistsDB()"	
+	const printN string = "checkIfExistsDB()"
 
 	stmtstr := "select " + col + " from " + table + " where " + col + " = ?"
 	if xtrastmt != nil {
@@ -163,7 +163,7 @@ func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
 		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5 * time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	cfg.PingDB(db, ctx)
@@ -264,7 +264,7 @@ func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context, drug s
 	if !ret {
 		printName(printN, "No such drug in info database:", drug)
 		return false
-	}	
+	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -329,7 +329,7 @@ func (cfg Config) getTableNamesQuery(tableName string) string {
 //
 // tableName - name of table to check if it exists
 func (cfg Config) CheckDBTables(db *sql.DB, ctx context.Context, tableName string) bool {
-	const printN string = "CheckDBTables()"	
+	const printN string = "CheckDBTables()"
 
 	queryStr := cfg.getTableNamesQuery(tableName)
 	rows, err := db.QueryContext(ctx, queryStr)
@@ -427,7 +427,7 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 //
 // ctx - context to be passed to sql queries
 func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) bool {
-	const printN string = "CleanInfo()"	
+	const printN string = "CleanInfo()"
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -461,7 +461,9 @@ func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) bool {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) CleanNames(db *sql.DB, ctx context.Context) bool {
+//
+// replaceOnly - remove only replace tables, keep the global ones intact
+func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) bool {
 	const printN string = "CleanNames()"
 
 	tableSuffix := "_" + cfg.UseSource
@@ -474,17 +476,21 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context) bool {
 		altNamesUnitsTableName + tableSuffix,
 		altNamesConvUnitsTableName + tableSuffix}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, err)
 		return false
 	}
 
+	startCount := 0
+	if replaceOnly == true {
+		startCount = 4
+	}
 	printNameNoNewline(printN, "Removing tables: ")
-	for i := 0; i < len(tableNames); i++ {
+	for i := startCount; i < len(tableNames); i++ {
 		fmt.Print(tableNames[i] + ", ")
 
-		_, err = tx.ExecContext(ctx, "drop table " + tableNames[i])
+		_, err = tx.Exec("drop table " + tableNames[i])
 		if err != nil {
 			fmt.Println()
 			printName(printN, "tx.Exec():", err)
@@ -514,7 +520,7 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context) bool {
 //
 // subs - all substances of type DrugInfo to go through to add to source table
 func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, subs []DrugInfo) bool {
-	const printN string = "AddToInfoDB()"	
+	const printN string = "AddToInfoDB()"
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -736,22 +742,22 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 	unitsExists := false
 	convUnitsExists := false
 
-	ret := cfg.CheckDBTables(db, ctx, altNamesSubsTableName + tableSuffix)
+	ret := cfg.CheckDBTables(db, ctx, altNamesSubsTableName+tableSuffix)
 	if ret {
 		subsExists = true
 	}
 
-	ret = cfg.CheckDBTables(db, ctx, altNamesRouteTableName + tableSuffix)
+	ret = cfg.CheckDBTables(db, ctx, altNamesRouteTableName+tableSuffix)
 	if ret {
 		routesExists = true
 	}
 
-	ret = cfg.CheckDBTables(db, ctx, altNamesUnitsTableName + tableSuffix)
+	ret = cfg.CheckDBTables(db, ctx, altNamesUnitsTableName+tableSuffix)
 	if ret {
 		unitsExists = true
 	}
 
-	ret = cfg.CheckDBTables(db, ctx, altNamesConvUnitsTableName + tableSuffix)
+	ret = cfg.CheckDBTables(db, ctx, altNamesConvUnitsTableName+tableSuffix)
 	if ret {
 		convUnitsExists = true
 	}
@@ -871,6 +877,30 @@ func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) bool {
 	return true
 }
 
+// InitAllDB initializes the DB file structure if needed and all tables.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+func (cfg Config) InitAllDB(db *sql.DB, ctx context.Context) {
+	const printN string = "InitAllDB()"
+
+	if cfg.DBDriver == "sqlite3" {
+		cfg.InitDBFileStructure()
+	}
+
+	ret := cfg.InitAllDBTables(db, ctx)
+	if !ret {
+		printName(printN, "Database didn't get initialised, because of an error, exiting.")
+		os.Exit(1)
+	}
+
+	if cfg.DBDriver != "mysql" && cfg.DBDriver != "sqlite3" {
+		printName(printN, "No proper driver selected. Choose sqlite3 or mysql!")
+		os.Exit(1)
+	}
+}
+
 func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug string, route string,
 	dose float32, units string, perc float32, printit bool) bool {
 
@@ -922,13 +952,13 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug
 	}
 
 	// Add to log db
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, err)
 		return false
 	}
 
-	stmt, err := tx.PrepareContext(ctx, "insert into " + loggingTableName +
+	stmt, err := tx.Prepare("insert into " + loggingTableName +
 		" (timeOfDoseStart, username, timeOfDoseEnd, drugName, dose, doseUnits, drugRoute) " +
 		"values(?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
@@ -937,7 +967,7 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, time.Now().Unix(), user, 0, drug, dose, units, route)
+	_, err = stmt.Exec(time.Now().Unix(), user, 0, drug, dose, units, route)
 	if err != nil {
 		printName(printN, err)
 		return false
@@ -1022,7 +1052,7 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) []string {
 	var allUsers []string
 	var tempUser string
 
-	rows, err := db.QueryContext(ctx, "select distinct username from " + loggingTableName)
+	rows, err := db.QueryContext(ctx, "select distinct username from "+loggingTableName)
 	if err != nil {
 		printName(printN, "Query: error getting usernames:", err)
 		return nil
@@ -1049,7 +1079,7 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) []string {
 //
 // user - user to get log count for
 func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) uint32 {
-	const printN string = "GetLogsCount()"	
+	const printN string = "GetLogsCount()"
 
 	var count uint32
 
@@ -1075,7 +1105,8 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) uin
 //
 // user - the user which owns the logs
 //
-// reverse - go from high values to low
+// reverse - if true go from high values to low,
+// this should return the newest logs first
 //
 // search - return logs only matching this string
 func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
@@ -1108,15 +1139,15 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 			"drugRoute"}
 		searchArr = append(searchArr, user)
 		searchStmt += "and " + searchColumns[0] + " like ? "
-		searchArr = append(searchArr, "%" + search + "%")
+		searchArr = append(searchArr, "%"+search+"%")
 		for i := 1; i < len(searchColumns); i++ {
 			searchStmt += "or " + searchColumns[i] + " like ? "
-			searchArr = append(searchArr, "%" + search + "%")
+			searchArr = append(searchArr, "%"+search+"%")
 		}
 	}
 
-	mainQuery := "select * from "+loggingTableName+" where username = ? "+searchStmt+
-		"order by timeOfDoseStart "+orientation+endstmt
+	mainQuery := "select * from " + loggingTableName + " where username = ? " + searchStmt +
+		"order by timeOfDoseStart " + orientation + endstmt
 	var rows *sql.Rows
 	var err error
 	if id == 0 {
@@ -1144,7 +1175,7 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 			printName(printN, "Scan:", err)
 			outputChannel <- nil
 			return
-		}	
+		}
 
 		userlogs = append(userlogs, tempul)
 	}
@@ -1207,7 +1238,7 @@ func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
 func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context) []string {
 	const printN string = "GetLocalInfoNames()"
 
-	rows, err := db.QueryContext(ctx, "select distinct drugName from " + cfg.UseSource)
+	rows, err := db.QueryContext(ctx, "select distinct drugName from "+cfg.UseSource)
 	if err != nil {
 		printName(printN, err)
 		return nil
@@ -1257,7 +1288,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 	if !ret {
 		printName(printN, "No such drug in info database:", drug)
 		return nil
-	}	
+	}
 
 	rows, err := db.QueryContext(ctx, "select * from "+cfg.UseSource+" where drugName = ?", drug)
 	if err != nil {
@@ -1281,7 +1312,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 		if err != nil {
 			printName(printN, err)
 			return nil
-		}	
+		}
 
 		infoDrug = append(infoDrug, tempdrinfo)
 	}
@@ -1399,7 +1430,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 		}
 
 		stmtStr = "delete from " + loggingTableName + " where timeOfDoseStart = ? AND username = ?"
-	}	
+	}
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -1535,16 +1566,25 @@ func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, set string, id in
 	return true
 }
 
-func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context,username string) bool {
-	const printN string = "InitUserSettings()"	
+// InitUserSettings creates the row with default settings for a user.
+// These settings are kept in the database and are not global like the config
+// files. All users have their own settings.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// username - the user to create default settings for
+func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context, username string) bool {
+	const printN string = "InitUserSettings()"
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, err)
 		return false
 	}
 
-	stmt, err := tx.PrepareContext(ctx, "insert into userSettings" +
+	stmt, err := tx.Prepare("insert into userSettings" +
 		" (username, useIDForRemember) " +
 		"values(?, ?)")
 	if err != nil {
@@ -1553,7 +1593,7 @@ func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context,username stri
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, username, 0)
+	_, err = stmt.Exec(username, ForgetInputConfigMagicNumber)
 	if err != nil {
 		printName(printN, err)
 		return false
@@ -1569,7 +1609,9 @@ func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context,username stri
 	return true
 }
 
-func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context, set string, username string, setValue string) bool {
+func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context, set string,
+	username string, setValue string) bool {
+
 	const printN string = "SetUserSettings()"
 
 	ret := checkIfExistsDB(db, ctx,
@@ -1596,12 +1638,7 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context, set string, u
 	}
 
 	if set == "useIDForRemember" {
-		if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
-			printName(printN, "Error when checking if integer:", setValue, ":", err)
-			return false
-		}
-
-		if setValue == "0" || setValue == "none" {
+		if setValue == "remember" {
 			logsChannel := make(chan []UserLog)
 			var gotLogs []UserLog
 			go cfg.GetLogs(db, logsChannel, ctx, 1, 0, username, true, "none")
@@ -1612,25 +1649,30 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context, set string, u
 			}
 
 			setValue = strconv.FormatInt(gotLogs[0].StartTime, 10)
+		} else {
+			if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
+				printName(printN, "Error when checking if integer:", setValue, ":", err)
+				return false
+			}
 		}
 	}
 
 	stmtStr := fmt.Sprintf("update userSettings set %s = ? where username = ?", set)
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, "db.Begin():", err)
 		return false
 	}
 
-	stmt, err := tx.PrepareContext(ctx, stmtStr)
+	stmt, err := tx.Prepare(stmtStr)
 	if err != nil {
 		printName(printN, "tx.Prepare():", err)
 		return false
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, setValue, username)
+	_, err = stmt.Exec(setValue, username)
 
 	if err != nil {
 		printName(printN, "stmt.Exec():", err)
@@ -1651,7 +1693,7 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context, set string, u
 func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 	set string, username string) string {
 
-	const printN string = "GetUserSettings()"	
+	const printN string = "GetUserSettings()"
 
 	fmtStmt := fmt.Sprintf("select %s from userSettings where username = ?", set)
 	stmt, err := db.PrepareContext(ctx, fmtStmt)
@@ -1701,7 +1743,7 @@ func (cfg Config) RememberConfig(db *sql.DB, ctx context.Context, username strin
 	return &gotLogs[0]
 }
 
-func (cfg Config) ForgetConfig(db *sql.DB, ctx context.Context,username string) bool {
+func (cfg Config) ForgetConfig(db *sql.DB, ctx context.Context, username string) bool {
 	const printN string = "ForgetConfig()"
 
 	ret := cfg.SetUserSettings(db, ctx, "useIDForRemember", username, ForgetInputConfigMagicNumber)

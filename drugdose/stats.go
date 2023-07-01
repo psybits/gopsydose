@@ -78,7 +78,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	}
 
 	logsChannel := make(chan []UserLog)
-	var gotLogs []UserLog	
+	var gotLogs []UserLog
 
 	go cfg.GetLogs(db, logsChannel, ctx, 1, getid, username, true, "none")
 	gotLogs = <-logsChannel
