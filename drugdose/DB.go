@@ -59,6 +59,18 @@ func errorCantOpenDB(filePath string, err error) {
 	exitProgram()
 }
 
+func handleErrRollback(err error, tx *sql.Tx, printN string) bool {
+	if err != nil {
+		err2 := tx.Rollback()
+		if err2 != nil {
+			printName(printN, err2)
+		}
+		printName(printN, err)
+		return false
+	}
+	return true
+}
+
 type UserLog struct {
 	StartTime int64
 	Username  string
@@ -951,6 +963,20 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug
 		}
 	}
 
+	// Check if current time is already logged for current user. If it is,
+	// wait at least a second to get a new unique ID (timestamp).
+	xtrs2 := [1]string{xtrastmt("username", "and")}
+	currTime := time.Now().Unix()
+	timeLogExists := true
+	for timeLogExists == true {
+		currTime = time.Now().Unix()
+		timeLogExists = checkIfExistsDB(db, ctx, "timeOfDoseStart", "userLogs",
+			cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path, xtrs2[:], currTime, user)
+		if timeLogExists == true {
+			time.Sleep(time.Second)
+		}
+	}
+
 	// Add to log db
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -961,20 +987,17 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug
 	stmt, err := tx.Prepare("insert into " + loggingTableName +
 		" (timeOfDoseStart, username, timeOfDoseEnd, drugName, dose, doseUnits, drugRoute) " +
 		"values(?, ?, ?, ?, ?, ?, ?)")
-	if err != nil {
-		printName(printN, err)
+	if handleErrRollback(err, tx, printN) == false {
 		return false
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(time.Now().Unix(), user, 0, drug, dose, units, route)
-	if err != nil {
-		printName(printN, err)
+	_, err = stmt.Exec(currTime, user, 0, drug, dose, units, route)
+	if handleErrRollback(err, tx, printN) == false {
 		return false
 	}
 	err = tx.Commit()
-	if err != nil {
-		printName(printN, err)
+	if handleErrRollback(err, tx, printN) == false {
 		return false
 	}
 
@@ -1186,6 +1209,7 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 		return
 	}
 	if len(userlogs) == 0 {
+		printName(printN, "No logs returned.")
 		outputChannel <- nil
 		return
 	}
@@ -1397,7 +1421,6 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 		var gotLogs []UserLog
 		go cfg.GetLogs(db, logsChannel, ctx, amount, 0, username, reverse, search)
 		gotLogs = <-logsChannel
-
 		if gotLogs == nil {
 			printName(printN, "Couldn't get logs, because of an error, no logs will be removed.")
 			return false
@@ -1417,7 +1440,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 		}
 		concatTimes = strings.TrimSuffix(concatTimes, ",")
 
-		stmtStr = "delete from " + loggingTableName + " where timeOfDoseStart in (" + concatTimes + ")"
+		stmtStr = "delete from " + loggingTableName + " where timeOfDoseStart in (" + concatTimes + ") AND username = ?"
 	} else if remID != 0 && search == "none" {
 		xtrs := [1]string{xtrastmt("username", "and")}
 		ret := checkIfExistsDB(db, ctx,
@@ -1432,37 +1455,32 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 		stmtStr = "delete from " + loggingTableName + " where timeOfDoseStart = ? AND username = ?"
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		printName(printN, err)
 		return false
 	}
 
-	stmt, err := tx.PrepareContext(ctx, stmtStr)
-	if err != nil {
-		printName(printN, "tx.Prepare():", err)
+	stmt, err := tx.Prepare(stmtStr)
+	if handleErrRollback(err, tx, printN) == false {
 		return false
 	}
 	defer stmt.Close()
 	if remID != 0 {
-		_, err = stmt.ExecContext(ctx, remID, username)
-	} else if amount != 0 || search != "none" {
-		_, err = stmt.ExecContext(ctx)
+		_, err = stmt.Exec(remID, username)
 	} else {
-		_, err = stmt.ExecContext(ctx, username)
+		_, err = stmt.Exec(username)
 	}
-	if err != nil {
-		printName(printN, "stmt.Exec():", err)
+	if handleErrRollback(err, tx, printN) == false {
 		return false
 	}
 
 	err = tx.Commit()
-	if err != nil {
-		printName(printN, "tx.Commit():", err)
+	if handleErrRollback(err, tx, printN) == false {
 		return false
 	}
 
-	printName(printN, "Data removed from info DB successfully.")
+	printName(printN, "Data removed from log table in DB successfully.")
 
 	return true
 }
