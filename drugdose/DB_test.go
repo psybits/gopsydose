@@ -19,6 +19,22 @@ func testWithDrivers() [2]string {
 	return [2]string{"sqlite3", "mysql"}
 }
 
+func testUsernames(o int) string {
+	if o == 0 {
+		return "same"
+	} else if o == 1{
+		return "different"
+	}
+	return ""
+}
+
+func useUser(i int, o int) int {
+	if testUsernames(o) == "same" {
+		return 0
+	}
+	return i
+}
+
 func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	gotsetcfg := InitAllSettings("test", DefaultDBDir, DefaultDBName,
 		DefaultMySQLAccess, false, false, true, "test")
@@ -97,13 +113,6 @@ func genLogUsers() []string {
 	return temp_users
 }
 
-func useUser(i int, o int) int {
-	if o == 0 {
-		return 0
-	}
-	return i
-}
-
 func TestConcurrentGetLogs(t *testing.T) {
 	for _, v := range testWithDrivers() {
 		db, ctx, cfg := initForTests(v)
@@ -113,13 +122,7 @@ func TestConcurrentGetLogs(t *testing.T) {
 		temp_users := genLogUsers()
 
 		for o := 0; o < 2; o++ {
-			if o == 0 {
-				fmt.Println("\t=== Testing the same username ===")
-			}
-
-			if o == 1 {
-				fmt.Println("\t=== Testing different usernames ===")
-			}
+			fmt.Println("\t=== Testing", testUsernames(o) ,"usernames ===")
 
 			errorChannel := make(chan error)
 			count := 0
@@ -135,7 +138,8 @@ func TestConcurrentGetLogs(t *testing.T) {
 			logsChannel := make(chan []UserLog)
 
 			for i := 0; i < count; i++ {
-				go cfg.GetLogs(db, logsChannel, errorChannel, ctx, count, 0, temp_users[useUser(i, o)], true, "")
+				go cfg.GetLogs(db, logsChannel, errorChannel, ctx, count,
+					0, temp_users[useUser(i, o)], true, "")
 			}
 
 			for i := 0; i < count; i++ {
