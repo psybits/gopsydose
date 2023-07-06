@@ -78,12 +78,12 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	}
 
 	logsChannel := make(chan []UserLog)
-	var gotLogs []UserLog
-
-	go cfg.GetLogs(db, logsChannel, ctx, 1, getid, username, true, "none")
-	gotLogs = <-logsChannel
-	if gotLogs == nil {
-		printName(printN, "No logs for getting the times.")
+	errChannel := make(chan error)
+	go cfg.GetLogs(db, logsChannel, errChannel, ctx, 1, getid, username, true, "none")
+	gotLogs := <-logsChannel
+	gotErr := <-errChannel
+	if gotErr != nil {
+		printName(printN, gotErr)
 		return nil
 	}
 

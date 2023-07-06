@@ -445,28 +445,29 @@ func main() {
 	}
 
 	logsChannel := make(chan []drugdose.UserLog)
-	var retLogs []drugdose.UserLog
+	errChannel := make(chan error)
 	var gettingLogs bool = false
 	var logsLimit bool = false
 
 	if *getLogs {
 		if *noGetLimit {
-			go gotsetcfg.GetLogs(db, logsChannel, ctx, 0, *forID, *forUser, false, *searchStr)
+			go gotsetcfg.GetLogs(db, logsChannel, errChannel, ctx, 0, *forID, *forUser, false, *searchStr)
 		} else {
-			go gotsetcfg.GetLogs(db, logsChannel, ctx, 100, *forID, *forUser, false, *searchStr)
+			go gotsetcfg.GetLogs(db, logsChannel, errChannel, ctx, 100, *forID, *forUser, false, *searchStr)
 			logsLimit = true
 		}
 		gettingLogs = true
 	} else if *getNewLogs != 0 {
-		go gotsetcfg.GetLogs(db, logsChannel, ctx, *getNewLogs, 0, *forUser, true, *searchStr)
+		go gotsetcfg.GetLogs(db, logsChannel, errChannel, ctx, *getNewLogs, 0, *forUser, true, *searchStr)
 		gettingLogs = true
 	} else if *getOldLogs != 0 {
-		go gotsetcfg.GetLogs(db, logsChannel, ctx, *getOldLogs, 0, *forUser, false, *searchStr)
+		go gotsetcfg.GetLogs(db, logsChannel, errChannel, ctx, *getOldLogs, 0, *forUser, false, *searchStr)
 		gettingLogs = true
 	}
 
 	if gettingLogs == true {
-		retLogs = <-logsChannel
+		retLogs := <-logsChannel
+		gotErr := <-errChannel
 		if logsLimit == true {
 			if retLogs != nil && len(retLogs) == 100 {
 				printCLI("By default there is a limit of retrieving " +
@@ -475,8 +476,8 @@ func main() {
 			}
 		}
 
-		if retLogs == nil {
-			printCLI("No logs could be returned.")
+		if gotErr != nil {
+			printCLI(gotErr)
 		} else {
 			gotsetcfg.PrintLogs(retLogs, false)
 		}

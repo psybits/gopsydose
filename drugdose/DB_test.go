@@ -64,7 +64,7 @@ func (cfg Config) cleanAfterTest(db *sql.DB, ctx context.Context) {
 	}
 }
 
-func logIsInvalid(ulogs []UserLog, temp_doses []float32, temp_users []string, count int) bool {
+func logIsInvalid(ulogs []UserLog, uerr error, temp_doses []float32, temp_users []string, count int) bool {
 	found_count := 0
 	for i := 0; i < count; i++ {
 		for u := 0; u < len(temp_doses); u++ {
@@ -74,7 +74,8 @@ func logIsInvalid(ulogs []UserLog, temp_doses []float32, temp_users []string, co
 					ulogs[i].DoseUnits == test_units &&
 					ulogs[i].Dose == temp_doses[u] &&
 					ulogs[i].Username == temp_users[y] &&
-					ulogs != nil {
+					ulogs != nil &&
+					uerr == nil {
 					found_count++
 					break
 				}
@@ -120,6 +121,7 @@ func TestConcurrentGetLogs(t *testing.T) {
 				fmt.Println("\t=== Testing different usernames ===")
 			}
 
+			errorChannel := make(chan error)
 			count := 0
 			for count < 5 {
 				ret := cfg.AddToDoseDB(db, ctx, temp_users[useUser(count, o)], test_drug,
@@ -133,18 +135,20 @@ func TestConcurrentGetLogs(t *testing.T) {
 			logsChannel := make(chan []UserLog)
 
 			for i := 0; i < count; i++ {
-				go cfg.GetLogs(db, logsChannel, ctx, count, 0, temp_users[useUser(i, o)], true, "")
+				go cfg.GetLogs(db, logsChannel, errorChannel, ctx, count, 0, temp_users[useUser(i, o)], true, "")
 			}
 
 			for i := 0; i < count; i++ {
 				gotLog := <-logsChannel
+				gotErr := <-errorChannel
 				snd_count := count
 				if o == 1 {
 					snd_count = 1
 				}
-				if logIsInvalid(gotLog, temp_doses, temp_users, snd_count) {
+				if logIsInvalid(gotLog, gotErr, temp_doses, temp_users, snd_count) {
 					fmt.Println("\tFailed reading database, breaking.")
 					t.Log("Didn't read database properly concurrently.")
+					t.Log("err:", gotErr)
 					t.Fail()
 					break
 				}
