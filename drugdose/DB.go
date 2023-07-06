@@ -59,13 +59,14 @@ func errorCantOpenDB(filePath string, err error) {
 	exitProgram()
 }
 
-func handleErrRollback(err error, tx *sql.Tx, printN string) bool {
+func handleErrRollback(err error, tx *sql.Tx, errChannel chan error) bool {
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
-			printName(printN, err2)
+			errChannel <- err2
+			return false
 		}
-		printName(printN, err)
+		errChannel <- err
 		return false
 	}
 	return true
@@ -913,8 +914,8 @@ func (cfg Config) InitAllDB(db *sql.DB, ctx context.Context) {
 	}
 }
 
-func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug string, route string,
-	dose float32, units string, perc float32, printit bool) bool {
+func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan error, user string, drug string, route string,
+	dose float32, units string, perc float32, printit bool) {
 
 	const printN string = "AddToDoseDB()"
 
@@ -925,9 +926,9 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug
 	if perc != 0 {
 		dose, units = cfg.ConvertUnits(db, ctx, drug, dose, perc)
 		if dose == 0 || units == "" {
-			printName(printN, "Error converting units for drug:", drug,
-				"; dose:", dose, "; perc:", perc, "; units:", units)
-			return false
+			errChannel <- errors.New(sprintName(printN, "Error converting units for drug:", drug,
+				"; dose:", dose, "; perc:", perc, "; units:", units))
+			return
 		}
 	}
 
@@ -937,29 +938,34 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug
 		cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
 		xtrs[:], drug, route, units)
 	if !ret {
-		printName(printN, "Combo of Drug("+drug+
+		errChannel <- errors.New(sprintName(printN, "Combo of Drug("+drug+
 			"), Route("+route+
 			") and Units("+units+
-			") doesn't exist in local information database.")
-		return false
+			") doesn't exist in local information database."))
+		return
 	}
 
 	var count int
 	err := db.QueryRowContext(ctx, "select count(*) from "+loggingTableName+" where username = ?", user).Scan(&count)
 	if err != nil {
-		printName(printN, "Error when counting user logs for user:", user)
-		printName(printN, err)
-		return false
+		errChannel <- errors.New(sprintName(printN,
+			"Error when counting user logs for user:", user, ":", err))
+		return
 	}
 
 	if MaxLogsPerUserSize(count) >= cfg.MaxLogsPerUser {
 		diff := count - int(cfg.MaxLogsPerUser)
 		if cfg.AutoRemove {
-			cfg.RemoveLogs(db, ctx, user, diff+1, true, 0, "none")
+			cfg.RemoveLogs(db, ctx, errChannel, user, diff+1, true, 0, "none")
+			gotErr := <-errChannel
+			if gotErr != nil {
+				errChannel <- gotErr
+				return
+			}
 		} else {
-			printName(printN, "User:", user, "has reached the maximum entries per user:", cfg.MaxLogsPerUser,
-				"; Not logging.")
-			return false
+			errChannel <- errors.New(sprintName(printN, "User:", user,
+				"has reached the maximum entries per user:", cfg.MaxLogsPerUser, "; Not logging."))
+			return
 		}
 	}
 
@@ -980,34 +986,33 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, user string, drug
 	// Add to log db
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, err)
-		return false
+		errChannel <- err
+		return
 	}
 
 	stmt, err := tx.Prepare("insert into " + loggingTableName +
 		" (timeOfDoseStart, username, timeOfDoseEnd, drugName, dose, doseUnits, drugRoute) " +
 		"values(?, ?, ?, ?, ?, ?, ?)")
-	if handleErrRollback(err, tx, printN) == false {
-		return false
+	if handleErrRollback(err, tx, errChannel) == false {
+		return
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(currTime, user, 0, drug, dose, units, route)
-	if handleErrRollback(err, tx, printN) == false {
-		return false
+	if handleErrRollback(err, tx, errChannel) == false {
+		return
 	}
 	err = tx.Commit()
-	if handleErrRollback(err, tx, printN) == false {
-		return false
+	if handleErrRollback(err, tx, errChannel) == false {
+		return
 	}
 
 	if printit {
 		printNameF(printN, "Logged: drug: %q ; dose: %g ; units: %q ; route: %q ; username: %q\n",
 			drug, dose, units, route, user)
-		printName(printN, "Dose logged successfully!")
 	}
 
-	return true
+	errChannel <- nil
 }
 
 // GetDBSize returns the total size of the database in bytes.
@@ -1138,6 +1143,8 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 	errorChannel chan error, ctx context.Context, num int, id int64,
 	user string, reverse bool, search string) {
 
+	printN := "GetLogs()"
+
 	numstr := strconv.Itoa(num)
 
 	var endstmt string
@@ -1210,7 +1217,7 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 	}
 	if len(userlogs) == 0 {
 		outputChannel <- nil
-		errorChannel <- errors.New("No logs returned.")
+		errorChannel <- errors.New(sprintName(printN, "No logs returned."))
 		return
 	}
 
@@ -1407,8 +1414,8 @@ func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 	}
 }
 
-func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
-	amount int, reverse bool, remID int64, search string) bool {
+func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan error,
+	username string, amount int, reverse bool, remID int64, search string) {
 
 	const printN string = "RemoveLogs()"
 
@@ -1419,13 +1426,13 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 		}
 
 		logsChannel := make(chan []UserLog)
-		errChannel := make(chan error)
-		go cfg.GetLogs(db, logsChannel, errChannel, ctx, amount, 0, username, reverse, search)
+		errChannel2 := make(chan error)
+		go cfg.GetLogs(db, logsChannel, errChannel2, ctx, amount, 0, username, reverse, search)
 		gotLogs := <-logsChannel
-		gotErr := <-errChannel
+		gotErr := <-errChannel2
 		if gotErr != nil {
-			printName(printN, gotErr)
-			return false
+			errChannel <- gotErr
+			return
 		}
 
 		var gotTimeOfDose []int64
@@ -1450,8 +1457,8 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 			cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
 			xtrs[:], remID, username)
 		if !ret {
-			printName(printN, "Log with ID:", remID, "doesn't exists.")
-			return false
+			errChannel <- errors.New(sprintName(printN, "Log with ID:", remID, "doesn't exists."))
+			return
 		}
 
 		stmtStr = "delete from " + loggingTableName + " where timeOfDoseStart = ? AND username = ?"
@@ -1459,13 +1466,13 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, err)
-		return false
+		errChannel <- err
+		return
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, printN) == false {
-		return false
+	if handleErrRollback(err, tx, errChannel) == false {
+		return
 	}
 	defer stmt.Close()
 	if remID != 0 {
@@ -1473,18 +1480,18 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, username string,
 	} else {
 		_, err = stmt.Exec(username)
 	}
-	if handleErrRollback(err, tx, printN) == false {
-		return false
+	if handleErrRollback(err, tx, errChannel) == false {
+		return
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, printN) == false {
-		return false
+	if handleErrRollback(err, tx, errChannel) == false {
+		return
 	}
 
-	printName(printN, "Data removed from log table in DB successfully.")
+	printNameVerbose(cfg.VerbosePrinting, printN, "Data removed from log table in DB successfully.")
 
-	return true
+	errChannel <- nil
 }
 
 func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, set string, id int64, username string, setValue string) bool {

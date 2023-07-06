@@ -22,7 +22,7 @@ func testWithDrivers() [2]string {
 func testUsernames(o int) string {
 	if o == 0 {
 		return "same"
-	} else if o == 1{
+	} else if o == 1 {
 		return "different"
 	}
 	return ""
@@ -81,6 +81,10 @@ func (cfg Config) cleanAfterTest(db *sql.DB, ctx context.Context) {
 }
 
 func logIsInvalid(ulogs []UserLog, uerr error, temp_doses []float32, temp_users []string, count int) bool {
+	if uerr != nil || ulogs == nil {
+		return true
+	}
+
 	found_count := 0
 	for i := 0; i < count; i++ {
 		for u := 0; u < len(temp_doses); u++ {
@@ -89,15 +93,14 @@ func logIsInvalid(ulogs []UserLog, uerr error, temp_doses []float32, temp_users 
 					ulogs[i].DrugRoute == test_route &&
 					ulogs[i].DoseUnits == test_units &&
 					ulogs[i].Dose == temp_doses[u] &&
-					ulogs[i].Username == temp_users[y] &&
-					ulogs != nil &&
-					uerr == nil {
+					ulogs[i].Username == temp_users[y] {
 					found_count++
 					break
 				}
 			}
 		}
 	}
+
 	return found_count != count
 }
 
@@ -121,22 +124,25 @@ func TestConcurrentGetLogs(t *testing.T) {
 		temp_doses := genLogDoses()
 		temp_users := genLogUsers()
 
+		// Test valid logs
 		for o := 0; o < 2; o++ {
-			fmt.Println("\t=== Testing", testUsernames(o) ,"usernames ===")
+			fmt.Println("\t=== Testing", testUsernames(o), "usernames ===")
 
 			errorChannel := make(chan error)
 			count := 0
 			for count < 5 {
-				ret := cfg.AddToDoseDB(db, ctx, temp_users[useUser(count, o)], test_drug,
+				go cfg.AddToDoseDB(db, ctx, errorChannel, temp_users[useUser(count, o)], test_drug,
 					test_route, temp_doses[count], test_units, 0, true)
-				if ret == false {
+				gotErr := <-errorChannel
+				if gotErr != nil {
+					t.Log(gotErr)
 					t.Fail()
 					break
 				}
 				count++
 			}
-			logsChannel := make(chan []UserLog)
 
+			logsChannel := make(chan []UserLog)
 			for i := 0; i < count; i++ {
 				go cfg.GetLogs(db, logsChannel, errorChannel, ctx, count,
 					0, temp_users[useUser(i, o)], true, "")
@@ -146,22 +152,45 @@ func TestConcurrentGetLogs(t *testing.T) {
 				gotLog := <-logsChannel
 				gotErr := <-errorChannel
 				snd_count := count
-				if o == 1 {
+				if testUsernames(o) == "different" {
 					snd_count = 1
 				}
 				if logIsInvalid(gotLog, gotErr, temp_doses, temp_users, snd_count) {
-					fmt.Println("\tFailed reading database, breaking.")
-					t.Log("Didn't read database properly concurrently.")
-					t.Log("err:", gotErr)
+					fmt.Println("\tFailed reading database.")
+					t.Log("Didn't read database properly concurrently, breaking. ; err:", gotErr)
 					t.Fail()
 					break
 				}
 			}
 
 			for i := 0; i < count; i++ {
-				cfg.RemoveLogs(db, ctx, temp_users[useUser(i, o)], 1, true, 0, "")
+				go cfg.RemoveLogs(db, ctx, errorChannel, temp_users[useUser(i, o)], 1, true, 0, "")
+				gotErr := <-errorChannel
+				if gotErr != nil {
+					fmt.Println(gotErr)
+				}
 			}
 		}
+
+		// Test invalid logs
+		logsChannel := make(chan []UserLog)
+		errorChannel := make(chan error)
+		for i := 0; i < 5; i++ {
+			go cfg.GetLogs(db, logsChannel, errorChannel, ctx, 1,
+				0, "W2IK&m9)abN8*(x9Ms90mMm", true, "")
+		}
+
+		for i := 0; i < 5; i++ {
+			gotLog := <-logsChannel
+			gotErr := <-errorChannel
+			if gotErr != nil {
+				fmt.Println("Testing invalid username:", gotErr, "; gotLog:", gotLog)
+			} else if gotErr == nil {
+				t.Log("getErr is nil, when it should've returned an error")
+				t.Fail()
+			}
+		}
+
 		cfg.cleanAfterTest(db, ctx)
 	}
 }

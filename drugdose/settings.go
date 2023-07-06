@@ -76,11 +76,19 @@ func otherError(filename string, err error) {
 // The name used when printing, to distinguish from other logs.
 const moduleName string = "gopsydose"
 
+// Format the name set by the caller.
+func sprintPrefix(name string) string {
+	if name != "" {
+		return fmt.Sprint(moduleName + ": " + name + ": ")
+	}
+	return ""
+}
+
 // Print the name set by the caller,
 // so that it's easier to track the origin of text output.
 func printPrefix(name string) {
 	if name != "" {
-		fmt.Print(moduleName + ": " + name + ": ")
+		fmt.Print(sprintPrefix(name))
 	}
 }
 
@@ -110,6 +118,22 @@ func printNameVerbose(verbose bool, name string, str ...any) {
 	if verbose == true {
 		printName(name, str...)
 	}
+}
+
+// Instead of printing, just return the formatted string without a newline.
+func sprintName(name string, str ...any) string {
+	if name != "" {
+		return fmt.Sprintf("%s%s", sprintPrefix(name), fmt.Sprint(str...))
+	}
+	return ""
+}
+
+// Instead of printing, just return the formatted string with a newline.
+func sprintlnName(name string, str ...any) string {
+	if name != "" {
+		return fmt.Sprintf("%s\n", sprintName(name, str...))
+	}
+	return ""
 }
 
 // Initialise the Config struct using the default values.

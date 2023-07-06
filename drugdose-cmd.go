@@ -323,6 +323,8 @@ func main() {
 	defer db.Close()
 	///////////////////////////////////////////////////////////////////////
 
+	errChannel := make(chan error)
+
 	if *getDirs {
 		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 		printCLI("Settings Dir:", drugdose.InitSettingsDir())
@@ -407,9 +409,10 @@ func main() {
 	}
 
 	if *cleanLogs || remAmount != 0 {
-		ret := gotsetcfg.RemoveLogs(db, ctx, *forUser, remAmount, revRem, *forID, *searchStr)
-		if !ret {
-			printCLI("Couldn't remove logs because of an error.")
+		go gotsetcfg.RemoveLogs(db, ctx, errChannel, *forUser, remAmount, revRem, *forID, *searchStr)
+		gotErr := <-errChannel
+		if gotErr != nil {
+			printCLI(gotErr)
 		}
 	}
 
@@ -445,7 +448,6 @@ func main() {
 	}
 
 	logsChannel := make(chan []drugdose.UserLog)
-	errChannel := make(chan error)
 	var gettingLogs bool = false
 	var logsLimit bool = false
 
@@ -596,10 +598,11 @@ func main() {
 			}
 
 			if *dontLog == false {
-				ret := gotsetcfg.AddToDoseDB(db, ctx, *forUser, *drugname, *drugroute,
+				go gotsetcfg.AddToDoseDB(db, ctx, errChannel, *forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc), true)
-				if !ret {
-					printCLI("Dose wasn't logged.")
+				gotErr := <-errChannel
+				if gotErr != nil {
+					printCLI(gotErr)
 				}
 			}
 		} else {
