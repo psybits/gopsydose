@@ -23,6 +23,7 @@ type Config struct {
 	VerbosePrinting bool
 	DBSettings      map[string]DBSettings
 	Timezone        string
+	ProxyURL        string
 }
 
 type DBSettings struct {
@@ -41,6 +42,7 @@ const DefaultDBDriver string = "sqlite3"
 const DefaultMySQLAccess string = "user:password@tcp(127.0.0.1:3306)/database"
 const DefaultVerbose bool = false
 const DefaultTimezone string = "Local"
+const DefaultProxyURL string = ""
 
 const DefaultUsername string = "defaultUser"
 const DefaultSource string = "psychonautwiki"
@@ -160,6 +162,7 @@ func InitConfigStruct(sourcecfg string) Config {
 		VerbosePrinting: DefaultVerbose,
 		DBSettings:      nil,
 		Timezone:        DefaultTimezone,
+		ProxyURL:        DefaultProxyURL,
 	}
 	return cfg
 }

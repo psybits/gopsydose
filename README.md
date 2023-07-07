@@ -167,6 +167,16 @@ can still be used properly and the API servers can relax.
 
 For any more info, again: `gopsydose -help`
 
+### Proxy
+
+In order to use a proxy, checkout the [ProxyURL](#proxyurl) setting!
+
+The address "socks5://127.0.0.1:9150" is for connection via Tor, using an
+opened Tor browser. When the browser is opened, it also starts a proxy server
+with that address, so it can be used to query data using Tor. Using the browser
+is the easier method, there's no need to run services/daemons manually and
+configuring them.
+
 ## Alias
 
 You can use the `example.alias` file to setup an easier to use environment
@@ -316,6 +326,13 @@ the one in that area.
 
 All info about this string can be found here:
 https://pkg.go.dev/time#LoadLocation
+
+#### ProxyURL
+This by default is '' (empty), meaning no proxy is used. It can also be set to
+'none' with the same effect. If the string is set to 'socks5://127.0.0.1:9150',
+all query connections are made using that proxy. This specific URL is the
+default for the Tor browser, so it can be used to query via the Tor network if
+the browser is open while querying.
 
 #### DBSettings
 

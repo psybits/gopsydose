@@ -2,6 +2,9 @@ package drugdose
 
 import (
 	"context"
+	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/hasura/go-graphql-client"
 
@@ -86,11 +89,30 @@ func (cfg Config) InitGraphqlClient() (bool, graphql.Client) {
 		return false, client
 	}
 
+	var proxy func(*http.Request) (*url.URL, error) = nil
+	if cfg.ProxyURL != "" && cfg.ProxyURL != "none" {
+		goturl, err := url.Parse(cfg.ProxyURL)
+		if err != nil {
+			printName(printN, err)
+			return false, client
+		}
+		proxy = http.ProxyURL(goturl)
+	}
+	var CustomTransport http.RoundTripper = &http.Transport{
+		Proxy:                 proxy,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	httpClient := http.Client{
+		Transport: CustomTransport,
+	}
 	gotsrcData := GetSourceData()
-
 	api := gotsrcData[cfg.UseSource].API_ADDRESS
-
-	client_new := graphql.NewClient("https://"+api, nil)
+	apiURL := "https://" + api
+	client_new := graphql.NewClient(apiURL, &httpClient)
 	return true, *client_new
 }
 
@@ -132,7 +154,7 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 		"dn": drugname,
 	}
 
-	err := client.Query(context.Background(), &query, variables)
+	err := client.Query(ctx, &query, variables)
 	if err != nil {
 		printName(printN, "Error from Psychonautwiki API:", err)
 		return false
