@@ -117,6 +117,7 @@ func genLogUsers() []string {
 }
 
 func TestConcurrentGetLogs(t *testing.T) {
+	fmt.Println("\t---Starting TestConcurrentGetLogs()")
 	for _, v := range testWithDrivers() {
 		db, ctx, cfg := initForTests(v)
 		defer db.Close()
@@ -128,13 +129,15 @@ func TestConcurrentGetLogs(t *testing.T) {
 		for o := 0; o < 2; o++ {
 			fmt.Println("\t=== Testing", testUsernames(o), "usernames ===")
 
+			synct := SyncTimestamps{}
 			errorChannel := make(chan error)
 			count := 0
 			for count < 5 {
-				go cfg.AddToDoseDB(db, ctx, errorChannel, temp_users[useUser(count, o)], test_drug,
+				go cfg.AddToDoseDB(db, ctx, errorChannel, &synct, temp_users[useUser(count, o)], test_drug,
 					test_route, temp_doses[count], test_units, 0, true)
 				gotErr := <-errorChannel
 				if gotErr != nil {
+					fmt.Println("\tFailed adding to database.")
 					t.Log(gotErr)
 					t.Fail()
 					break
@@ -185,6 +188,87 @@ func TestConcurrentGetLogs(t *testing.T) {
 			gotErr := <-errorChannel
 			if gotErr != nil {
 				fmt.Println("Testing invalid username:", gotErr, "; gotLog:", gotLog)
+			} else if gotErr == nil {
+				t.Log("getErr is nil, when it should've returned an error")
+				t.Fail()
+			}
+		}
+
+		cfg.cleanAfterTest(db, ctx)
+	}
+}
+
+func TestConcurrentAddToDoseDB(t *testing.T) {
+	fmt.Println("\t---Starting TestConcurrentAddToDoseDB()")
+	for _, v := range testWithDrivers() {
+		db, ctx, cfg := initForTests(v)
+		defer db.Close()
+
+		temp_doses := genLogDoses()
+		temp_users := genLogUsers()
+
+		// Test valid logs
+		for o := 0; o < 2; o++ {
+			fmt.Println("\t=== Testing", testUsernames(o), "usernames ===")
+
+			synct := SyncTimestamps{}
+			errorChannel := make(chan error)
+			for i := 0; i < 5; i++ {
+				go cfg.AddToDoseDB(db, ctx, errorChannel, &synct, temp_users[useUser(i, o)], test_drug,
+					test_route, temp_doses[i], test_units, 0, true)
+			}
+
+			count := 0
+			for count < 5 {
+				gotErr := <-errorChannel
+				if gotErr != nil {
+					fmt.Println("\tFailed adding to database.")
+					t.Log(gotErr)
+					t.Fail()
+					break
+				}
+				count++
+			}
+
+			logsChannel := make(chan []UserLog)
+			for i := 0; i < count; i++ {
+				go cfg.GetLogs(db, logsChannel, errorChannel, ctx, count,
+					0, temp_users[useUser(i, o)], true, "")
+				gotLog := <-logsChannel
+				gotErr := <-errorChannel
+				snd_count := count
+				if testUsernames(o) == "different" {
+					snd_count = 1
+				}
+				if logIsInvalid(gotLog, gotErr, temp_doses, temp_users, snd_count) {
+					fmt.Println("\tFailed reading database.")
+					t.Log("Didn't read database properly concurrently, breaking. ; err:", gotErr)
+					t.Fail()
+					break
+				}
+			}
+
+			for i := 0; i < count; i++ {
+				go cfg.RemoveLogs(db, ctx, errorChannel, temp_users[useUser(i, o)], 1, true, 0, "")
+				gotErr := <-errorChannel
+				if gotErr != nil {
+					fmt.Println(gotErr)
+				}
+			}
+		}
+
+		// Test invalid logs
+		synct := SyncTimestamps{}
+		errorChannel := make(chan error)
+		for i := 0; i < 5; i++ {
+			go cfg.AddToDoseDB(db, ctx, errorChannel, &synct, "test_user", "W2IK&m9)abN\"8*(x9Ms90mMm",
+				"W2IK&m9)abN\"8*(x9Ms90mMm", 123.12, "W2IK&m9)abN\"8*(x9Ms90mMm", 0, true)
+		}
+
+		for i := 0; i < 5; i++ {
+			gotErr := <-errorChannel
+			if gotErr != nil {
+				fmt.Println("Testing invalid input:", gotErr)
 			} else if gotErr == nil {
 				t.Log("getErr is nil, when it should've returned an error")
 				t.Fail()

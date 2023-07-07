@@ -597,8 +597,9 @@ func main() {
 				os.Exit(1)
 			}
 
+			synct := drugdose.SyncTimestamps{}
 			if *dontLog == false {
-				go gotsetcfg.AddToDoseDB(db, ctx, errChannel, *forUser, *drugname, *drugroute,
+				go gotsetcfg.AddToDoseDB(db, ctx, errChannel, &synct, *forUser, *drugname, *drugroute,
 					float32(*drugargdose), *drugunits, float32(*drugperc), true)
 				gotErr := <-errChannel
 				if gotErr != nil {

@@ -129,6 +129,15 @@ func sprintName(name string, str ...any) string {
 }
 
 // Instead of printing, just return the formatted string with a newline.
+func sprintfName(name string, str string, variables ...any) string {
+	if name != "" {
+		initialStr := fmt.Sprintf("%s", name)
+		return fmt.Sprintf(initialStr+str, variables...)
+	}
+	return ""
+}
+
+// Instead of printing, just return the formatted string with a newline.
 func sprintlnName(name string, str ...any) string {
 	if name != "" {
 		return fmt.Sprintf("%s\n", sprintName(name, str...))

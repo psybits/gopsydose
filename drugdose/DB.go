@@ -8,6 +8,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"database/sql"
@@ -109,6 +110,12 @@ type DrugInfo struct {
 	TotalDurMax   float32
 	TotalDurUnits string
 	TimeOfFetch   int64
+}
+
+type SyncTimestamps struct {
+	LastTimestamp int64
+	LastUser      string
+	Lock          sync.Mutex
 }
 
 func xtrastmt(col string, logical string) string {
@@ -914,7 +921,8 @@ func (cfg Config) InitAllDB(db *sql.DB, ctx context.Context) {
 	}
 }
 
-func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan error, user string, drug string, route string,
+func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan error,
+	synct *SyncTimestamps, user string, drug string, route string,
 	dose float32, units string, perc float32, printit bool) {
 
 	const printN string = "AddToDoseDB()"
@@ -926,8 +934,8 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 	if perc != 0 {
 		dose, units = cfg.ConvertUnits(db, ctx, drug, dose, perc)
 		if dose == 0 || units == "" {
-			errChannel <- errors.New(sprintName(printN, "Error converting units for drug:", drug,
-				"; dose:", dose, "; perc:", perc, "; units:", units))
+			errChannel <- errors.New(sprintfName(printN, "Error converting units for drug: %q"+
+				" ; dose: %g ; perc: %g ; units: %q", drug, dose, perc, units))
 			return
 		}
 	}
@@ -938,26 +946,29 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 		cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
 		xtrs[:], drug, route, units)
 	if !ret {
-		errChannel <- errors.New(sprintName(printN, "Combo of Drug("+drug+
-			"), Route("+route+
-			") and Units("+units+
-			") doesn't exist in local information database."))
+		errChannel <- errors.New(sprintfName(printN, "Combo of Drug: %q"+
+			" ; Route: %q"+
+			" ; Units: %q"+
+			" ; doesn't exist in local information database.", drug, route, units))
 		return
 	}
 
 	var count int
-	err := db.QueryRowContext(ctx, "select count(*) from "+loggingTableName+" where username = ?", user).Scan(&count)
+	err := db.QueryRowContext(ctx, "select count(*) from "+loggingTableName+
+		" where username = ?", user).Scan(&count)
 	if err != nil {
 		errChannel <- errors.New(sprintName(printN,
 			"Error when counting user logs for user:", user, ":", err))
 		return
 	}
 
+	synct.Lock.Lock()
 	if MaxLogsPerUserSize(count) >= cfg.MaxLogsPerUser {
 		diff := count - int(cfg.MaxLogsPerUser)
 		if cfg.AutoRemove {
-			cfg.RemoveLogs(db, ctx, errChannel, user, diff+1, true, 0, "none")
-			gotErr := <-errChannel
+			errChannel2 := make(chan error)
+			go cfg.RemoveLogs(db, ctx, errChannel2, user, diff+1, true, 0, "none")
+			gotErr := <-errChannel2
 			if gotErr != nil {
 				errChannel <- gotErr
 				return
@@ -966,20 +977,6 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 			errChannel <- errors.New(sprintName(printN, "User:", user,
 				"has reached the maximum entries per user:", cfg.MaxLogsPerUser, "; Not logging."))
 			return
-		}
-	}
-
-	// Check if current time is already logged for current user. If it is,
-	// wait at least a second to get a new unique ID (timestamp).
-	xtrs2 := [1]string{xtrastmt("username", "and")}
-	currTime := time.Now().Unix()
-	timeLogExists := true
-	for timeLogExists == true {
-		currTime = time.Now().Unix()
-		timeLogExists = checkIfExistsDB(db, ctx, "timeOfDoseStart", "userLogs",
-			cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path, xtrs2[:], currTime, user)
-		if timeLogExists == true {
-			time.Sleep(time.Second)
 		}
 	}
 
@@ -998,6 +995,12 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 	}
 	defer stmt.Close()
 
+	currTime := time.Now().Unix()
+	if currTime == synct.LastTimestamp && user == synct.LastUser {
+		time.Sleep(time.Second)
+		currTime = time.Now().Unix()
+	}
+
 	_, err = stmt.Exec(currTime, user, 0, drug, dose, units, route)
 	if handleErrRollback(err, tx, errChannel) == false {
 		return
@@ -1007,10 +1010,15 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 		return
 	}
 
+	synct.LastTimestamp = currTime
+	synct.LastUser = user
+
 	if printit {
 		printNameF(printN, "Logged: drug: %q ; dose: %g ; units: %q ; route: %q ; username: %q\n",
 			drug, dose, units, route, user)
 	}
+
+	synct.Lock.Unlock()
 
 	errChannel <- nil
 }
