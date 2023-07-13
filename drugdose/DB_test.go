@@ -305,7 +305,12 @@ func TestUseConfigTimeout(t *testing.T) {
 	gotErr := gotUserLogsErr.Err
 
 	if gotErr != nil && errors.Is(gotErr, context.DeadlineExceeded) == false {
-		t.Log(gotErr)
+		t.Log("Got wrong error message:", gotErr)
+		t.Fail()
+	}
+
+	if gotErr == nil {
+		t.Log("There should've been an error, but there is none:", gotErr)
 		t.Fail()
 	}
 
