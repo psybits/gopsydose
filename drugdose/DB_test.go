@@ -3,10 +3,12 @@ package drugdose
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"testing"
+	"time"
 )
 
 const test_drug string = "test_drug"
@@ -145,15 +147,16 @@ func TestConcurrentGetLogs(t *testing.T) {
 				count++
 			}
 
-			logsChannel := make(chan []UserLog)
+			userLogsErrChan := make(chan UserLogsError)
 			for i := 0; i < count; i++ {
-				go cfg.GetLogs(db, logsChannel, errorChannel, ctx, count,
+				go cfg.GetLogs(db, userLogsErrChan, ctx, count,
 					0, temp_users[useUser(i, o)], true, "")
 			}
 
 			for i := 0; i < count; i++ {
-				gotLog := <-logsChannel
-				gotErr := <-errorChannel
+				gotUserLogsErr := <-userLogsErrChan
+				gotLog := gotUserLogsErr.UserLogs
+				gotErr := gotUserLogsErr.Err
 				snd_count := count
 				if testUsernames(o) == "different" {
 					snd_count = 1
@@ -176,16 +179,16 @@ func TestConcurrentGetLogs(t *testing.T) {
 		}
 
 		// Test invalid logs
-		logsChannel := make(chan []UserLog)
-		errorChannel := make(chan error)
+		userLogsErrChan := make(chan UserLogsError)
 		for i := 0; i < 5; i++ {
-			go cfg.GetLogs(db, logsChannel, errorChannel, ctx, 1,
+			go cfg.GetLogs(db, userLogsErrChan, ctx, 1,
 				0, "W2IK&m9)abN8*(x9Ms90mMm", true, "")
 		}
 
 		for i := 0; i < 5; i++ {
-			gotLog := <-logsChannel
-			gotErr := <-errorChannel
+			gotUserLogsErr := <-userLogsErrChan
+			gotLog := gotUserLogsErr.UserLogs
+			gotErr := gotUserLogsErr.Err
 			if gotErr != nil {
 				fmt.Println("Testing invalid username:", gotErr, "; gotLog:", gotLog)
 			} else if gotErr == nil {
@@ -230,12 +233,13 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 				count++
 			}
 
-			logsChannel := make(chan []UserLog)
+			userLogsErrChan := make(chan UserLogsError)
 			for i := 0; i < count; i++ {
-				go cfg.GetLogs(db, logsChannel, errorChannel, ctx, count,
+				go cfg.GetLogs(db, userLogsErrChan, ctx, count,
 					0, temp_users[useUser(i, o)], true, "")
-				gotLog := <-logsChannel
-				gotErr := <-errorChannel
+				gotUserLogsErr := <-userLogsErrChan
+				gotLog := gotUserLogsErr.UserLogs
+				gotErr := gotUserLogsErr.Err
 				snd_count := count
 				if testUsernames(o) == "different" {
 					snd_count = 1
@@ -277,4 +281,33 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 
 		cfg.cleanAfterTest(db, ctx)
 	}
+}
+
+func TestUseConfigTimeout(t *testing.T) {
+	db, ctx, cfg := initForTests("sqlite3")
+	defer db.Close()
+
+	cfg.Timeout = "1s"
+
+	ctx2, cancel, err := cfg.UseConfigTimeout()
+	defer cancel()
+	if err != nil {
+		cfg.cleanAfterTest(db, ctx)
+		t.Fatal(err)
+	}
+
+	time.Sleep(3 * time.Second)
+
+	userLogsErrChan := make(chan UserLogsError)
+	go cfg.GetLogs(db, userLogsErrChan, ctx2, 1, 0, test_user,
+		false, "")
+	gotUserLogsErr := <-userLogsErrChan
+	gotErr := gotUserLogsErr.Err
+
+	if gotErr != nil && errors.Is(gotErr, context.DeadlineExceeded) == false {
+		t.Log(gotErr)
+		t.Fail()
+	}
+
+	cfg.cleanAfterTest(db, ctx)
 }

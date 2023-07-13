@@ -83,6 +83,11 @@ type UserLog struct {
 	DrugRoute string
 }
 
+type UserLogsError struct {
+	UserLogs []UserLog
+	Err      error
+}
+
 type DrugInfo struct {
 	DrugName      string
 	DrugRoute     string
@@ -1145,9 +1150,8 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) uin
 
 // db - an open database connection
 //
-// outputChannel - the goroutine channel used to return the logs
-//
-// errorChannel - the goroutine channel used to return the errors
+// userLogsErrorChannel - the goroutine channel used to return the logs and
+// the error
 //
 // ctx - context that will be passed to the sql query function
 //
@@ -1161,13 +1165,17 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) uin
 // this should return the newest logs first
 //
 // search - return logs only matching this string
-func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
-	errorChannel chan error, ctx context.Context, num int, id int64,
-	user string, reverse bool, search string) {
+func (cfg Config) GetLogs(db *sql.DB, userLogsErrorChannel chan UserLogsError,
+	ctx context.Context, num int, id int64, user string, reverse bool,
+	search string) {
 
 	printN := "GetLogs()"
 
 	numstr := strconv.Itoa(num)
+
+	tempUserLogsError := UserLogsError{
+		Err: nil,
+	}
 
 	var endstmt string
 	if num == 0 {
@@ -1212,8 +1220,9 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 		rows, err = db.QueryContext(ctx, "select * from "+loggingTableName+" where username = ? and timeOfDoseStart = ?", user, id)
 	}
 	if err != nil {
-		outputChannel <- nil
-		errorChannel <- err
+		tempUserLogsError.Err = err
+		tempUserLogsError.UserLogs = nil
+		userLogsErrorChannel <- tempUserLogsError
 		return
 	}
 	defer rows.Close()
@@ -1224,8 +1233,9 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 		err = rows.Scan(&tempul.StartTime, &tempul.Username, &tempul.EndTime, &tempul.DrugName,
 			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute)
 		if err != nil {
-			outputChannel <- nil
-			errorChannel <- err
+			tempUserLogsError.Err = err
+			tempUserLogsError.UserLogs = nil
+			userLogsErrorChannel <- tempUserLogsError
 			return
 		}
 
@@ -1233,18 +1243,21 @@ func (cfg Config) GetLogs(db *sql.DB, outputChannel chan []UserLog,
 	}
 	err = rows.Err()
 	if err != nil {
-		outputChannel <- nil
-		errorChannel <- err
+		tempUserLogsError.Err = err
+		tempUserLogsError.UserLogs = nil
+		userLogsErrorChannel <- tempUserLogsError
 		return
 	}
 	if len(userlogs) == 0 {
-		outputChannel <- nil
-		errorChannel <- errors.New(sprintName(printN, "No logs returned."))
+		tempUserLogsError.Err = errors.New(sprintName(printN, "No logs returned."))
+		tempUserLogsError.UserLogs = nil
+		userLogsErrorChannel <- tempUserLogsError
 		return
 	}
 
-	outputChannel <- userlogs
-	errorChannel <- nil
+	tempUserLogsError.Err = nil
+	tempUserLogsError.UserLogs = userlogs
+	userLogsErrorChannel <- tempUserLogsError
 }
 
 // PrintLogs writes all logs present in userLogs to console.
@@ -1447,21 +1460,19 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan er
 			amount = 0
 		}
 
-		logsChannel := make(chan []UserLog)
-		errChannel2 := make(chan error)
-		go cfg.GetLogs(db, logsChannel, errChannel2, ctx, amount, 0, username, reverse, search)
-		gotLogs := <-logsChannel
-		gotErr := <-errChannel2
-		if gotErr != nil {
-			errChannel <- gotErr
+		userLogsErrChan := make(chan UserLogsError)
+		go cfg.GetLogs(db, userLogsErrChan, ctx, amount, 0, username, reverse, search)
+		gotLogs := <-userLogsErrChan
+		if gotLogs.Err != nil {
+			errChannel <- gotLogs.Err
 			return
 		}
 
 		var gotTimeOfDose []int64
 		var tempTimes int64
 
-		for i := 0; i < len(gotLogs); i++ {
-			tempTimes = gotLogs[i].StartTime
+		for i := 0; i < len(gotLogs.UserLogs); i++ {
+			tempTimes = gotLogs.UserLogs[i].StartTime
 			gotTimeOfDose = append(gotTimeOfDose, tempTimes)
 		}
 
@@ -1561,29 +1572,30 @@ func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, set string, id in
 		"route":      "drugRoute",
 	}
 
-	logsChannel := make(chan []UserLog)
-	errChannel := make(chan error)
+	userLogsErrChan := make(chan UserLogsError)
 	var gotLogs []UserLog
 	var gotErr error
 
 	if id == 0 {
-		go cfg.GetLogs(db, logsChannel, errChannel, ctx, 1, 0, username, true, "")
-		gotLogs = <-logsChannel
-		gotErr = <-errChannel
+		go cfg.GetLogs(db, userLogsErrChan, ctx, 1, 0, username, true, "")
+		gotUserLogsErr := <-userLogsErrChan
+		gotErr = gotUserLogsErr.Err
 		if gotErr != nil {
 			printName(printN, gotErr)
 			return false
 		}
 
+		gotLogs = gotUserLogsErr.UserLogs
 		id = gotLogs[0].StartTime
 	} else {
-		go cfg.GetLogs(db, logsChannel, errChannel, ctx, 1, id, username, true, "")
-		gotLogs = <-logsChannel
-		gotErr = <-errChannel
+		go cfg.GetLogs(db, userLogsErrChan, ctx, 1, id, username, true, "")
+		gotUserLogsErr := <-userLogsErrChan
+		gotErr = gotUserLogsErr.Err
 		if gotErr != nil {
 			printName(printN, gotErr)
 			return false
 		}
+		gotLogs = gotUserLogsErr.UserLogs
 	}
 
 	stmtStr := fmt.Sprintf("update "+loggingTableName+" set %s = ? where timeOfDoseStart = ?",
@@ -1692,17 +1704,15 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context, set string,
 
 	if set == "useIDForRemember" {
 		if setValue == "remember" {
-			logsChannel := make(chan []UserLog)
-			errChannel := make(chan error)
-			go cfg.GetLogs(db, logsChannel, errChannel, ctx, 1, 0, username, true, "none")
-			gotLogs := <-logsChannel
-			gotErr := <-errChannel
-			if gotErr != nil {
-				printName(printN, gotErr)
+			userLogsErrChan := make(chan UserLogsError)
+			go cfg.GetLogs(db, userLogsErrChan, ctx, 1, 0, username, true, "none")
+			gotLogs := <-userLogsErrChan
+			if gotLogs.Err != nil {
+				printName(printN, gotLogs.Err)
 				return false
 			}
 
-			setValue = strconv.FormatInt(gotLogs[0].StartTime, 10)
+			setValue = strconv.FormatInt(gotLogs.UserLogs[0].StartTime, 10)
 		} else {
 			if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
 				printName(printN, "Error when checking if integer:", setValue, ":", err)
@@ -1785,17 +1795,15 @@ func (cfg Config) RememberConfig(db *sql.DB, ctx context.Context, username strin
 		return nil
 	}
 
-	logsChannel := make(chan []UserLog)
-	errChannel := make(chan error)
-	go cfg.GetLogs(db, logsChannel, errChannel, ctx, 1, gotInt, username, false, "")
-	gotLogs := <-logsChannel
-	gotErr := <-errChannel
-	if gotErr != nil {
-		printName(printN, gotErr)
+	userLogsErrChan := make(chan UserLogsError)
+	go cfg.GetLogs(db, userLogsErrChan, ctx, 1, gotInt, username, false, "")
+	gotLogs := <-userLogsErrChan
+	if gotLogs.Err != nil {
+		printName(printN, gotLogs.Err)
 		return nil
 	}
 
-	return &gotLogs[0]
+	return &gotLogs.UserLogs[0]
 }
 
 func (cfg Config) ForgetConfig(db *sql.DB, ctx context.Context, username string) bool {

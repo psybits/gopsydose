@@ -77,17 +77,15 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 		printN = ""
 	}
 
-	logsChannel := make(chan []UserLog)
-	errChannel := make(chan error)
-	go cfg.GetLogs(db, logsChannel, errChannel, ctx, 1, getid, username, true, "none")
-	gotLogs := <-logsChannel
-	gotErr := <-errChannel
-	if gotErr != nil {
-		printName(printN, gotErr)
+	userLogsErrChan := make(chan UserLogsError)
+	go cfg.GetLogs(db, userLogsErrChan, ctx, 1, getid, username, true, "none")
+	gotLogs := <-userLogsErrChan
+	if gotLogs.Err != nil {
+		printName(printN, gotLogs.Err)
 		return nil
 	}
 
-	useLog := gotLogs[0]
+	useLog := gotLogs.UserLogs[0]
 	gotInfo := cfg.GetLocalInfo(db, ctx, useLog.DrugName)
 
 	gotInfoNum := -1
