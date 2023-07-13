@@ -334,6 +334,22 @@ all query connections are made using that proxy. This specific URL is the
 default for the Tor browser, so it can be used to query via the Tor network if
 the browser is open while querying.
 
+#### Timeout
+This setting depends on the way the API is used. Some developers might choose
+to ignore it, some might want to use it. When used, it's supposed to set the
+time to wait for a SQL query to finish or a connection to a server to be done.
+Some developers might use it as the total duration for all connections or
+queries, for example in the case of CLI programs.
+
+When ignored, it would be good for the developers to set the value to something
+like "This Value Is Ignored".
+
+If your connections have huge delays for some reason and this settings is
+not ignored, try setting the value higher.
+
+The possible values are described here:
+https://pkg.go.dev/time#ParseDuration
+
 #### DBSettings
 
 ##### DBSettings.mysql

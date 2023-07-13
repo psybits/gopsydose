@@ -24,6 +24,7 @@ type Config struct {
 	DBSettings      map[string]DBSettings
 	Timezone        string
 	ProxyURL        string
+	Timeout         string
 }
 
 type DBSettings struct {
@@ -43,6 +44,7 @@ const DefaultMySQLAccess string = "user:password@tcp(127.0.0.1:3306)/database"
 const DefaultVerbose bool = false
 const DefaultTimezone string = "Local"
 const DefaultProxyURL string = ""
+const DefaultTimeout string = "5s"
 
 const DefaultUsername string = "defaultUser"
 const DefaultSource string = "psychonautwiki"
@@ -163,6 +165,7 @@ func InitConfigStruct(sourcecfg string) Config {
 		DBSettings:      nil,
 		Timezone:        DefaultTimezone,
 		ProxyURL:        DefaultProxyURL,
+		Timeout:         DefaultTimeout,
 	}
 	return cfg
 }

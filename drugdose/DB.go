@@ -170,6 +170,23 @@ func (cfg Config) PingDB(db *sql.DB, ctx context.Context) {
 	}
 }
 
+// Uses the value of Timeout from the settings file to create a WithTimeout
+// context. If no errors are found, it then returns the context to be used
+// where it's needed.
+func (cfg Config) UseConfigTimeout() (context.Context, context.CancelFunc, error) {
+	if cfg.Timeout == "" || cfg.Timeout == "none" {
+		return nil, nil, errors.New("Timeout value is empty.")
+	}
+
+	gotDuration, err := time.ParseDuration(cfg.Timeout)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), gotDuration)
+	return ctx, cancel, nil
+}
+
 // Open a database connection using the Config struct.
 //
 // After calling this function, don't forget to run: defer db.Close()
@@ -182,9 +199,6 @@ func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
 	if err != nil {
 		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
 
 	cfg.PingDB(db, ctx)
 	return db

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -317,7 +316,13 @@ func main() {
 
 	gotsrcData := drugdose.GetSourceData()
 
-	ctx := context.Background()
+	ctx, ctx_cancel, err := gotsetcfg.UseConfigTimeout()
+	if err != nil {
+		printCLI(err)
+		os.Exit(1)
+	}
+
+	defer ctx_cancel()
 
 	db := gotsetcfg.OpenDBConnection(ctx)
 	defer db.Close()
