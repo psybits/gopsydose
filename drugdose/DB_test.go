@@ -62,8 +62,11 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	}
 	testsub = append(testsub, tempsub)
 
-	ret := gotsetcfg.AddToInfoDB(db, ctx, testsub)
-	if ret == false {
+	errChannel := make(chan error)
+	go gotsetcfg.AddToInfoDB(db, ctx, errChannel, testsub)
+	err := <-errChannel
+	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 
@@ -71,13 +74,15 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 }
 
 func (cfg Config) cleanAfterTest(db *sql.DB, ctx context.Context) {
-	ret := cfg.CleanInfo(db, ctx)
-	if ret == false {
+	err := cfg.CleanInfo(db, ctx)
+	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	ret = cfg.CleanNames(db, ctx, true)
-	if ret == false {
+	err = cfg.CleanNames(db, ctx, true)
+	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }

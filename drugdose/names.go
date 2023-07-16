@@ -136,34 +136,32 @@ func namesFiles(nameType string) string {
 //
 // overwrite - force overwrite of directory and tables
 func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
-	nameType string, sourceNames bool, overwrite bool) bool {
+	nameType string, sourceNames bool, overwrite bool) error {
 	const printN string = "AddToSubstanceNamesTable()"
 
 	var setdir string = InitSettingsDir()
 	if setdir == "" {
-		printName(printN, "No settings directory found!")
-		return false
+		return errors.New(sprintName(printN, "No settings directory found!"))
 	}
 
 	var CopyToPath string = setdir + "/" + allNamesConfigsDir
 
 	if overwrite == true {
-		ret := cfg.CleanNames(db, ctx, false)
-		if ret == false {
-			printName(printN, "Couldn't clean names from database for overwrite.")
-			return false
-		}
-
-		ret = cfg.InitAllDBTables(db, ctx)
-		if !ret {
-			printName(printN, "Database didn't get initialised, because of an error.")
-			return false
-		}
-
-		err := os.RemoveAll(CopyToPath)
+		err := cfg.CleanNames(db, ctx, false)
 		if err != nil {
-			printName(printN, err)
-			return false
+			return errors.New(sprintName(printN,
+				"Couldn't clean names from database for overwrite: ", err))
+		}
+
+		err = cfg.InitAllDBTables(db, ctx)
+		if err != nil {
+			return errors.New(sprintName(printN,
+				"Database didn't get initialised, because of an error: ", err))
+		}
+
+		err = os.RemoveAll(CopyToPath)
+		if err != nil {
+			return errors.New(sprintName(printN, err))
 		} else {
 			printName(printN, "Deleted directory:", CopyToPath)
 		}
@@ -171,7 +169,7 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 
 	table := namesTables(nameType)
 	if table == "" {
-		return false
+		return errors.New(sprintName(printN, "No tables returned."))
 	}
 
 	tableSuffix := ""
@@ -189,7 +187,7 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 		nil,
 		namesMagicWord)
 	if ret {
-		return true
+		return nil
 	}
 
 	// Check if names directory exists in config directory.
@@ -210,18 +208,15 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 				}
 				err = cp.Copy(allNamesConfigsDir, CopyToPath, cpOpt)
 				if err != nil {
-					printName(printN, "Couldn't move file:", err)
-					return false
+					return errors.New(sprintName(printN, "Couldn't move file:", err))
 				} else if err == nil {
 					printName(printN, "Done copying to:", CopyToPath)
 				}
 			} else {
-				printName(printN, err)
-				return false
+				return errors.New(sprintName(printN, err))
 			}
 		} else {
-			printName(printN, err)
-			return false
+			return errors.New(sprintName(printN, err))
 		}
 	} else if err == nil {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Name config already exists:", CopyToPath,
@@ -235,28 +230,25 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 
 	namesCfg := GetNamesConfig(nameType, getCfgSrc)
 	if namesCfg == nil {
-		return false
+		return errors.New(sprintName(printN, "No names returned from config."))
 	}
 
 	subsStmt, err := db.PrepareContext(ctx, "insert into "+table+
 		" (localName, alternativeName) "+
 		"values(?, ?)")
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, err))
 	}
 	defer subsStmt.Close()
 
 	tx, err := db.Begin()
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, err))
 	}
 
 	_, err = tx.Stmt(subsStmt).ExecContext(ctx, namesMagicWord, namesMagicWord)
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, err))
 	}
 
 	for locName, altNames := range namesCfg.LocalName {
@@ -265,21 +257,19 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 		for i := 0; i < len(altName); i++ {
 			_, err = tx.Stmt(subsStmt).ExecContext(ctx, locName, altName[i])
 			if err != nil {
-				printName(printN, err)
-				return false
+				return errors.New(sprintName(printN, err))
 			}
 		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, err))
 	}
 
 	printName(printN, nameType, "names initialized successfully! sourceNames:", sourceNames)
 
-	return true
+	return nil
 }
 
 // db - open database connection
@@ -313,8 +303,8 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 
 	table = table + tableSuffix
 
-	ret := cfg.AddToSubstanceNamesTable(db, ctx, nameType, sourceNames, overwrite)
-	if !ret {
+	err := cfg.AddToSubstanceNamesTable(db, ctx, nameType, sourceNames, overwrite)
+	if err != nil {
 		return inputName
 	}
 

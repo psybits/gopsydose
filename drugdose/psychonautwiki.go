@@ -2,6 +2,7 @@ package drugdose
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"time"
@@ -79,22 +80,22 @@ type PsychonautwikiSubstance []struct {
 //
 // returns: bool (true if client is initialised, false otherwise),
 // client (the GraphQL struct used with github.com/hasura/go-graphql-client
-func (cfg Config) InitGraphqlClient() (bool, graphql.Client) {
+func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 	const printN string = "InitGraphqlClient()"
 
 	client := graphql.Client{}
 
 	if !cfg.AutoFetch {
-		printName(printN, "Automatic fetching is disabled, returning.")
-		return false, client
+		printNameVerbose(cfg.VerbosePrinting, printN, "Automatic fetching is disabled, returning.")
+		return nil, client
 	}
 
 	var proxy func(*http.Request) (*url.URL, error) = nil
 	if cfg.ProxyURL != "" && cfg.ProxyURL != "none" {
 		goturl, err := url.Parse(cfg.ProxyURL)
 		if err != nil {
-			printName(printN, err)
-			return false, client
+			err = errors.New(sprintName(printN, err))
+			return err, client
 		}
 		proxy = http.ProxyURL(goturl)
 	}
@@ -110,19 +111,23 @@ func (cfg Config) InitGraphqlClient() (bool, graphql.Client) {
 		Transport: CustomTransport,
 	}
 	gotsrcData := GetSourceData()
+	if gotsrcData == nil {
+		return errors.New(sprintName(printN, "GetSourceData() returned nil, returning.")), client
+	}
 	api := gotsrcData[cfg.UseSource].API_ADDRESS
 	apiURL := "https://" + api
 	client_new := graphql.NewClient(apiURL, &httpClient)
-	return true, *client_new
+	return nil, *client_new
 }
 
 func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
-	drugname string, client graphql.Client) bool {
+	errChannel chan error, drugname string, client graphql.Client) {
 	const printN string = "FetchPsyWiki()"
 
 	if !cfg.AutoFetch {
-		printName(printN, "Automatic fetching is disabled, returning.")
-		return false
+		printNameVerbose(cfg.VerbosePrinting, printN, "Automatic fetching is disabled, returning.")
+		errChannel <- nil
+		return
 	}
 
 	drugname = cfg.MatchAndReplace(db, ctx, drugname, "substance")
@@ -136,7 +141,8 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 		drugname)
 	if ret {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Drug already in DB, returning. No need to fetch anything from Psychonautwiki.")
-		return false
+		errChannel <- nil
+		return
 	}
 
 	printName(printN, "Fetching from source:", cfg.UseSource)
@@ -156,8 +162,8 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 
 	err := client.Query(ctx, &query, variables)
 	if err != nil {
-		printName(printN, "Error from Psychonautwiki API:", err)
-		return false
+		errChannel <- errors.New(sprintName(printN, "Error from Psychonautwiki API:", err))
+		return
 	}
 
 	InfoDrug := []DrugInfo{}
@@ -206,20 +212,22 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 		}
 
 		if len(InfoDrug) != 0 {
-			ret := cfg.AddToInfoDB(db, ctx, InfoDrug)
-			if !ret {
-				printName(printN, "Data couldn't be added to info DB, because of an error.")
-				return false
+			errChannel2 := make(chan error)
+			go cfg.AddToInfoDB(db, ctx, errChannel2, InfoDrug)
+			err := <-errChannel2
+			if err != nil {
+				errChannel <- errors.New(sprintName(printN, "Data couldn't be added to info DB, because of an error: ", err))
+				return
 			}
 			printName(printN, "Data added to info DB successfully.")
 		} else {
-			printName(printN, "Struct array is empty, nothing added to DB.")
-			return false
+			errChannel <- errors.New(sprintName(printN, "Struct array is empty, nothing added to DB."))
+			return
 		}
 	} else {
-		printName(printN, "The Psychonautwiki API returned nothing, so query is wrong or connection is broken.")
-		return false
+		errChannel <- errors.New(sprintName(printN, "The Psychonautwiki API returned nothing, so query is wrong or connection is broken."))
+		return
 	}
 
-	return true
+	errChannel <- nil
 }

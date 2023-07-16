@@ -13,6 +13,8 @@ import (
 
 	"database/sql"
 
+	"github.com/hasura/go-graphql-client"
+
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 
@@ -60,17 +62,23 @@ func errorCantOpenDB(filePath string, err error) {
 	exitProgram()
 }
 
+// If err is not nil, starts a transaction rollback and returns the error
+// through errChannel.
+//
+// Returns true if there's an error, false otherwise.
 func handleErrRollback(err error, tx *sql.Tx, errChannel chan error) bool {
+	const printN string = "handleErrRollback()"
+
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
-			errChannel <- err2
-			return false
+			errChannel <- errors.New(sprintName(printN, err2))
+			return true
 		}
-		errChannel <- err
-		return false
+		errChannel <- errors.New(sprintName(printN, err))
+		return true
 	}
-	return true
+	return false
 }
 
 type UserLog struct {
@@ -287,8 +295,11 @@ func (cfg Config) InitDBFileStructure() {
 //
 // ctx - context to be passed to sql queries
 //
+// errChannel - go routine channel which returns any errors
+//
 // drug - name of drug to be removed from source table
-func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context, drug string) bool {
+func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context,
+	errChannel chan error, drug string) {
 	const printN string = "RemoveSingleDrugInfoDB()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
@@ -301,38 +312,38 @@ func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context, drug s
 		nil,
 		drug)
 	if !ret {
-		printName(printN, "No such drug in info database:", drug)
-		return false
+		errChannel <- errors.New(sprintName(printN, "No such drug in info database: ", drug))
+		return
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, err)
-		return false
+		errChannel <- errors.New(sprintName(printN, err))
+		return
 	}
 
 	stmt, err := tx.Prepare("delete from " + cfg.UseSource +
 		" where drugName = ?")
 	if err != nil {
-		printName(printN, "tx.Prepare():", err)
-		return false
+		errChannel <- errors.New(sprintName(printN, "tx.Prepare(): ", err))
+		return
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(drug)
 	if err != nil {
-		printName(printN, "stmt.Exec():", err)
-		return false
+		errChannel <- errors.New(sprintName(printN, "stmt.Exec(): ", err))
+		return
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		printName(printN, "tx.Commit():", err)
-		return false
+		errChannel <- errors.New(sprintName(printN, "tx.Commit(): ", err))
+		return
 	}
 
-	printName(printN, "Data removed from info DB successfully.")
+	printName(printN, "Data removed from info DB successfully:", drug, "; source: ", cfg.UseSource)
 
-	return true
+	errChannel <- nil
 }
 
 // Function which generates and returns a query for looking up table
@@ -401,21 +412,19 @@ func (cfg Config) CheckDBTables(db *sql.DB, ctx context.Context, tableName strin
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
+func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
 	const printN string = "CleanDB()"
 
 	queryStr := cfg.getTableNamesQuery("")
 	rows, err := db.QueryContext(ctx, queryStr)
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, err))
 	}
 	defer rows.Close()
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
 	}
 
 	if cfg.VerbosePrinting == true {
@@ -425,8 +434,7 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 		var name string
 		err = rows.Scan(&name)
 		if err != nil {
-			printName(printN, err)
-			return false
+			return errors.New(sprintName(printN, err))
 		}
 
 		if cfg.VerbosePrinting == true {
@@ -435,16 +443,13 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 
 		_, err = tx.Exec("drop table " + name)
 		if err != nil {
-			fmt.Println()
-			printName(printN, "tx.Exec():", err)
-			return false
+			return errors.New(sprintName(printN, "tx.Exec(): ", err))
 		}
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		printName(printN, "tx.Commit():", err)
-		return false
+		return errors.New(sprintName(printN, "tx.Commit(): ", err))
 	}
 
 	if cfg.VerbosePrinting == true {
@@ -452,7 +457,7 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 	}
 	printName(printN, "All tables removed from DB.")
 
-	return true
+	return nil
 }
 
 // CleanInfo removes the currently configured info table. For example if source
@@ -465,30 +470,27 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) bool {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) bool {
+func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) error {
 	const printN string = "CleanInfo()"
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
 	}
 
 	_, err = tx.Exec("drop table " + cfg.UseSource)
 	if err != nil {
-		printName(printN, "tx.Exec():", err)
-		return false
+		return errors.New(sprintName(printN, "tx.Exec(): ", err))
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		printName(printN, "tx.Commit():", err)
-		return false
+		return errors.New(sprintName(printN, "tx.Commit(): ", err))
 	}
 
 	printName(printN, "The info table: "+cfg.UseSource+"; removed from DB.")
 
-	return true
+	return nil
 }
 
 // CleanNames removes the main names tables and the currently configured ones
@@ -502,7 +504,7 @@ func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) bool {
 // ctx - context to be passed to sql queries
 //
 // replaceOnly - remove only replace tables, keep the global ones intact
-func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) bool {
+func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) error {
 	const printN string = "CleanNames()"
 
 	tableSuffix := "_" + cfg.UseSource
@@ -517,8 +519,7 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) 
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, err))
 	}
 
 	startCount := 0
@@ -531,22 +532,19 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) 
 
 		_, err = tx.Exec("drop table " + tableNames[i])
 		if err != nil {
-			fmt.Println()
-			printName(printN, "tx.Exec():", err)
-			return false
+			return errors.New(sprintName(printN, "tx.Exec(): ", err))
 		}
 	}
 	fmt.Println()
 
 	err = tx.Commit()
 	if err != nil {
-		printName(printN, "tx.Commit():", err)
-		return false
+		return errors.New(sprintName(printN, "tx.Commit(): ", err))
 	}
 
 	printName(printN, "All tables removed from DB.")
 
-	return true
+	return nil
 }
 
 // AddToInfoDB uses subs[] to fill up the currently configured source table
@@ -558,13 +556,13 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) 
 // ctx - context to be passed to sql queries
 //
 // subs - all substances of type DrugInfo to go through to add to source table
-func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, subs []DrugInfo) bool {
+func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan error, subs []DrugInfo) {
 	const printN string = "AddToInfoDB()"
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, err)
-		return false
+		errChannel <- errors.New(sprintName(printN, err))
+		return
 	}
 
 	stmt, err := tx.Prepare("insert into " + cfg.UseSource +
@@ -582,9 +580,10 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, subs []DrugInfo) 
 		"timeOfFetch) " +
 		"values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		printName(printN, "tx.Prepare():", err)
-		return false
+		errChannel <- errors.New(sprintName(printN, "tx.Prepare(): ", err))
+		return
 	}
+
 	defer stmt.Close()
 	for i := 0; i < len(subs); i++ {
 		subs[i].DoseUnits = cfg.MatchAndReplace(db, ctx, subs[i].DoseUnits, "units")
@@ -615,34 +614,33 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, subs []DrugInfo) 
 			subs[i].TotalDurUnits,
 			time.Now().Unix())
 		if err != nil {
-			printName(printN, "stmt.Exec():", err)
-			return false
+			errChannel <- errors.New(sprintName(printN, "stmt.Exec():", err))
+			return
 		}
 	}
 	err = tx.Commit()
 	if err != nil {
-		printName(printN, "tx.Commit():", err)
-		return false
+		errChannel <- errors.New(sprintName(printN, "tx.Commit():", err))
+		return
 	}
 
-	return true
+	errChannel <- nil
 }
 
 // InitInfoDB creates the table for the currently configured source if it
 // doesn't exist. It will use the source's name to set the table's name.
 // It's called "Info", because it stores general information like dosages and
 // timings for every route of administration.
-// The function returns false on error.
 //
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) bool {
+func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitDrugDB()"
 
 	ret := cfg.CheckDBTables(db, ctx, cfg.UseSource)
 	if ret {
-		return true
+		return nil
 	}
 
 	caseInsensitive := " "
@@ -680,27 +678,25 @@ func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) bool {
 
 	_, err := db.ExecContext(ctx, initDBsql)
 	if err != nil {
-		printName(printN, initDBsql+":", err)
-		return false
+		return errors.New(sprintName(printN, "db.ExecContext(): ", err))
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+cfg.UseSource+"' table for drug info in database.")
 
-	return true
+	return nil
 }
 
 // InitLogDB creates the table for all user drug logs if it doesn't exist.
-// It returns false on error.
 //
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) bool {
+func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitLogDB()"
 
 	ret := cfg.CheckDBTables(db, ctx, loggingTableName)
 	if ret {
-		return true
+		return nil
 	}
 
 	caseInsensitive := " "
@@ -719,27 +715,25 @@ func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) bool {
 
 	_, err := db.ExecContext(ctx, initDBsql)
 	if err != nil {
-		printName(printN, initDBsql+":", err)
-		return false
+		return errors.New(sprintName(printN, "db.ExecContext(): ", err))
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Created: 'userLogs' table in database.")
 
-	return true
+	return nil
 }
 
 // InitUserSetDB creates the table for all user settings if it doesn't exist.
-// It returns false on error.
 //
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) bool {
+func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitUserSetDB()"
 
 	ret := cfg.CheckDBTables(db, ctx, userSetTableName)
 	if ret {
-		return true
+		return nil
 	}
 
 	initDBsql := "create table " + userSetTableName + " (username varchar(255) not null," +
@@ -748,13 +742,12 @@ func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) bool {
 
 	_, err := db.ExecContext(ctx, initDBsql)
 	if err != nil {
-		printName(printN, initDBsql+":", err)
-		return false
+		return errors.New(sprintName(printN, "db.ExecContext(): ", err))
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Created: 'userSettings' table in database.")
 
-	return true
+	return nil
 }
 
 // InitAltNamesDB creates all alternative names tables if they don't exist.
@@ -768,7 +761,7 @@ func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) bool {
 //
 // replace - if true, creates the tables for the currently configured source
 // only, meaning for alt names specific to the source
-func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) bool {
+func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) error {
 	const printN string = "InitAltNamesDB()"
 
 	tableSuffix := ""
@@ -802,7 +795,7 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 	}
 
 	if subsExists && routesExists && unitsExists && convUnitsExists {
-		return true
+		return nil
 	}
 
 	caseInsensitive := " "
@@ -819,8 +812,7 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 
 		_, err = db.ExecContext(ctx, initDBsql)
 		if err != nil {
-			printName(printN, initDBsql+":", err)
-			return false
+			return errors.New(sprintName(printN, "db.ExecContext(): ", err))
 		}
 
 		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesSubsTableName+tableSuffix+"' table in database.")
@@ -834,8 +826,7 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 
 		_, err = db.ExecContext(ctx, initDBsql)
 		if err != nil {
-			printName(printN, initDBsql+":", err)
-			return false
+			return errors.New(sprintName(printN, "db.ExecContext(): ", err))
 		}
 
 		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesRouteTableName+tableSuffix+"' table in database.")
@@ -849,8 +840,7 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 
 		_, err = db.ExecContext(ctx, initDBsql)
 		if err != nil {
-			printName(printN, initDBsql+":", err)
-			return false
+			return errors.New(sprintName(printN, "db.ExecContext(): ", err))
 		}
 
 		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesUnitsTableName+tableSuffix+"' table in database.")
@@ -864,59 +854,59 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 
 		_, err = db.ExecContext(ctx, initDBsql)
 		if err != nil {
-			printName(printN, initDBsql+":", err)
-			return false
+			return errors.New(sprintName(printN, "db.ExecContext(): ", err))
 		}
 
 		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesConvUnitsTableName+tableSuffix+"' table in database.")
 	}
 
-	return true
+	return nil
 }
 
 // InitAllDBTables creates all tables needed to run the program properly.
 // This function should be sufficient on it's own for most use cases.
 // Even if the function is called every time the program is started, it should
 // not be an issue, since all called functions first check if the tables they're
-// trying to create already exist. The function returns false on error.
+// trying to create already exist.
 //
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) bool {
+func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitAllDBTables()"
 
-	ret := cfg.InitInfoDB(db, ctx)
-	if !ret {
-		return false
+	err := cfg.InitInfoDB(db, ctx)
+	if err != nil {
+		return errors.New(sprintName(printN, err))
 	}
 
-	ret = cfg.InitLogDB(db, ctx)
-	if !ret {
-		return false
+	err = cfg.InitLogDB(db, ctx)
+	if err != nil {
+		return errors.New(sprintName(printN, err))
 	}
 
-	ret = cfg.InitUserSetDB(db, ctx)
-	if !ret {
-		return false
+	err = cfg.InitUserSetDB(db, ctx)
+	if err != nil {
+		return errors.New(sprintName(printN, err))
 	}
 
-	ret = cfg.InitAltNamesDB(db, ctx, false)
-	if !ret {
-		return false
+	err = cfg.InitAltNamesDB(db, ctx, false)
+	if err != nil {
+		return errors.New(sprintName(printN, err))
 	}
 
-	ret = cfg.InitAltNamesDB(db, ctx, true)
-	if !ret {
-		return false
+	err = cfg.InitAltNamesDB(db, ctx, true)
+	if err != nil {
+		return errors.New(sprintName(printN, err))
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Ran through all tables for initialisation.")
 
-	return true
+	return nil
 }
 
 // InitAllDB initializes the DB file structure if needed and all tables.
+// It will stop the program if it encounters an error.
 //
 // db - open database connection
 //
@@ -928,9 +918,9 @@ func (cfg Config) InitAllDB(db *sql.DB, ctx context.Context) {
 		cfg.InitDBFileStructure()
 	}
 
-	ret := cfg.InitAllDBTables(db, ctx)
-	if !ret {
-		printName(printN, "Database didn't get initialised, because of an error, exiting.")
+	err := cfg.InitAllDBTables(db, ctx)
+	if err != nil {
+		printName(printN, "Database didn't get initialised, because of an error, exiting: ", err)
 		os.Exit(1)
 	}
 
@@ -938,6 +928,31 @@ func (cfg Config) InitAllDB(db *sql.DB, ctx context.Context) {
 		printName(printN, "No proper driver selected. Choose sqlite3 or mysql!")
 		os.Exit(1)
 	}
+}
+
+func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
+	errChannel chan error, drugname string, client graphql.Client) {
+
+	const printN string = "FetchFromSource()"
+
+	gotsrcData := GetSourceData()
+	printNameVerbose(cfg.VerbosePrinting, printN, "Using API from settings.toml:", cfg.UseSource)
+	printNameVerbose(cfg.VerbosePrinting, printN, "Got API URL from sources.toml:", gotsrcData[cfg.UseSource].API_ADDRESS)
+
+	if cfg.UseSource == "psychonautwiki" {
+		errChannel2 := make(chan error)
+		go cfg.FetchPsyWiki(db, ctx, errChannel2, drugname, client)
+		err := <-errChannel2
+		if err != nil {
+			errChannel <- errors.New(sprintName(printN, "While fetching from: ", cfg.UseSource, " ; error: ", err))
+			return
+		}
+	} else {
+		errChannel <- errors.New(sprintName(printN, "No valid API selected:", cfg.UseSource))
+		return
+	}
+
+	errChannel <- nil
 }
 
 func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan error,
@@ -972,24 +987,26 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 		return
 	}
 
-	var count int
-	err := db.QueryRowContext(ctx, "select count(*) from "+loggingTableName+
-		" where username = ?", user).Scan(&count)
+	var count uint32
+	err, count := cfg.GetLogsCount(db, ctx, user)
 	if err != nil {
-		errChannel <- errors.New(sprintName(printN,
-			"Error when counting user logs for user:", user, ":", err))
+		errChannel <- errors.New(sprintName(printN, err))
 		return
 	}
 
+	// get lock
 	synct.Lock.Lock()
+
 	if MaxLogsPerUserSize(count) >= cfg.MaxLogsPerUser {
-		diff := count - int(cfg.MaxLogsPerUser)
+		diff := count - uint32(cfg.MaxLogsPerUser)
 		if cfg.AutoRemove {
 			errChannel2 := make(chan error)
-			go cfg.RemoveLogs(db, ctx, errChannel2, user, diff+1, true, 0, "none")
+			go cfg.RemoveLogs(db, ctx, errChannel2, user, int(diff+1), true, 0, "none")
 			gotErr := <-errChannel2
 			if gotErr != nil {
+				// release lock
 				errChannel <- gotErr
+				synct.Lock.Unlock()
 				return
 			}
 		} else {
@@ -998,6 +1015,9 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 			return
 		}
 	}
+
+	// release lock
+	synct.Lock.Unlock()
 
 	// Add to log db
 	tx, err := db.BeginTx(ctx, nil)
@@ -1009,10 +1029,13 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 	stmt, err := tx.Prepare("insert into " + loggingTableName +
 		" (timeOfDoseStart, username, timeOfDoseEnd, drugName, dose, doseUnits, drugRoute) " +
 		"values(?, ?, ?, ?, ?, ?, ?)")
-	if handleErrRollback(err, tx, errChannel) == false {
+	if handleErrRollback(err, tx, errChannel) {
 		return
 	}
 	defer stmt.Close()
+
+	// get lock
+	synct.Lock.Lock()
 
 	currTime := time.Now().Unix()
 	if currTime == synct.LastTimestamp && user == synct.LastUser {
@@ -1021,23 +1044,24 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 	}
 
 	_, err = stmt.Exec(currTime, user, 0, drug, dose, units, route)
-	if handleErrRollback(err, tx, errChannel) == false {
+	if handleErrRollback(err, tx, errChannel) {
 		return
 	}
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel) == false {
+	if handleErrRollback(err, tx, errChannel) {
 		return
 	}
 
 	synct.LastTimestamp = currTime
 	synct.LastUser = user
 
+	// release lock
+	synct.Lock.Unlock()
+
 	if printit {
 		printNameF(printN, "Logged: drug: %q ; dose: %g ; units: %q ; route: %q ; username: %q\n",
 			drug, dose, units, route, user)
 	}
-
-	synct.Lock.Unlock()
 
 	errChannel <- nil
 }
@@ -1133,7 +1157,7 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) []string {
 // ctx - context to be passed to sql queries
 //
 // user - user to get log count for
-func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) uint32 {
+func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) (error, uint32) {
 	const printN string = "GetLogsCount()"
 
 	var count uint32
@@ -1141,11 +1165,11 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) uin
 	row := db.QueryRowContext(ctx, "select count(*) from "+loggingTableName+" where username = ?", user)
 	err := row.Scan(&count)
 	if err != nil {
-		printName(printN, "Error getting count:", err)
-		return 0
+		err = errors.New(sprintName(printN, "Error getting count:", err))
+		return err, 0
 	}
 
-	return count
+	return nil, count
 }
 
 // db - an open database connection
@@ -1249,7 +1273,7 @@ func (cfg Config) GetLogs(db *sql.DB, userLogsErrorChannel chan UserLogsError,
 		return
 	}
 	if len(userlogs) == 0 {
-		tempUserLogsError.Err = errors.New(sprintName(printN, "No logs returned."))
+		tempUserLogsError.Err = errors.New(sprintName(printN, "No logs returned for user: ", user))
 		tempUserLogsError.UserLogs = nil
 		userLogsErrorChannel <- tempUserLogsError
 		return
@@ -1504,7 +1528,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan er
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, errChannel) == false {
+	if handleErrRollback(err, tx, errChannel) {
 		return
 	}
 	defer stmt.Close()
@@ -1513,12 +1537,12 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan er
 	} else {
 		_, err = stmt.Exec(username)
 	}
-	if handleErrRollback(err, tx, errChannel) == false {
+	if handleErrRollback(err, tx, errChannel) {
 		return
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel) == false {
+	if handleErrRollback(err, tx, errChannel) {
 		return
 	}
 

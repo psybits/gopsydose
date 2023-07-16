@@ -12,7 +12,7 @@ type SourceConfig struct {
 	API_ADDRESS string
 }
 
-type MaxLogsPerUserSize int16
+type MaxLogsPerUserSize int32
 
 type Config struct {
 	MaxLogsPerUser  MaxLogsPerUserSize
@@ -135,8 +135,7 @@ func sprintName(name string, str ...any) string {
 // Instead of printing, just return the formatted string with a newline.
 func sprintfName(name string, str string, variables ...any) string {
 	if name != "" {
-		initialStr := fmt.Sprintf("%s", name)
-		return fmt.Sprintf(initialStr+str, variables...)
+		return fmt.Sprintf(sprintPrefix(name)+str, variables...)
 	}
 	return ""
 }

@@ -290,7 +290,7 @@ var (
 // where a string is coming from.
 // If you only need to add a newline, don't use this function!
 func printCLI(str ...any) {
-	fmt.Print("gopsydose: CLI: ")
+	fmt.Print("CLI: ")
 	fmt.Println(str...)
 }
 
@@ -313,8 +313,6 @@ func main() {
 	gotsetcfg := drugdose.InitAllSettings(*sourcecfg, *dbDir, drugdose.DefaultDBName,
 		drugdose.DefaultMySQLAccess, *recreateSettings, *recreateSources,
 		*verbose, *apiAddress)
-
-	gotsrcData := drugdose.GetSourceData()
 
 	ctx, ctx_cancel, err := gotsetcfg.UseConfigTimeout()
 	if err != nil {
@@ -377,16 +375,18 @@ func main() {
 	}
 
 	if *cleanInfo {
-		ret := gotsetcfg.CleanInfo(db, ctx)
-		if !ret {
-			printCLI("Info table: " + gotsetcfg.UseSource + "couldn't be removed because of an error.")
+		err := gotsetcfg.CleanInfo(db, ctx)
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
 		}
 	}
 
 	if *cleanDB {
-		ret := gotsetcfg.CleanDB(db, ctx)
-		if !ret {
-			printCLI("Database couldn't be cleaned, because of an error.")
+		err := gotsetcfg.CleanDB(db, ctx)
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
 		}
 	}
 
@@ -396,9 +396,10 @@ func main() {
 	}
 
 	if *removeInfoDrug != "none" {
-		ret := gotsetcfg.RemoveSingleDrugInfoDB(db, ctx, *removeInfoDrug)
-		if !ret {
-			printCLI("Failed to remove single drug from info database:", *removeInfoDrug)
+		go gotsetcfg.RemoveSingleDrugInfoDB(db, ctx, errChannel, *removeInfoDrug)
+		err := <-errChannel
+		if err != nil {
+			printCLI(err)
 		}
 	}
 
@@ -422,9 +423,9 @@ func main() {
 	}
 
 	if *cleanNames {
-		ret := gotsetcfg.CleanNames(db, ctx, false)
-		if !ret {
-			printCLI("Couldn't remove alt names from DB because of an error.")
+		err := gotsetcfg.CleanNames(db, ctx, false)
+		if err != nil {
+			printCLI(err)
 		}
 	}
 
@@ -448,7 +449,10 @@ func main() {
 	}
 
 	if *getLogsCount {
-		ret := gotsetcfg.GetLogsCount(db, ctx, *forUser)
+		err, ret := gotsetcfg.GetLogsCount(db, ctx, *forUser)
+		if err != nil {
+			printCLI(err)
+		}
 		printCLI("Total number of logs:", ret, "; for user:", *forUser)
 	}
 
@@ -588,33 +592,25 @@ func main() {
 	}
 
 	if inputDose == true || *dontLog == true && *drugname != "none" {
-		printCLIVerbose(*verbose, "Using API from settings.toml: "+gotsetcfg.UseSource)
-		printCLIVerbose(*verbose, "Got API URL from sources.toml: "+gotsrcData[gotsetcfg.UseSource].API_ADDRESS)
-
-		ret, cli := gotsetcfg.InitGraphqlClient()
-		if ret == true {
-			if gotsetcfg.UseSource == "psychonautwiki" {
-				ret := gotsetcfg.FetchPsyWiki(db, ctx, *drugname, cli)
-				if !ret {
-					printCLIVerbose(*verbose, "Didn't fetch anything from:", gotsetcfg.UseSource)
-				}
-			} else {
-				printCLI("No valid API selected:", gotsetcfg.UseSource)
-				os.Exit(1)
-			}
-
-			synct := drugdose.SyncTimestamps{}
-			if *dontLog == false {
-				go gotsetcfg.AddToDoseDB(db, ctx, errChannel, &synct, *forUser, *drugname, *drugroute,
-					float32(*drugargdose), *drugunits, float32(*drugperc), true)
-				gotErr := <-errChannel
-				if gotErr != nil {
-					printCLI(gotErr)
-				}
+		err, cli := gotsetcfg.InitGraphqlClient()
+		if err == nil {
+			go gotsetcfg.FetchFromSource(db, ctx, errChannel, *drugname, cli)
+			err = <-errChannel
+			if err != nil {
+				printCLI(err)
 			}
 		} else {
-			printCLI("Something went wrong when initialising the client," +
-				"\nnothing was fetched or logged.")
+			printCLI(err)
+		}
+
+		synct := drugdose.SyncTimestamps{}
+		if *dontLog == false {
+			go gotsetcfg.AddToDoseDB(db, ctx, errChannel, &synct, *forUser, *drugname, *drugroute,
+				float32(*drugargdose), *drugunits, float32(*drugperc), true)
+			gotErr := <-errChannel
+			if gotErr != nil {
+				printCLI(gotErr)
+			}
 		}
 	}
 
