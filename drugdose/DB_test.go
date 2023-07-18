@@ -319,5 +319,7 @@ func TestUseConfigTimeout(t *testing.T) {
 		t.Fail()
 	}
 
+	fmt.Println(gotErr)
+
 	cfg.cleanAfterTest(db, ctx)
 }

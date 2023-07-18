@@ -65,20 +65,36 @@ func errorCantOpenDB(filePath string, err error) {
 // If err is not nil, starts a transaction rollback and returns the error
 // through errChannel.
 //
+// This function is meant to be used within concurrently ran functions.
+//
 // Returns true if there's an error, false otherwise.
-func handleErrRollback(err error, tx *sql.Tx, errChannel chan error) bool {
-	const printN string = "handleErrRollback()"
-
+func handleErrRollback(err error, tx *sql.Tx, errChannel chan error, printN string, xtraMsg string) bool {
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
-			errChannel <- errors.New(sprintName(printN, err2))
+			errChannel <- errors.New(sprintName(printN, xtraMsg, err2))
 			return true
 		}
-		errChannel <- errors.New(sprintName(printN, err))
+		errChannel <- errors.New(sprintName(printN, xtraMsg, err))
 		return true
 	}
 	return false
+}
+
+// If err is not nil, starts a transaction rollback and returns the error.
+//
+// This function is meant to be used within sequentially ran functions.
+//
+// Returns the error if there's one, nil otherwise.
+func handleErrRollbackSeq(err error, tx *sql.Tx, printN string, xtraMsg string) error {
+	if err != nil {
+		err2 := tx.Rollback()
+		if err2 != nil {
+			return errors.New(sprintName(printN, xtraMsg, err2))
+		}
+		return errors.New(sprintName(printN, xtraMsg, err))
+	}
+	return nil
 }
 
 type UserLog struct {
@@ -442,14 +458,16 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
 		}
 
 		_, err = tx.Exec("drop table " + name)
+		err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 		if err != nil {
-			return errors.New(sprintName(printN, "tx.Exec(): ", err))
+			return err
 		}
 	}
 
 	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, "tx.Commit(): ", err))
+		return err
 	}
 
 	if cfg.VerbosePrinting == true {
@@ -479,13 +497,15 @@ func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) error {
 	}
 
 	_, err = tx.Exec("drop table " + cfg.UseSource)
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, "tx.Exec(): ", err))
+		return err
 	}
 
 	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, "tx.Commit(): ", err))
+		return err
 	}
 
 	printName(printN, "The info table: "+cfg.UseSource+"; removed from DB.")
@@ -531,15 +551,17 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) 
 		fmt.Print(tableNames[i] + ", ")
 
 		_, err = tx.Exec("drop table " + tableNames[i])
+		err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 		if err != nil {
-			return errors.New(sprintName(printN, "tx.Exec(): ", err))
+			return err
 		}
 	}
 	fmt.Println()
 
 	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, "tx.Commit(): ", err))
+		return err
 	}
 
 	printName(printN, "All tables removed from DB.")
@@ -579,8 +601,7 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan e
 		"totalDurMin, totalDurMax, totalDurUnits, " +
 		"timeOfFetch) " +
 		"values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "tx.Prepare(): ", err))
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
 		return
 	}
 
@@ -613,14 +634,12 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan e
 			subs[i].TotalDurMax,
 			subs[i].TotalDurUnits,
 			time.Now().Unix())
-		if err != nil {
-			errChannel <- errors.New(sprintName(printN, "stmt.Exec():", err))
+		if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
 			return
 		}
 	}
 	err = tx.Commit()
-	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "tx.Commit():", err))
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
 		return
 	}
 
@@ -1004,8 +1023,8 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 			go cfg.RemoveLogs(db, ctx, errChannel2, user, int(diff+1), true, 0, "none")
 			gotErr := <-errChannel2
 			if gotErr != nil {
-				// release lock
 				errChannel <- gotErr
+				// release lock
 				synct.Lock.Unlock()
 				return
 			}
@@ -1029,7 +1048,7 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 	stmt, err := tx.Prepare("insert into " + loggingTableName +
 		" (timeOfDoseStart, username, timeOfDoseEnd, drugName, dose, doseUnits, drugRoute) " +
 		"values(?, ?, ?, ?, ?, ?, ?)")
-	if handleErrRollback(err, tx, errChannel) {
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
@@ -1044,11 +1063,15 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 	}
 
 	_, err = stmt.Exec(currTime, user, 0, drug, dose, units, route)
-	if handleErrRollback(err, tx, errChannel) {
+	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
+		// release lock
+		synct.Lock.Unlock()
 		return
 	}
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel) {
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
+		// release lock
+		synct.Lock.Unlock()
 		return
 	}
 
@@ -1528,7 +1551,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan er
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, errChannel) {
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
@@ -1537,12 +1560,12 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan er
 	} else {
 		_, err = stmt.Exec(username)
 	}
-	if handleErrRollback(err, tx, errChannel) {
+	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
 		return
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel) {
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
 		return
 	}
 
