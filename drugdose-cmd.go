@@ -598,6 +598,7 @@ func main() {
 			err = <-errChannel
 			if err != nil {
 				printCLI(err)
+				*dontLog = true
 			}
 		} else {
 			printCLI(err)

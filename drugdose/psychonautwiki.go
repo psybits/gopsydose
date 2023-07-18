@@ -162,7 +162,7 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 
 	err := client.Query(ctx, &query, variables)
 	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "Error from Psychonautwiki API:", err))
+		errChannel <- errors.New(sprintName(printN, "Error from Psychonautwiki API: ", err))
 		return
 	}
 
@@ -225,7 +225,7 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 			return
 		}
 	} else {
-		errChannel <- errors.New(sprintName(printN, "The Psychonautwiki API returned nothing, so query is wrong or connection is broken."))
+		errChannel <- errors.New(sprintName(printN, "The Psychonautwiki API returned nothing."))
 		return
 	}
 
