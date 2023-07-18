@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"database/sql"	
+	"database/sql"
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module

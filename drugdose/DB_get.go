@@ -3,11 +3,11 @@ package drugdose
 import (
 	"context"
 	"errors"
+	"os"
 	"strconv"
 	"strings"
-	"os"
 
-	"database/sql"	
+	"database/sql"
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module

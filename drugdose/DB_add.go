@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"database/sql"	
+	"database/sql"
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module
@@ -16,9 +16,13 @@ import (
 // in the database. subs[] has to be filled prior to calling the function.
 // This is usually achieved by fetching data from a source using it's API.
 //
+// This function is meant to be run concurrently.
+//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
+//
+// errChannel - the gorouting channel which returns the errors
 //
 // subs - all substances of type DrugInfo to go through to add to source table
 func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan error, subs []DrugInfo) {
@@ -172,9 +176,8 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 	synct.Lock.Lock()
 
 	currTime := time.Now().Unix()
-	if currTime == synct.LastTimestamp && user == synct.LastUser {
-		time.Sleep(time.Second)
-		currTime = time.Now().Unix()
+	if currTime <= synct.LastTimestamp && user == synct.LastUser {
+		currTime = synct.LastTimestamp + 1
 	}
 
 	_, err = stmt.Exec(currTime, user, 0, drug, dose, units, route)

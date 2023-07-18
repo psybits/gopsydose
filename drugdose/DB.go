@@ -12,7 +12,7 @@ import (
 
 	"github.com/hasura/go-graphql-client"
 
-	"database/sql"	
+	"database/sql"
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module
@@ -508,4 +508,3 @@ func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, set string, id in
 
 	return true
 }
-
