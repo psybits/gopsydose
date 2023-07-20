@@ -10,17 +10,17 @@ import (
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 )
 
 // CheckDBFileStruct returns true if the file structure is already created,
 // false otherwise. Checks whether the db directory and minimum amount of files
 // exist with the proper names in it. This is currently only useful for sqlite.
-// If Config.DBDriver is not set to "sqlite3" it will return false.
+// If Config.DBDriver is not set to "sqlite" it will return false.
 func (cfg Config) CheckDBFileStruct() bool {
 	const printN string = "CheckDBFileStruct()"
 
-	if cfg.DBDriver != "sqlite3" {
+	if cfg.DBDriver != SqliteDriver {
 		return false
 	}
 
@@ -46,11 +46,11 @@ func (cfg Config) CheckDBFileStruct() bool {
 // This should be run only once! The function calls CheckDBFileStruct,
 // so there's no need to do it manually before calling it!
 // This is currently only useful for sqlite.
-// If Config.DBDriver is not set to "sqlite3" it will return.
+// If Config.DBDriver is not set to "sqlite" it will return.
 func (cfg Config) InitDBFileStructure() {
 	const printN string = "InitDBFileStructure()"
 
-	if cfg.DBDriver != "sqlite3" {
+	if cfg.DBDriver != SqliteDriver {
 		return
 	}
 
@@ -99,7 +99,7 @@ func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) error {
 	}
 
 	caseInsensitive := " "
-	if cfg.DBDriver == "sqlite3" {
+	if cfg.DBDriver == SqliteDriver {
 		caseInsensitive = " COLLATE NOCASE "
 	}
 
@@ -155,7 +155,7 @@ func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) error {
 	}
 
 	caseInsensitive := " "
-	if cfg.DBDriver == "sqlite3" {
+	if cfg.DBDriver == SqliteDriver {
 		caseInsensitive = " COLLATE NOCASE "
 	}
 
@@ -254,7 +254,7 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 	}
 
 	caseInsensitive := " "
-	if cfg.DBDriver == "sqlite3" {
+	if cfg.DBDriver == SqliteDriver {
 		caseInsensitive = " COLLATE NOCASE "
 	}
 
@@ -369,7 +369,7 @@ func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
 func (cfg Config) InitAllDB(db *sql.DB, ctx context.Context) {
 	const printN string = "InitAllDB()"
 
-	if cfg.DBDriver == "sqlite3" {
+	if cfg.DBDriver == SqliteDriver {
 		cfg.InitDBFileStructure()
 	}
 
@@ -379,8 +379,8 @@ func (cfg Config) InitAllDB(db *sql.DB, ctx context.Context) {
 		os.Exit(1)
 	}
 
-	if cfg.DBDriver != "mysql" && cfg.DBDriver != "sqlite3" {
-		printName(printN, "No proper driver selected. Choose sqlite3 or mysql!")
+	if cfg.DBDriver != MysqlDriver && cfg.DBDriver != SqliteDriver {
+		printName(printN, "No proper driver selected. Choose "+SqliteDriver+" or "+MysqlDriver+"!")
 		os.Exit(1)
 	}
 }

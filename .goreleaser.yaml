@@ -4,17 +4,38 @@ release:
 builds:
   -
     main: .
-    id: "linux-CLI"
+    id: "gopsydose-cli"
+    binary: dose
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      - freebsd
+      - openbsd
+      - netbsd
+      - darwin
     goarch:
       - amd64
       - 386
+      - arm64
+      - arm
+      - riscv64
+    ignore:
+      - goos: windows
+        goarch: 386
+      - goos: windows
+        goarch: arm
+      - goos: openbsd
+        goarch: 386
+      - goos: openbsd
+        goarch: arm
+      - goos: netbsd
+        goarch: 386
+      - goos: netbsd
+        goarch: arm
 archives:
   -
-    rlcp: true
     format_overrides:
       - goos: windows
         format: zip

@@ -13,9 +13,8 @@ import (
 
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
-
 	// SQLite driver needed for sql module
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 
 	cp "github.com/otiai10/copy"
 )

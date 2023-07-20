@@ -18,7 +18,7 @@ const test_user string = "test_user"
 const test_source string = "test"
 
 func testWithDrivers() [2]string {
-	return [2]string{"sqlite3", "mysql"}
+	return [2]string{SqliteDriver, MysqlDriver}
 }
 
 func testUsernames(o int) string {
@@ -289,7 +289,7 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 }
 
 func TestUseConfigTimeout(t *testing.T) {
-	db, ctx, cfg := initForTests("sqlite3")
+	db, ctx, cfg := initForTests(SqliteDriver)
 	defer db.Close()
 
 	cfg.Timeout = "1s"

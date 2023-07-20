@@ -11,7 +11,7 @@ import (
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 )
 
 // CleanDB deletes all tables in the database. This is why it's a good idea

@@ -11,14 +11,14 @@ import (
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 )
 
 // GetDBSize returns the total size of the database in bytes.
 func (cfg Config) GetDBSize() int64 {
 	const printN string = "GetDBSize()"
 
-	if cfg.DBDriver == "sqlite3" {
+	if cfg.DBDriver == SqliteDriver {
 		file, err := os.Open(cfg.DBSettings[cfg.DBDriver].Path)
 		if err != nil {
 			printName(printN, "Error opening:", cfg.DBSettings[cfg.DBDriver].Path, ":", err)
@@ -38,7 +38,7 @@ func (cfg Config) GetDBSize() int64 {
 		}
 
 		return fileInfo.Size()
-	} else if cfg.DBDriver == "mysql" {
+	} else if cfg.DBDriver == MysqlDriver {
 		db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 		if err != nil {
 			errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)

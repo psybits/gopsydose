@@ -16,7 +16,7 @@ import (
 	// MySQL driver needed for sql module
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 )
 
 // TODO: Encryption should be done by default unless specified not to by the user from the settings
@@ -25,6 +25,9 @@ import (
 // TODO: Some basic tests need to be written
 
 // TODO: Functions need comments.
+
+const SqliteDriver string = "sqlite"
+const MysqlDriver string = "mysql"
 
 const loggingTableName string = "userLogs"
 const userSetTableName string = "userSettings"
@@ -237,12 +240,12 @@ func (cfg Config) PingDB(db *sql.DB, ctx context.Context) {
 func (cfg Config) getTableNamesQuery(tableName string) string {
 	var queryStr string
 	andTable := ""
-	if cfg.DBDriver == "sqlite3" {
+	if cfg.DBDriver == SqliteDriver {
 		if tableName != "" {
 			andTable = " AND name = '" + tableName + "'"
 		}
 		queryStr = "SELECT name FROM sqlite_schema WHERE type='table'" + andTable
-	} else if cfg.DBDriver == "mysql" {
+	} else if cfg.DBDriver == MysqlDriver {
 		if tableName != "" {
 			andTable = " AND table_name = '" + tableName + "'"
 		}

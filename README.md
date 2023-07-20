@@ -18,11 +18,41 @@ If it prevents a person from consuming more, then it's done it's job.
 
 Showing logs to others as a bragging point makes you look like a fool.
 
+## Current status
+
+The project is in a very early phase, making the very first steps
+at being something remotely usable. If you feel like it, give it a try
+and please if you have any ideas, concerns, etc. write in the Issues.
+
+### Builds
+
+If you don't want to build from source, you can checkout the "Releases"
+section. There should be a "snapshot" tag with archives attached to it.
+
+### Contributions
+
+Pull requests are very welcome as well and there currently aren't any
+guidelines, just try sticking to the coding style and use `gofmt`!
+It would be nice if single lines stay <= 120 characters.
+
+### Module
+
+Using this as a module now is a bad idea, because the API will most
+likely change a lot until the first stable tag.
+
+If you're not sure what this means, then you don't need to worry about it.
+
+### Terminal tool changes
+
+If after an update to the terminal tool something broke, it's best to clear
+all config files and database files/tables and start over. That's just what
+happens when a project is in rapid development without versioning.
+
+If that didn't help with solving the issue, send a report on Github please!
+
 ## Source Information
 
-You can find any info present in the "source" that's configured.
-
-Currently the default source is [psychonautwiki](https://psychonautwiki.org).
+Currently the default source is https://psychonautwiki.org
 This means the info present there, that's available through their API, will be
 downloaded to your machine and stored in a local database. Later when you log
 new dosages or want information about a substance, it will use the local
@@ -37,7 +67,7 @@ you might lose data, which you might need in case you don't have an Internet
 connection. It's also a lot slower to get data using the API compared to
 the local database.
 
-## Examples
+## Terminal tool examples
 
 ### Basic options
 
@@ -91,7 +121,7 @@ You can combine `-get-logs` or `-get-times` with: `-for-id`
 
 to get information for a specific ID.
 
-### Extra options
+### More options
 
 If you want a log to be remembered and only set the dose for the next log:
 
@@ -146,7 +176,8 @@ To see where your config files and database file are:
 
 `gopsydose -get-dirs`
 
-Checkout [this](#configs-explained) section for more info on configs!
+Checkout the [Configs Explained](#configs-explained) section for explanations
+on configuration options!
 
 If you're paranoid, to clean the whole database: `gopsydose -clean-db`
 
@@ -158,11 +189,11 @@ Then you can delete the database (db) file itself manually.
 ## Security/Privacy
 
 The issue is currently no files are encrypted and can't be 
-until a proper implementation is done, also since
-by default we're fetching drug information using the psychonautwiki API,
+until a proper implementation is done. Also since
+by default drug information is fetched using the psychonautwiki API,
 it would be wise not to spam their servers too much.
-We store all information locally on first fetch and use only the local info
-later for everything. This way even if the Internet goes down, the logger
+The information is stored locally on first fetch and reused later for
+everything. This way even if the Internet goes down, the logger
 can still be used properly and the API servers can relax.
 
 For any more info, again: `gopsydose -help`
@@ -186,109 +217,63 @@ that, shell aliases are system wide and from the operating system. The
 use of those settings, which is OS-independent. Aliases are a lot more flexible
 currently, so use them when you need them!
 
-## Current status
-
-The project is in a very early phase, making the very first steps
-at being something remotely usable. If you feel like it, give it a try
-and please if you have any ideas, concerns, etc. write in the Issues.
-
-If you don't want to build from source, you can checkout the "Releases"
-section. There should be a "snapshot" tag with archives attached to it.
-
-Pull requests are very welcome as well and there currently aren't any
-guidelines, just try sticking to the coding style and use `gofmt`!
-It would be nice if single lines stay <= 120 characters.
-
-Using this as a module now is a bad idea since the API will most
-likely change a lot until the first stable tag.
-
 ## Installing Go
 
-Check whether you already have Go, by typing `go version` in your
-terminal. If information about Go shows up and you're on Go version 1.18+,
-you're good to go. Otherwise remove the old installation and reinstall
-with a newer version.
-
-You need to download Go:
-* If you're on Windows, you need to download Go
-from the official website [here](https://go.dev/).
-* If you're on Linux, use your package manager!
-
-[Skip to GCC](#installing-gcc)
+* When using Windows, Go can be downloaded
+from the official website https://go.dev
+* When using Linux, a package manager can be used.
+Checkout the [Go Linux Installation](#go-linux-installation) section!
 
 ### Go Linux Installation
 
-Works on OpenSUSE Tumbleweed. Leap hasn't been tested
-and seems like it won't work there.
+For OpenSUSE, Tumbleweed is preferable, since Leap would probably be falling
+behind a bit with the versions.
 
 OpenSUSE: `sudo zypper install go`
 
 Arch Linux: `sudo pacman -S go`
 
-Fedora and Debian might be a bit out of date.
+Fedora and Debian might be a bit out of date as well.
 
-If for Debian the version is old, you need to use backports or sid.
+If for Debian the version is old, backports or sid need to be used.
 Do this at your own risk, since this is not the normal way of installing
 packages.
 
-If for Fedora the version is old, you need to use a package from
-a newer release, Rawhide or a third party repository.
+If for Fedora the version is old, a package from a newer release, Rawhide or
+a third party repository needs to be used.
 The same warning applies as for Debian.
 
 Fedora: `sudo dnf install golang`
 
 Debian: `sudo apt install golang-go`
 
-## Installing GCC
+### Using asdf
 
-Check whether you already have GCC, by typing `gcc --version` in your
-terminal. If information about GCC shows up and you're on GCC version 10+,
-you're good to go. Otherwise remove the old installation and reinstall
-with a newer version.
-
-You need to download GCC as well:
-* On Windows you can download
-[tdm-gcc](https://jmeubank.github.io/tdm-gcc/download/).
-* On Linux use your package manager!
-
-[Skip to main installation](#installing-this-project)
-
-### GCC Windows installation
-
-The tdm-gcc GUI installer defaults are enough.
-
-### GCC Linux installation
-
-Same info from [Go section](#go-linux-installation)
-about Leap, Debian and Fedora versions applies here.
-
-OpenSUSE: `sudo zypper install gcc`
-
-Arch Linux: `sudo pacman -S gcc`
-
-Fedora: `sudo dnf install gcc`
-
-Debian: `sudo apt install gcc-10` or `gcc-11`
+If the distribution package manager isn't used, there's also an option
+with an external tool. Checkout https://asdf-vm.com
 
 ## Installing this project
 
-Then you need to run in a terminal:
+To install the gopsydose terminal tool, run in terminal:
 
 `go install github.com/psybits/gopsydose@latest`
 
-Afterwards you can do a quick test with: `gopsydose -help`
+Afterwards a quick test can be done in the terminal: `gopsydose -help`
+
+It should show a list of commands and their descriptions. If not, something
+went wrong in the installation.
 
 There are a lot of commands and currently it isn't very clear, but
 a few examples and explanations are present in this document.
 
 ## Viewing/Editing the database
 
-If you wish to view/edit the sqlite3 database manually, you can
-use the [SQLite Browser](https://sqlitebrowser.org/dl/).
+To view or edit the sqlite database manually,
+[SQLite Browser](https://sqlitebrowser.org/dl/) can be used.
 
-For MariaDB/MySQL you can use [DBeaver](https://dbeaver.io/).
+For MariaDB/MySQL, [DBeaver](https://dbeaver.io/) can be used.
 
-Get the database directory using: `gopsydose -get-dirs`
+To get the database directory, run in terminal: `gopsydose -get-dirs`
 
 ## Configs explained
 
@@ -339,7 +324,7 @@ This setting depends on the way the API is used. Some developers might choose
 to ignore it, some might want to use it. When used, it's supposed to set the
 time to wait for a SQL query to finish or a connection to a server to be done.
 Some developers might use it as the total duration for all connections or
-queries, for example in the case of CLI programs.
+queries, for example in the case of terminal programs.
 
 When ignored, it would be good for the developers to set the value to something
 like "This Value Is Ignored".
@@ -376,5 +361,5 @@ Example: /home/computer-user/.local/share/GPD/gpd.db
 API_ADDRESS = 'api.whereitis.com'
 ```
 
-An implementation needs to be present in the code for the name here.
+An implementation needs to be present in the code for the name of the API.
 

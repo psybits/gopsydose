@@ -39,7 +39,7 @@ const DefaultAutoFetch bool = true
 const DefaultDBDir string = "GPD"
 const DefaultDBName string = "gpd.db"
 const DefaultAutoRemove bool = false
-const DefaultDBDriver string = "sqlite3"
+const DefaultDBDriver string = SqliteDriver
 const DefaultMySQLAccess string = "user:password@tcp(127.0.0.1:3306)/database"
 const DefaultVerbose bool = false
 const DefaultTimezone string = "Local"
@@ -306,10 +306,10 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 	}
 
 	var dbSettings = map[string]DBSettings{
-		"sqlite3": {
+		SqliteDriver: {
 			Path: dbdir + "/" + dbname,
 		},
-		"mysql": {
+		MysqlDriver: {
 			Path: mysqlaccess,
 		},
 	}
