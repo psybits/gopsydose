@@ -50,9 +50,9 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 
 	ctx := context.Background()
 
-	db := gotsetcfg.OpenDBConnection(ctx)
+	gotsetcfg.InitAllDB(ctx)
 
-	gotsetcfg.InitAllDB(db, ctx)
+	db := gotsetcfg.OpenDBConnection(ctx)
 
 	var testsub []DrugInfo
 	tempsub := DrugInfo{

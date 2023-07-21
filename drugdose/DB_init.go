@@ -13,73 +13,51 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
-// CheckDBFileStruct returns true if the file structure is already created,
-// false otherwise. Checks whether the db directory and minimum amount of files
-// exist with the proper names in it. This is currently only useful for sqlite.
-// If Config.DBDriver is not set to "sqlite" it will return false.
-func (cfg Config) CheckDBFileStruct() bool {
-	const printN string = "CheckDBFileStruct()"
-
-	if cfg.DBDriver != SqliteDriver {
-		return false
-	}
-
-	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
-
-	_, err := os.Stat(dbFileLocat)
-	if err == nil {
-		printNameVerbose(cfg.VerbosePrinting, printN, dbFileLocat+": Exists")
-	} else if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			printName(printN, dbFileLocat+": Doesn't seem to exist:", err)
-			return false
-		} else {
-			printName(printN, err)
-			return false
-		}
-	}
-
-	return true
-}
-
 // InitDBFileStructure creates the basic file structure for the database.
-// This should be run only once! The function calls CheckDBFileStruct,
-// so there's no need to do it manually before calling it!
+// This should be run only once!
 // This is currently only useful for sqlite.
-// If Config.DBDriver is not set to "sqlite" it will return.
+// If Config.DBDriver is not set to "sqlite" it will exit the program.
 func (cfg Config) InitDBFileStructure() {
 	const printN string = "InitDBFileStructure()"
 
 	if cfg.DBDriver != SqliteDriver {
+		printName(printN, "Database file can only be created for sqlite.")
+		exitProgram(printN)
+	}
+
+	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
+	_, err := os.Stat(dbFileLocat)
+	if err == nil {
+		printNameVerbose(cfg.VerbosePrinting, printN, dbFileLocat+" exists.")
 		return
 	}
 
-	ret := cfg.CheckDBFileStruct()
-	if ret == true {
-		return
+	if errors.Is(err, os.ErrNotExist) == false {
+		printName(printN, err)
+		exitProgram(printN)
 	}
 
 	dirOnly := path.Dir(cfg.DBSettings[cfg.DBDriver].Path)
 
-	err := os.Mkdir(dirOnly, 0700)
+	err = os.Mkdir(dirOnly, 0700)
 	if err != nil {
-		printName(printN, "Error creating directory for DB:", err)
-		exitProgram()
+		printName(printN, "os.Mkdir(): Error creating directory for DB:", dirOnly, ":", err)
+		exitProgram(printN)
 	}
-
-	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
 
 	file, err := os.Create(dbFileLocat)
 	if err != nil {
-		errorCantCreateDB(dbFileLocat, err)
+		printName(printN, "os.Create(): Error creating drug info DB file:", dbFileLocat, ":", err)
+		exitProgram(printN)
 	}
 
 	err = file.Close()
 	if err != nil {
-		errorCantCloseDB(dbFileLocat, err)
+		printName(printN, "file.Close(): Can't close DB file:", dbFileLocat, ":", err)
+		exitProgram(printN)
 	}
 
-	printName(printN, "Initialised the DB file structure.")
+	printName(printN, "Initialised the DB file structure without errors.")
 }
 
 // InitInfoDB creates the table for the currently configured source if it
@@ -366,21 +344,24 @@ func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitAllDB(db *sql.DB, ctx context.Context) {
+func (cfg Config) InitAllDB(ctx context.Context) {
 	const printN string = "InitAllDB()"
+
+	if cfg.DBDriver != MysqlDriver && cfg.DBDriver != SqliteDriver {
+		printName(printN, "No proper driver selected. Choose "+SqliteDriver+" or "+MysqlDriver+"!")
+		exitProgram(printN)
+	}
 
 	if cfg.DBDriver == SqliteDriver {
 		cfg.InitDBFileStructure()
 	}
 
+	db := cfg.OpenDBConnection(ctx)
+	defer db.Close()
+
 	err := cfg.InitAllDBTables(db, ctx)
 	if err != nil {
 		printName(printN, "Database didn't get initialised, because of an error, exiting: ", err)
-		os.Exit(1)
-	}
-
-	if cfg.DBDriver != MysqlDriver && cfg.DBDriver != SqliteDriver {
-		printName(printN, "No proper driver selected. Choose "+SqliteDriver+" or "+MysqlDriver+"!")
-		os.Exit(1)
+		exitProgram(printN)
 	}
 }

@@ -47,17 +47,17 @@ const nameTypeConvertUnits = "convUnits"
 // Read the config file for matching names and return the proper struct.
 // nameType - checkout namesFiles()
 // source - if not empty, will read the source specific config
-func GetNamesConfig(nameType string, source string) *SubstanceName {
+func GetNamesConfig(nameType string, source string) (error, *SubstanceName) {
 	const printN string = "GetNamesConfig()"
 
-	setdir := InitSettingsDir()
-	if setdir == "" {
-		return nil
+	err, setdir := InitSettingsDir()
+	if err != nil {
+		return errors.New(sprintName(printN, err)), nil
 	}
 
-	gotFile := namesFiles(nameType)
-	if gotFile == "" {
-		return nil
+	err, gotFile := namesFiles(nameType)
+	if err != nil {
+		return errors.New(sprintName(printN, err)), nil
 	}
 
 	if source != "" {
@@ -73,18 +73,17 @@ func GetNamesConfig(nameType string, source string) *SubstanceName {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			printName(printN, "Error:", err)
+			return errors.New(sprintName(printN, err)), nil
 		}
-		return nil
+		return nil, nil
 	}
 
 	err = toml.Unmarshal(file, &subName)
 	if err != nil {
-		printName(printN, "Unmarshal error:", err)
-		return nil
+		return errors.New(sprintName(printN, "Unmarshal error:", err)), nil
 	}
 
-	return &subName
+	return nil, &subName
 }
 
 func namesTables(nameType string) string {
@@ -106,7 +105,7 @@ func namesTables(nameType string) string {
 	return table
 }
 
-func namesFiles(nameType string) string {
+func namesFiles(nameType string) (error, string) {
 	const printN string = "namesFiles()"
 
 	file := ""
@@ -119,10 +118,10 @@ func namesFiles(nameType string) string {
 	} else if nameType == nameTypeConvertUnits {
 		file = namesConvUnitsFilename
 	} else {
-		printName(printN, "No nameType:", nameType)
+		return errors.New(sprintName(printN, "No nameType:", nameType)), ""
 	}
 
-	return file
+	return nil, file
 }
 
 // Copy the config files to the proper directory and read them to
@@ -138,9 +137,9 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 	nameType string, sourceNames bool, overwrite bool) error {
 	const printN string = "AddToSubstanceNamesTable()"
 
-	var setdir string = InitSettingsDir()
-	if setdir == "" {
-		return errors.New(sprintName(printN, "No settings directory found!"))
+	err, setdir := InitSettingsDir()
+	if err != nil {
+		return errors.New(sprintName(printN, err))
 	}
 
 	var CopyToPath string = setdir + "/" + allNamesConfigsDir
@@ -191,7 +190,7 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 
 	// Check if names directory exists in config directory.
 	// If it doen't, continue.
-	_, err := os.Stat(CopyToPath)
+	_, err = os.Stat(CopyToPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// Check if names directory exists in working directory.
@@ -227,9 +226,9 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 		getCfgSrc = cfg.UseSource
 	}
 
-	namesCfg := GetNamesConfig(nameType, getCfgSrc)
-	if namesCfg == nil {
-		return errors.New(sprintName(printN, "No names returned from config."))
+	err, namesCfg := GetNamesConfig(nameType, getCfgSrc)
+	if err != nil {
+		return errors.New(sprintName(printN, err))
 	}
 
 	subsStmt, err := db.PrepareContext(ctx, "insert into "+table+

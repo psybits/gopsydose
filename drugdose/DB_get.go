@@ -41,7 +41,7 @@ func (cfg Config) GetDBSize() int64 {
 	} else if cfg.DBDriver == MysqlDriver {
 		db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 		if err != nil {
-			errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
+			errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err, printN)
 		}
 		defer db.Close()
 

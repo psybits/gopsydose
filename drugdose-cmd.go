@@ -319,8 +319,9 @@ func main() {
 		printCLI(err)
 		os.Exit(1)
 	}
-
 	defer ctx_cancel()
+
+	gotsetcfg.InitAllDB(ctx)
 
 	db := gotsetcfg.OpenDBConnection(ctx)
 	defer db.Close()
@@ -330,7 +331,12 @@ func main() {
 
 	if *getDirs {
 		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
-		printCLI("Settings Dir:", drugdose.InitSettingsDir())
+		err, gotsetdir := drugdose.InitSettingsDir()
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
+		}
+		printCLI("Settings Dir:", gotsetdir)
 	}
 
 	if *overwriteNames {
@@ -363,10 +369,6 @@ func main() {
 	if *stopOnCfgInit {
 		printCLI("Stopping after config file initialization.")
 		os.Exit(0)
-	}
-
-	if *cleanDB == false {
-		gotsetcfg.InitAllDB(db, ctx)
 	}
 
 	if *dbDriverInfo {

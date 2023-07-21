@@ -42,24 +42,14 @@ const altNamesConvUnitsTableName string = "convUnitsNames"
 // This is related to the RememberConfig() and ForgetConfig() functions.
 const ForgetInputConfigMagicNumber string = "0"
 
-func exitProgram() {
-	printName("exitProgram()", "Exiting")
+func exitProgram(printN string) {
+	printName(printN, "exitProgram(): Exiting")
 	os.Exit(1)
 }
 
-func errorCantCloseDB(filePath string, err error) {
-	printName("errorCantCloseDB()", "Can't close DB file:", filePath+":", err)
-	exitProgram()
-}
-
-func errorCantCreateDB(filePath string, err error) {
-	printName("errorCantCreateDB()", "Error creating drug info DB file:", filePath+":", err)
-	exitProgram()
-}
-
-func errorCantOpenDB(filePath string, err error) {
-	printName("errorCantOpenDB()", "Error opening DB:", filePath+":", err)
-	exitProgram()
+func errorCantOpenDB(path string, err error, printN string) {
+	printName(printN, "errorCantOpenDB(): Error opening DB:", path, ":", err)
+	exitProgram(printN)
 }
 
 // If err is not nil, starts a transaction rollback and returns the error
@@ -211,9 +201,11 @@ func (cfg Config) UseConfigTimeout() (context.Context, context.CancelFunc, error
 //
 // ctx - context to be passed to PingDB(), first passing through WithTimeout()
 func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
+	const printN string = "OpenDBConnection()"
+
 	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
 	if err != nil {
-		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err, printN)
 	}
 
 	cfg.PingDB(db, ctx)
@@ -227,9 +219,11 @@ func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
 //
 // ctx - context to be passed to PingContext()
 func (cfg Config) PingDB(db *sql.DB, ctx context.Context) {
+	const printN string = "PingDB()"
+
 	err := db.PingContext(ctx)
 	if err != nil {
-		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err)
+		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err, printN)
 	}
 }
 

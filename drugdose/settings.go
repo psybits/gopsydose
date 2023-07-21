@@ -52,29 +52,29 @@ const DefaultSource string = "psychonautwiki"
 const sourceSetFilename string = "gpd-sources.toml"
 const settingsFilename string = "gpd-settings.toml"
 
-func errorCantCreateConfig(filename string, err error) {
-	printName("errorCantCreateConfig()", "Error, can't create config file:", filename, ";", err)
-	exitProgram()
+func errorCantCreateConfig(filename string, err error, printN string) {
+	printName(printN, "errorCantCreateConfig(): Error, can't create config file:", filename, ";", err)
+	exitProgram(printN)
 }
 
-func errorCantCloseConfig(filename string, err error) {
-	printName("errorCantCloseConfig()", "Error, can't close config file:", filename, ";", err)
-	exitProgram()
+func errorCantCloseConfig(filename string, err error, printN string) {
+	printName(printN, "errorCantCloseConfig(): Error, can't close config file:", filename, ";", err)
+	exitProgram(printN)
 }
 
-func errorCantReadConfig(filename string, err error) {
-	printName("errorCantReadConfig()", "Error, can't read config file:", filename, ";", err)
-	exitProgram()
+func errorCantReadConfig(filename string, err error, printN string) {
+	printName(printN, "errorCantReadConfig(): Error, can't read config file:", filename, ";", err)
+	exitProgram(printN)
 }
 
-func errorCantChmodConfig(filename string, err error) {
-	printName("errorCantChmodConfig()", "Error, can't change mode of config file:", filename, ";", err)
-	exitProgram()
+func errorCantChmodConfig(filename string, err error, printN string) {
+	printName(printN, "errorCantChmodConfig(): Error, can't change mode of config file:", filename, ";", err)
+	exitProgram(printN)
 }
 
-func otherError(filename string, err error) {
-	printName("otherError()", "Other error for config file:", filename, ";", err)
-	exitProgram()
+func otherError(filename string, err error, printN string) {
+	printName(printN, "otherError(): Other error for config file:", filename, ";", err)
+	exitProgram(printN)
 }
 
 // The name used when printing, to distinguish from other logs.
@@ -178,13 +178,12 @@ func (cfg Config) InitSourceMap(apiAddress string) map[string]SourceConfig {
 	return srcmap
 }
 
-func InitSettingsDir() string {
+func InitSettingsDir() (error, string) {
 	const printN string = "InitSettingsDir()"
 
 	configdir, err := os.UserConfigDir()
 	if err != nil {
-		printName(printN, err)
-		return ""
+		return errors.New(sprintName(printN, err)), ""
 	}
 	configdir = configdir + "/GPD"
 	_, err = os.Stat(configdir)
@@ -192,15 +191,13 @@ func InitSettingsDir() string {
 		if errors.Is(err, os.ErrNotExist) {
 			err = os.Mkdir(configdir, 0700)
 			if err != nil {
-				printName(printN, err)
-				return ""
+				return errors.New(sprintName(printN, err)), ""
 			}
 		} else {
-			printName(printN, err)
-			return ""
+			return errors.New(sprintName(printN, err)), ""
 		}
 	}
-	return configdir
+	return nil, configdir
 }
 
 // Create the config file for the sources.
@@ -213,8 +210,9 @@ func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bo
 		return false
 	}
 
-	setdir := InitSettingsDir()
-	if setdir == "" {
+	err, setdir := InitSettingsDir()
+	if err != nil {
+		printName(printN, err)
 		return false
 	}
 
@@ -225,25 +223,25 @@ func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bo
 			printName(printN, "Initialising config file:", path)
 			file, err := os.Create(path)
 			if err != nil {
-				errorCantCreateConfig(path, err)
+				errorCantCreateConfig(path, err, printN)
 			}
 
 			err = file.Chmod(0600)
 			if err != nil {
-				errorCantChmodConfig(path, err)
+				errorCantChmodConfig(path, err, printN)
 			}
 
 			_, err = file.WriteString(string(mcfg))
 			if err != nil {
-				errorCantCreateConfig(path, err)
+				errorCantCreateConfig(path, err, printN)
 			}
 
 			err = file.Close()
 			if err != nil {
-				errorCantCloseConfig(path, err)
+				errorCantCloseConfig(path, err, printN)
 			}
 		} else {
-			otherError(path, err)
+			otherError(path, err, printN)
 		}
 	} else if err == nil {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Config file: "+path+" ; already exists!")
@@ -254,9 +252,12 @@ func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bo
 }
 
 func GetSourceData() map[string]SourceConfig {
-	setdir := InitSettingsDir()
-	if setdir == "" {
-		return nil
+	const printN string = "GetSourceData()"
+
+	err, setdir := InitSettingsDir()
+	if err != nil {
+		printName(printN, err)
+		exitProgram(printN)
 	}
 
 	path := setdir + "/" + sourceSetFilename
@@ -265,29 +266,25 @@ func GetSourceData() map[string]SourceConfig {
 
 	file, err := os.ReadFile(path)
 	if err != nil {
-		errorCantReadConfig(path, err)
+		errorCantReadConfig(path, err, printN)
 	}
 
 	err = toml.Unmarshal(file, &cfg)
 	if err != nil {
-		errorCantReadConfig(path, err)
+		errorCantReadConfig(path, err, printN)
 	}
 
 	return cfg
 }
 
-func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) Config {
+func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) (error, Config) {
 	const printN string = "InitDBSettings()"
 
 	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			printName(printN, err)
-			// Return Config struct unchanged, but
-			// there needs to be code to handle
-			// the unchanged value.
-			// Same for all other errors below.
-			return initcfg
+			err = errors.New(sprintName(printN, err))
+			return err, initcfg
 		}
 
 		path := home + "/.local/share"
@@ -297,8 +294,8 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 			home = path
 		} else if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
-				printName(printN, err)
-				return initcfg
+				err = errors.New(sprintName(printN, err))
+				return err, initcfg
 			}
 		}
 
@@ -316,80 +313,77 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 
 	initcfg.DBSettings = dbSettings
 
-	return initcfg
+	return nil, initcfg
 }
 
-func (initconf Config) InitSettingsFile(recreate bool, verbose bool) bool {
+func (initconf Config) InitSettingsFile(recreate bool, verbose bool) {
 	const printN string = "InitSettingsFile()"
 
-	setdir := InitSettingsDir()
-	if setdir == "" {
-		return false
+	err, setdir := InitSettingsDir()
+	if err != nil {
+		printName(printN, err)
+		exitProgram(printN)
 	}
 
 	path := setdir + "/" + settingsFilename
-	_, err := os.Stat(path)
+	_, err = os.Stat(path)
 	if err != nil || recreate {
 		if errors.Is(err, os.ErrNotExist) || recreate {
 			mcfg, err := toml.Marshal(initconf)
 			if err != nil {
 				printName(printN, err)
-				return false
+				exitProgram(printN)
 			}
 
 			printName(printN, "Initialising config file:", path)
 			file, err := os.Create(path)
 			if err != nil {
-				errorCantCreateConfig(path, err)
+				errorCantCreateConfig(path, err, printN)
 			}
 
 			err = file.Chmod(0600)
 			if err != nil {
-				errorCantChmodConfig(path, err)
+				errorCantChmodConfig(path, err, printN)
 			}
 			_, err = file.WriteString(string(mcfg))
 			if err != nil {
-				errorCantCreateConfig(path, err)
+				errorCantCreateConfig(path, err, printN)
 			}
 
 			err = file.Close()
 			if err != nil {
-				errorCantCloseConfig(path, err)
+				errorCantCloseConfig(path, err, printN)
 			}
 		} else {
-			otherError(path, err)
+			otherError(path, err, printN)
 		}
 	} else {
 		printNameVerbose(verbose, printN, "Config file: "+path+" ; already exists!")
-		return false
 	}
-
-	return true
 }
 
 // Get the settings structure from the general settings config file.
 func GetSettings() Config {
+	const printN string = "GetSettings()"
+
 	cfg := Config{}
 
-	// Return an empty struct to avoid looking
-	// at the wrong path.
-	// There needs to be code which can
-	// handle the empty struct properly.
-	setdir := InitSettingsDir()
+	err, setdir := InitSettingsDir()
 	if setdir == "" {
-		return cfg
+		printName(printN, err)
+		exitProgram(printN)
 	}
 
 	path := setdir + "/" + settingsFilename
 
 	file, err := os.ReadFile(path)
 	if err != nil {
-		errorCantReadConfig(path, err)
+		errorCantReadConfig(path, err, printN)
 	}
 
 	err = toml.Unmarshal(file, &cfg)
 	if err != nil {
-		errorCantReadConfig(path, err)
+		errorCantReadConfig(path, err, printN)
 	}
 
 	return cfg
@@ -401,16 +395,13 @@ func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess 
 
 	setcfg := InitConfigStruct(sourcecfg)
 
-	setcfg = setcfg.InitDBSettings(dbDir, dbName, mysqlAccess)
-	if setcfg.DBSettings == nil {
-		printName(printN, "DBSettings not initialised properly.")
-		os.Exit(1)
+	err, setcfg := setcfg.InitDBSettings(dbDir, dbName, mysqlAccess)
+	if err != nil {
+		printName(printN, err)
+		exitProgram(printN)
 	}
 
-	ret := setcfg.InitSettingsFile(recreateSettings, verbose)
-	if !ret {
-		printNameVerbose(verbose, "The settings file wasn't initialised.")
-	}
+	setcfg.InitSettingsFile(recreateSettings, verbose)
 
 	gotsetcfg := GetSettings()
 	if len(gotsetcfg.DBDriver) == 0 {
@@ -424,7 +415,7 @@ func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess 
 
 	gotsrc := gotsetcfg.InitSourceMap(apiAddress)
 
-	ret = gotsetcfg.InitSourceSettings(gotsrc, recreateSources)
+	ret := gotsetcfg.InitSourceSettings(gotsrc, recreateSources)
 	if !ret {
 		printNameVerbose(gotsetcfg.VerbosePrinting, "The sources file wasn't initialised.")
 	}
