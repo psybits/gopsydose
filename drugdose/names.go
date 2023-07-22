@@ -72,10 +72,7 @@ func GetNamesConfig(nameType string, source string) (error, *SubstanceName) {
 
 	file, err := os.ReadFile(path)
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return errors.New(sprintName(printN, err)), nil
-		}
-		return nil, nil
+		return errors.New(sprintName(printN, err)), nil
 	}
 
 	err = toml.Unmarshal(file, &subName)

@@ -296,7 +296,7 @@ If set to true, will remove the oldest log when adding a new one, if the
 `MaxLogsPerUser` limit is reached, without telling the user.
 
 #### DBDriver
-Which database driver to use. Current options are "sqlite3" or "mysql".
+Which database driver to use. Current options are "sqlite" or "mysql".
 
 #### VerbosePrinting
 If set to true, functions which print more verbose information, will print it.
@@ -345,14 +345,14 @@ The database needs to be created in advance.
 
 Example: user:password@tcp(127.0.0.1:3306)/database
 
-##### DBSettings.sqlite3
+##### DBSettings.sqlite
 
-Path - Disk location to access the sqlite3 db file.
+Path - Disk location to access the sqlite db file.
 
 The database file will be automatically created, no need
 to do it in advance.
 
-Example: /home/computer-user/.local/share/GPD/gpd.db
+Example: /home/user/.local/share/GPD/gpd.db
 
 ### gpd-sources.toml
 
