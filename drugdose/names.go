@@ -267,6 +267,11 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 	return nil
 }
 
+// MatchName replaces an input name with a configured output name present in
+// the database. For example if there's a need to translate
+// "weed" to "cannabis". Checkout AddToSubstanceNamesTable() for information
+// on how the configuration is done.
+//
 // db - open database connection
 //
 // ctx - context to passed to sql query function
@@ -279,7 +284,9 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 //
 // meaning the names specific for the source
 //
-// overwrite - if true will overwrite the names config directory and tables with the currently present ones
+// overwrite - if true will overwrite the names config directory
+// and tables with the currently present ones,
+// checkout AddToSubstanceNamesTable() for more info
 //
 // Returns the local name for a given alternative name.
 func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
@@ -325,6 +332,14 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 }
 
 // Returns the local name, using both the global config and the source specific config.
+//
+// db - open database connection
+//
+// ctx - context to passed to sql query function
+//
+// inputName - the alternative name
+//
+// nameType - checkout namesTables()
 func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 	inputName string, nameType string) string {
 	ret := cfg.MatchName(db, ctx, inputName, nameType, false, false)
@@ -332,7 +347,16 @@ func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 	return ret
 }
 
-// Tries matching a single string to all alternative names.
+// Tries matching a single string to all alternative names tables.
+// If it finds a match it will return the alt name for that single string.
+// It matches all alt drugs, route and units, so a single input can be checked
+// for all of them.
+//
+// db - open database connection
+//
+// ctx - context to passed to sql query function
+//
+// inputName - single string to match all alt names for
 func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context, inputName string) string {
 	allNameTypes := []string{nameTypeSubstance, nameTypeRoute, nameTypeUnits, nameTypeConvertUnits}
 	for _, elem := range allNameTypes {
@@ -344,8 +368,18 @@ func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context, inputName 
 	return inputName
 }
 
-// Returns all alternative names for a given local name.
-func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context, inputName string, nameType string, sourceNames bool) []string {
+// Returns all alternative names for a given local name. For example if
+// the input is "cannabis" it should return something like "weed", "marijuana",
+// etc. The alt names themselves can't be used to find the other alt names,
+// it requires the "main" name in the local info table.
+//
+// db - open database connection
+//
+// ctx - context to passed to sql query function
+//
+// inputName - local name to get alt names for
+func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context, inputName string,
+	nameType string, sourceNames bool) []string {
 	const printN string = "GetAllNames()"
 
 	table := namesTables(nameType)
@@ -402,19 +436,19 @@ func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context, inputName string,
 // input 0 - the total dose
 // input 1 - the percentage
 // output - pure substance calculated using the percentage
-func convPerc2Pure(substance string, unitInputs ...float32) float32 {
+func convPerc2Pure(substance string, unitInputs ...float32) (error, float32) {
 	av := alconvert.NewAV()
 	av.UserSet.Milliliters = unitInputs[0]
 	av.UserSet.Percent = unitInputs[1]
 	av.CalcPureAmount()
-	return av.GotPure()
+	return nil, av.GotPure()
 }
 
 // Converts pure amount to grams.
 // input 0 - the total dose
 // input 1 - the percentage
 // output - pure substance ml converted to grams using a constant density
-func convMl2Grams(substance string, unitInputs ...float32) float32 {
+func convMl2Grams(substance string, unitInputs ...float32) (error, float32) {
 	const printN string = "convMl2Grams()"
 
 	var multiplier float32 = 0
@@ -427,56 +461,79 @@ func convMl2Grams(substance string, unitInputs ...float32) float32 {
 	multiplier = substancesDensities[substance]
 
 	if multiplier == 0 {
-		printName(printN, "No density for substance:", substance)
+		err := errors.New(sprintName(printN, "No density for substance:", substance))
+		return err, 0
 	}
-
-	return convPerc2Pure(substance, unitInputs...) * multiplier
+	_, finalRes := convPerc2Pure(substance, unitInputs...)
+	finalRes = finalRes * multiplier
+	return nil, finalRes
 }
 
-type convF func(string, ...float32) float32
+type convF func(string, ...float32) (error, float32)
 
-func addConversion(cF convF, output float32, name string, inputName string, inputsAmount int, substance string, unitInputs ...float32) float32 {
+func addConversion(cF convF, output float32, name string, inputName string, inputsAmount int, substance string, unitInputs ...float32) (error, float32) {
 	if output != 0 {
-		return output
+		return nil, output
 	}
 
 	const printN string = "addConversion()"
 
+	var err error = nil
+
 	if inputName == name {
 		gotLenOfUnitInputs := len(unitInputs)
 		if gotLenOfUnitInputs == inputsAmount {
-			output = cF(substance, unitInputs...)
+			err, output = cF(substance, unitInputs...)
 		} else {
-			printName(printN, "Wrong amount of unitInputs:",
-				gotLenOfUnitInputs, "; needed", inputsAmount)
+			err = errors.New(sprintName(printN, "Wrong amount of unitInputs:",
+				gotLenOfUnitInputs, "; needed", inputsAmount))
 		}
 	}
 
-	return output
+	return err, output
 }
 
-func unitsFunctionsOutput(inputName string, substance string, unitInputs ...float32) float32 {
-	output := addConversion(convPerc2Pure, 0, "Convert-Percent-To-Pure", inputName, 2, substance, unitInputs...)
-	output = addConversion(convMl2Grams, output, "Convert-Milliliters-To-Grams", inputName, 2, substance, unitInputs...)
+func unitsFunctionsOutput(inputName string, substance string, unitInputs ...float32) (error, float32) {
+	err, output := addConversion(convPerc2Pure, 0, "Convert-Percent-To-Pure", inputName, 2, substance, unitInputs...)
+	if err != nil {
+		return err, output
+	}
 
-	return output
+	err, output = addConversion(convMl2Grams, output, "Convert-Milliliters-To-Grams", inputName, 2, substance, unitInputs...)
+	if err != nil {
+		return err, output
+	}
+
+	return err, output
 }
 
-func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string, unitInputs ...float32) (float32, string) {
+// ConvertUnits converts the given inputs for a given substance according to a
+// predefined configuration in the database. Checkout
+// AddToSubstanceNamesTable() for more info on how the configuration is done.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// substance - the drug for which to convert units via the config
+//
+// unitInputs - the inputs to use for the conversions, for example
+// milliliters and percentage
+func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string, unitInputs ...float32) (error, float32, string) {
 	const printN string = "ConvertUnits()"
 
 	allNames := cfg.GetAllNames(db, ctx, substance, "convUnits", true)
 	gotAllNamesLen := len(allNames)
 	if gotAllNamesLen != 2 {
-		printName(printN, "Wrong amount of names:", gotAllNamesLen,
-			"; should be 2:", allNames)
-		return 0, ""
+		err := errors.New(sprintName(printN, "Wrong amount of names:", gotAllNamesLen,
+			"; should be 2:", allNames))
+		return err, 0, ""
 	}
 
 	convertFunc := allNames[0]
 	convertUnit := allNames[1]
 
-	output := unitsFunctionsOutput(convertFunc, substance, unitInputs...)
+	err, output := unitsFunctionsOutput(convertFunc, substance, unitInputs...)
 
-	return output, convertUnit
+	return err, output, convertUnit
 }

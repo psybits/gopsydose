@@ -93,6 +93,36 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan e
 	errChannel <- nil
 }
 
+// AddToDoseDB adds a new logged dose to the local database.
+//
+// This function is meant to be run concurrently.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// errChannel - the gorouting channel which returns the errors
+//
+// synct - pointer to SyncTimestamps struct used for synchronizing all AddToDoseDB() goroutines,
+// it makes sure no conflicts happen when new doses are added
+//
+// user - the username to log, if the same timestamps for the same username are chosen,
+// the function will increment them all with 1 second to avoid conflicts
+//
+// drug - the name of the drug to log, it has to be present in the local info (source) database
+//
+// route - the name of the route to log, examples begin oral, smoked, etc. and it has
+// to be present in the local info (source) database for the given drug
+//
+// dose - the amount of drug to log
+//
+// units - the units to be used for dose (amount)
+//
+// perc - when not 0, will attempt to convert the amount and units to new amount and units
+// according to the configurations present in the database, checkout ConvertUnits() in
+// names.go for more information on how this works
+//
+// printit - when true, prints what has been added to the database in the terminal
 func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan error,
 	synct *SyncTimestamps, user string, drug string, route string,
 	dose float32, units string, perc float32, printit bool) {
@@ -104,10 +134,10 @@ func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan e
 	units = cfg.MatchAndReplace(db, ctx, units, "units")
 
 	if perc != 0 {
-		dose, units = cfg.ConvertUnits(db, ctx, drug, dose, perc)
-		if dose == 0 || units == "" {
+		err, dose, units := cfg.ConvertUnits(db, ctx, drug, dose, perc)
+		if dose == 0 || units == "" || err != nil {
 			errChannel <- errors.New(sprintfName(printN, "Error converting units for drug: %q"+
-				" ; dose: %g ; perc: %g ; units: %q", drug, dose, perc, units))
+				" ; dose: %g ; perc: %g ; units: %q ; error: %q", drug, dose, perc, units, err))
 			return
 		}
 	}

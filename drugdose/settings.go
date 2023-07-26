@@ -169,6 +169,11 @@ func InitConfigStruct(sourcecfg string) Config {
 	return cfg
 }
 
+// InitSourceMap returns a map which for the given key (configured source)
+// returns the address as it's value. The address could be an IP address,
+// an URL and etc.
+//
+// apiAddress - the address to map to the source name from the Config struct
 func (cfg Config) InitSourceMap(apiAddress string) map[string]SourceConfig {
 	srcmap := map[string]SourceConfig{
 		cfg.UseSource: {
@@ -178,6 +183,11 @@ func (cfg Config) InitSourceMap(apiAddress string) map[string]SourceConfig {
 	return srcmap
 }
 
+// InitSettingsDir creates the directory for the configuration files using the
+// system path for configs and sets the proper mode to the new directory.
+// It first checks if it already exists, skips the creation if true.
+//
+// Returns the full path to the directory as a string.
 func InitSettingsDir() (error, string) {
 	const printN string = "InitSettingsDir()"
 
@@ -200,20 +210,25 @@ func InitSettingsDir() (error, string) {
 	return nil, configdir
 }
 
-// Create the config file for the sources.
-func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bool) bool {
+// InitSourceSettings creates the config file for the sources. This file
+// contains the api name mapped to the api address. InitSourceMap() can be used
+// to create the map, this function marshals it and writes it to the actual
+// config file.
+//
+// newcfg - the source api name to api address map
+//
+// recreate - overwrite the current file if it exists with a new map
+func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bool) error {
 	const printN string = "InitSourceSettings()"
 
 	mcfg, err := toml.Marshal(newcfg)
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, err))
 	}
 
 	err, setdir := InitSettingsDir()
 	if err != nil {
-		printName(printN, err)
-		return false
+		return errors.New(sprintName(printN, err))
 	}
 
 	path := setdir + "/" + sourceSetFilename
@@ -245,12 +260,15 @@ func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bo
 		}
 	} else if err == nil {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Config file: "+path+" ; already exists!")
-		return false
+		return nil
 	}
 
-	return true
+	return nil
 }
 
+// GetSourceData returns the map gotten from the source config file
+// unmarshaled. The map returns for a given source name (key), an addres
+// (value) for that source.
 func GetSourceData() map[string]SourceConfig {
 	const printN string = "GetSourceData()"
 
@@ -277,6 +295,17 @@ func GetSourceData() map[string]SourceConfig {
 	return cfg
 }
 
+// InitDBSettings returns a modified Config structure, which contains a properly
+// formatted DBSettings map. Before using the modified struct, checkout if
+// the returned error is not nil!
+//
+// dbdir - if this is set to the DefaultDBDir constant, it will try to use
+// the system user directory as a path, if not the full path must be specified
+//
+// dbname - the name of sqlite db file
+//
+// mysqlaccess - the path for connecting to MySQL/MariaDB, example
+// user:password@tcp(127.0.0.1:3306)/database
 func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) (error, Config) {
 	const printN string = "InitDBSettings()"
 
@@ -316,6 +345,15 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 	return nil, initcfg
 }
 
+// InitSettingsFile creates and fills the main global config file which
+// is used for the Config struct. It sets the proper mode and stops the
+// program on error. The data for writing to the file is taken from the passed
+// Config structure.
+//
+// recreate - if true overwrites the currently existing config file with the
+// currently passed Config struct data
+//
+// verbose - whether to print verbose information
 func (initconf Config) InitSettingsFile(recreate bool, verbose bool) {
 	const printN string = "InitSettingsFile()"
 
@@ -362,14 +400,15 @@ func (initconf Config) InitSettingsFile(recreate bool, verbose bool) {
 	}
 }
 
-// Get the settings structure from the general settings config file.
+// Get the Config structure data marshaled from the global config file.
+// Returns the Config structure. Stops the program if an error is not nil.
 func GetSettings() Config {
 	const printN string = "GetSettings()"
 
 	cfg := Config{}
 
 	err, setdir := InitSettingsDir()
-	if setdir == "" {
+	if err != nil {
 		printName(printN, err)
 		exitProgram(printN)
 	}
@@ -389,6 +428,33 @@ func GetSettings() Config {
 	return cfg
 }
 
+// InitAllSettings initializes the Config struct with default values,
+// uses the struct to create the global config file, unmarshales the newly
+// created config and stores the struct in a new variable, initializes the
+// source map using the set source in the Config struct and the given API
+// address, uses the map to create the source config file and returns the
+// Config struct.
+//
+// Basically all you probably would want to do anyway, but in a single function.
+//
+// Checkout InitConfigStruct(), InitDBSettings(), InitSettingsFile()
+// GetSettings(), InitSourceMap(), InitSourceSettings() for more info.
+//
+// sourcecfg - what source name to set by default for the Config struct
+//
+// dbDir - the path for using the sqlite database file
+//
+// dbName - the name of the sqlite db file
+//
+// mysqlAccess - the path for accessing an MySQL/MariaDB database
+//
+// recreateSettings - overwrite the settings file even if it exists
+//
+// recreateSources - overwrite the source settings file even if it exists
+//
+// verbose - if true print verbose information
+//
+// apiAddress - the address to use when initializing the source map
 func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess string,
 	recreateSettings bool, recreateSources bool, verbose bool, apiAddress string) Config {
 	const printN string = "InitAllSettings()"
@@ -404,10 +470,6 @@ func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess 
 	setcfg.InitSettingsFile(recreateSettings, verbose)
 
 	gotsetcfg := GetSettings()
-	if len(gotsetcfg.DBDriver) == 0 {
-		printName(printN, "Config struct wasn't initialised properly.")
-		os.Exit(1)
-	}
 
 	if verbose == true {
 		gotsetcfg.VerbosePrinting = true
@@ -415,9 +477,10 @@ func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess 
 
 	gotsrc := gotsetcfg.InitSourceMap(apiAddress)
 
-	ret := gotsetcfg.InitSourceSettings(gotsrc, recreateSources)
-	if !ret {
-		printNameVerbose(gotsetcfg.VerbosePrinting, "The sources file wasn't initialised.")
+	err = gotsetcfg.InitSourceSettings(gotsrc, recreateSources)
+	if err != nil {
+		printName(printN, "The sources file wasn't initialised: ", err)
+		exitProgram(printN)
 	}
 
 	return gotsetcfg

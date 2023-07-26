@@ -14,7 +14,7 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
-// GetDBSize returns the total size of the database in bytes.
+// GetDBSize returns the total size of the database in bytes (int64).
 func (cfg Config) GetDBSize() int64 {
 	const printN string = "GetDBSize()"
 
@@ -68,7 +68,7 @@ func (cfg Config) GetDBSize() int64 {
 }
 
 // GetUsers returns all unique usernames
-// currently present in the drug log table.
+// currently present in the dose log table.
 //
 // db - open database connection
 //
@@ -98,7 +98,7 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) []string {
 }
 
 // GetLogsCount returns total amount of logs in
-// the drug log table for username set in user parameter.
+// the dose log table for username set in user parameter.
 //
 // db - open database connection
 //
@@ -120,6 +120,12 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) (er
 	return nil, count
 }
 
+// GetLogs returns all logs for a given username in the drug log table.
+// It uses a single channel with the type UserLogsError, containing a slice of
+// UserLogs structs and a variable with an error type. When using this function,
+// the error must be checked before reading the logs. Every log is a separate
+// element of the UserLogs slice.
+//
 // db - an open database connection
 //
 // userLogsErrorChannel - the goroutine channel used to return the logs and
@@ -131,10 +137,11 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) (er
 //
 // id - if not 0, will return the exact log matching that id for the given user
 //
-// user - the user which owns the logs
+// user - the user which created the logs, will returns only the logs for that
+// username
 //
-// reverse - if true go from high values to low,
-// this should return the newest logs first
+// reverse - if true go from high values to low values,
+// this should return the newest logs first, false is the opposite direction
 //
 // search - return logs only matching this string
 func (cfg Config) GetLogs(db *sql.DB, userLogsErrorChannel chan UserLogsError,
@@ -145,8 +152,10 @@ func (cfg Config) GetLogs(db *sql.DB, userLogsErrorChannel chan UserLogsError,
 
 	numstr := strconv.Itoa(num)
 
+	userlogs := []UserLog{}
 	tempUserLogsError := UserLogsError{
-		Err: nil,
+		UserLogs: userlogs,
+		Err:      nil,
 	}
 
 	var endstmt string
@@ -193,20 +202,19 @@ func (cfg Config) GetLogs(db *sql.DB, userLogsErrorChannel chan UserLogsError,
 	}
 	if err != nil {
 		tempUserLogsError.Err = err
-		tempUserLogsError.UserLogs = nil
+		tempUserLogsError.UserLogs = userlogs
 		userLogsErrorChannel <- tempUserLogsError
 		return
 	}
 	defer rows.Close()
 
-	userlogs := []UserLog{}
 	for rows.Next() {
 		tempul := UserLog{}
 		err = rows.Scan(&tempul.StartTime, &tempul.Username, &tempul.EndTime, &tempul.DrugName,
 			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute)
 		if err != nil {
 			tempUserLogsError.Err = err
-			tempUserLogsError.UserLogs = nil
+			tempUserLogsError.UserLogs = userlogs
 			userLogsErrorChannel <- tempUserLogsError
 			return
 		}
@@ -216,13 +224,13 @@ func (cfg Config) GetLogs(db *sql.DB, userLogsErrorChannel chan UserLogsError,
 	err = rows.Err()
 	if err != nil {
 		tempUserLogsError.Err = err
-		tempUserLogsError.UserLogs = nil
+		tempUserLogsError.UserLogs = userlogs
 		userLogsErrorChannel <- tempUserLogsError
 		return
 	}
 	if len(userlogs) == 0 {
 		tempUserLogsError.Err = errors.New(sprintName(printN, "No logs returned for user: ", user))
-		tempUserLogsError.UserLogs = nil
+		tempUserLogsError.UserLogs = userlogs
 		userLogsErrorChannel <- tempUserLogsError
 		return
 	}

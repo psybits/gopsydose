@@ -344,25 +344,29 @@ func main() {
 	}
 
 	if *forget {
-		ret := gotsetcfg.ForgetConfig(db, ctx, *forUser)
-		if !ret {
-			printCLI("Couldn't 'forget' the remember config, because of an error.")
+		go gotsetcfg.ForgetDosing(db, ctx, errChannel, *forUser)
+		err := <-errChannel
+		if err != nil {
+			printCLI("Couldn't 'forget' the remember config, because of an error:", err)
 		}
 	}
 
 	remembering := false
 	if *drugargdose != 0 && *drugname == "none" && *changeLog == false {
-		got := gotsetcfg.GetUserSettings(db, ctx, "useIDForRemember", *forUser)
-		if got != "" && got != drugdose.ForgetInputConfigMagicNumber {
-			remCfg := gotsetcfg.RememberConfig(db, ctx, *forUser)
-			if remCfg != nil {
-				printCLI("Remembering from config using ID:", got)
-				*forUser = remCfg.Username
-				*drugname = remCfg.DrugName
-				*drugroute = remCfg.DrugRoute
-				*drugunits = remCfg.DoseUnits
-				remembering = true
-			}
+		userLogsErrChan := make(chan drugdose.UserLogsError)
+		go gotsetcfg.RecallDosing(db, ctx, userLogsErrChan, *forUser)
+		gotUserLogsErr := <-userLogsErrChan
+		err := gotUserLogsErr.Err
+		if err != nil {
+			printCLI("Couldn't recall dosing configuration: ", err)
+		} else if err == nil && gotUserLogsErr.UserLogs != nil {
+			remCfg := gotUserLogsErr.UserLogs[0]
+			printCLI("Remembering from config using ID:", remCfg.StartTime)
+			*forUser = remCfg.Username
+			*drugname = remCfg.DrugName
+			*drugroute = remCfg.DrugRoute
+			*drugunits = remCfg.DoseUnits
+			remembering = true
 		}
 	}
 
@@ -619,13 +623,10 @@ func main() {
 
 	if *dontLog == false {
 		if *remember {
-			userSettingsForID := strconv.FormatInt(*forID, 10)
-			if userSettingsForID == "0" {
-				userSettingsForID = "remember"
-			}
-			ret := gotsetcfg.SetUserSettings(db, ctx, "useIDForRemember", *forUser, userSettingsForID)
-			if !ret {
-				printCLI("Couldn't remember config, because of an error.")
+			go gotsetcfg.RememberDosing(db, ctx, errChannel, *forUser, *forID)
+			err = <-errChannel
+			if err != nil {
+				printCLI(err)
 			}
 		}
 	}
@@ -660,9 +661,16 @@ func main() {
 	}
 
 	if *getTimes {
-		times := gotsetcfg.GetTimes(db, ctx, *forUser, *forID, true, false)
-		if times == nil {
-			printCLI("Times couldn't be retrieved because of an error.")
+		timeTillErrChan := make(chan drugdose.TimeTillError)
+		go gotsetcfg.GetTimes(db, ctx, timeTillErrChan, *forUser, *forID)
+		gotTimeTillErr := <-timeTillErrChan
+		err := gotTimeTillErr.Err
+		if err != nil {
+			printCLI("Times couldn't be retrieved because of an error:", err)
+		}
+		err = gotsetcfg.PrintTimeTill(gotTimeTillErr, false)
+		if err != nil {
+			printCLI("Couldn't print times because of an error:", err)
 		}
 	}
 }

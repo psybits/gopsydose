@@ -14,11 +14,10 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
-// CleanDB deletes all tables in the database. This is why it's a good idea
-// to separate the data for drug logs from anything else. Create a separate
-// database for that data only!
-//
-// Returns false on error.
+// CleanDB deletes all tables in the database.
+// Make sure you don't have any other tables related to other projects in
+// the database! It's a good idea to create different databases for
+// every project.
 //
 // db - open database connection
 //
@@ -78,8 +77,6 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
 // the source, containing all data like dosages and timings. All user dosages
 // aren't touched since they're not apart of the drug general information.
 //
-// Returns false on error.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
@@ -118,7 +115,8 @@ func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) error {
 //
 // ctx - context to be passed to sql queries
 //
-// replaceOnly - remove only replace tables, keep the global ones intact
+// replaceOnly - if true, remove only replace tables (source specific),
+// keep the global ones intact
 func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) error {
 	const printN string = "CleanNames()"
 
@@ -164,13 +162,34 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) 
 	return nil
 }
 
-func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan error,
-	username string, amount int, reverse bool, remID int64, search string) {
+// RemoveLogs removes logs from the dose log table.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// errChannel - the gorouting channel which returns the errors
+//
+// username - the user's logs that will be removed, no other user's logs will
+// be touched
+//
+// amount - how many logs to remove, if 0 it removes all
+//
+// reverse - from which direction to start removing logs, if true go from high
+// values to low values, this should remove the newest logs first,
+// false is the opposite direction
+//
+// remID - if not 0, remove a specific log using it's start timestamp (ID)
+//
+// search - remove logs only matching this string
+func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
+	errChannel chan error, username string, amount int, reverse bool,
+	remID int64, search string) {
 
 	const printN string = "RemoveLogs()"
 
 	stmtStr := "delete from " + loggingTableName + " where username = ?"
-	if amount != 0 && remID == 0 || search != "none" {
+	if (amount != 0 && remID == 0) || (search != "none" && search != "") {
 		if search != "none" && search != "" {
 			amount = 0
 		}
@@ -198,7 +217,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan er
 		concatTimes = strings.TrimSuffix(concatTimes, ",")
 
 		stmtStr = "delete from " + loggingTableName + " where timeOfDoseStart in (" + concatTimes + ") AND username = ?"
-	} else if remID != 0 && search == "none" {
+	} else if remID != 0 && (search == "none" || search == "") {
 		xtrs := [1]string{xtrastmt("username", "and")}
 		ret := checkIfExistsDB(db, ctx,
 			"timeOfDoseStart", loggingTableName,
@@ -237,13 +256,15 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context, errChannel chan er
 		return
 	}
 
-	printNameVerbose(cfg.VerbosePrinting, printN, "Data removed from log table in DB successfully.")
+	printNameVerbose(cfg.VerbosePrinting, printN, "Data removed from log table in DB successfully: user:",
+		username, "; amount:", amount, "; reverse:", reverse, "; remID:", remID,
+		"; search:", search)
 
 	errChannel <- nil
 }
 
 // RemoveSingleDrugInfoDB removes all entries of a single drug from the local
-// info DB, instead of deleting the whole DB. For example if there's a need to
+// info DB, instead of deleting the whole DB/table. For example if there's a need to
 // clear all information about dosage and timing for a specific drug if it's
 // old or incorrect.
 //

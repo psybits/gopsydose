@@ -2,6 +2,7 @@ package drugdose
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -16,11 +17,27 @@ import (
 
 type TimeTill struct {
 	// In seconds
-	TimeTillOnset  int64
+	//
+	// Information for the different points is from Psychonautwiki.
+	//
+	// The onset phase can be defined as the period until the very first
+	// changes in perception (i.e. "first alerts") are able to be detected.
+	TimeTillOnset int64
+	// The "come up" phase can be defined as the period between the first
+	// noticeable changes in perception and the point of highest subjective
+	// intensity.
 	TimeTillComeup int64
-	TimeTillPeak   int64
+	// The peak phase can be defined as period of time in which the
+	// intensity of the substance's effects are at its height.
+	TimeTillPeak int64
+	// The offset phase can be defined as the amount of time in between the
+	// conclusion of the peak and shifting into a sober state.
 	TimeTillOffset int64
-	TimeTillTotal  int64
+	// The total duration of a substance can be defined as the amount of
+	// time it takes for the effects of a substance to completely wear off
+	// into sobriety, starting from the moment the substance is first
+	// administered.
+	TimeTillTotal int64
 	// Percentage of completion
 	TotalCompleteMin float32
 	TotalCompleteMax float32
@@ -28,6 +45,21 @@ type TimeTill struct {
 	// In unix time
 	StartDose int64
 	EnDose    int64
+}
+
+type TimeTillError struct {
+	TimeT *TimeTill
+	Err   error
+	// Bellow is extra information only needed internally
+	useLog        UserLog
+	approxEnd     int64
+	useLoggedTime int64
+	onsetAvg      float32
+	comeupAvg     float32
+	peakAvg       float32
+	offsetAvg     float32
+	totalAvg      float32
+	gotInfoProper DrugInfo
 }
 
 func (cfg Config) convertToSeconds(db *sql.DB, ctx context.Context,
@@ -67,21 +99,38 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 	}
 }
 
+// GetTimes returns the times till reaching a specific point of the experience.
+// The points are defined in the TimeTill struct. PrintTimeTill() can be used
+// to output the information gathered in this function to the terminal.
+//
+// This function is meant to be run concurrently.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// timeTillErrChan - the goroutine channel which returns the TimeTill struct
+// and an error
+//
+// username - the user for which to get the information
+//
+// getid - if 0 gives information about the last log, a specific ID can be
+// passed to get the times for that log
 func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
-	username string, getid int64, printit bool, prefix bool) *TimeTill {
-	var printN string
-	if prefix == true {
-		printN = "GetTimes()"
-	} else {
-		printN = ""
-	}
+	timeTillErrChan chan TimeTillError, username string, getid int64) {
+	const printN string = "GetTimes()"
 
+	tempTimeTillErr := TimeTillError{
+		Err:   nil,
+		TimeT: nil,
+	}
 	userLogsErrChan := make(chan UserLogsError)
 	go cfg.GetLogs(db, userLogsErrChan, ctx, 1, getid, username, true, "none")
 	gotLogs := <-userLogsErrChan
 	if gotLogs.Err != nil {
-		printName(printN, gotLogs.Err)
-		return nil
+		tempTimeTillErr.Err = errors.New(sprintName(printN, gotLogs.Err))
+		timeTillErrChan <- tempTimeTillErr
+		return
 	}
 
 	useLog := gotLogs.UserLogs[0]
@@ -96,24 +145,28 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	}
 
 	if gotInfoNum == -1 {
-		printName(printN, "Logged drug route doesn't match anything in info database.")
-		return nil
+		tempTimeTillErr.Err = errors.New(sprintName(printN,
+			"Logged drug route doesn't match anything in info database."))
+		timeTillErrChan <- tempTimeTillErr
+		return
 	}
 
 	gotInfoProper := gotInfo[gotInfoNum]
 
 	if gotInfoProper.DoseUnits != useLog.DoseUnits {
-		printName(printN, "The logged dose units:", useLog.DoseUnits,
-			"; don't match the local info database dose units:", gotInfoProper.DoseUnits)
-		return nil
+		tempTimeTillErr.Err = errors.New(sprintName(printN, "The logged dose units:", useLog.DoseUnits,
+			"; don't match the local info database dose units:", gotInfoProper.DoseUnits))
+		timeTillErrChan <- tempTimeTillErr
+		return
 	}
 
 	// No need to do further calculation, because if the source is correct,
 	// in theory almost no effect should be accomplished with this dosage.
 	if gotInfoProper.Threshold != 0 && useLog.Dose < gotInfoProper.Threshold {
-		printName(printN, "The dosage is below the source threshold.")
-		printName(printN, "Will not calculate times.")
-		return nil
+		tempTimeTillErr.Err = errors.New(sprintName(printN,
+			"The dosage is below the source threshold, will not calculate times."))
+		timeTillErrChan <- tempTimeTillErr
+		return
 	}
 
 	cfg.convertToSeconds(db, ctx,
@@ -229,86 +282,117 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 
 	var approxEnd int64 = useLoggedTime + int64(totalAvg)
 
-	if printit {
-		location, err := time.LoadLocation(cfg.Timezone)
-		if err != nil {
-			printName(printN, "LoadLocation:", err)
-			return nil
-		}
+	tempTimeTillErr.TimeT = &timeTill
+	tempTimeTillErr.useLog = useLog
+	tempTimeTillErr.approxEnd = approxEnd
+	tempTimeTillErr.useLoggedTime = useLoggedTime
+	tempTimeTillErr.onsetAvg = onsetAvg
+	tempTimeTillErr.comeupAvg = comeupAvg
+	tempTimeTillErr.peakAvg = peakAvg
+	tempTimeTillErr.offsetAvg = offsetAvg
+	tempTimeTillErr.totalAvg = totalAvg
+	tempTimeTillErr.gotInfoProper = gotInfoProper
+	timeTillErrChan <- tempTimeTillErr
+}
 
-		printName(printN, "Warning: All data in here is approximations based on averages.")
-		printName(printN, "Please don't let that influence the experience too much!")
-		fmt.Println()
-		printNameF(printN, "Start Dose:\t%q (%d)\n",
-			time.Unix(useLog.StartTime, 0).In(location),
-			useLog.StartTime)
-		if approxEnd != useLog.StartTime {
-			printNameF(printN, "Approx. End:\t%q (%d)\n",
-				time.Unix(approxEnd, 0).In(location),
-				approxEnd)
-		}
-
-		if useLog.EndTime != 0 {
-			printNameF(printN, "Finish Dose:\t%q (%d)\n",
-				time.Unix(useLog.EndTime, 0).In(location),
-				useLog.EndTime)
-
-			printNameF(printN, "Adjust Finish:\t%q (%d)\n",
-				time.Unix(useLoggedTime, 0).In(location), useLoggedTime)
-		}
-		printNameF(printN, "Current Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
-
-		printNameF(printN, "Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
-		fmt.Println()
-
-		printNameF(printN, "Drug:\t%q\n", useLog.DrugName)
-		printNameF(printN, "Dose:\t%f\n", useLog.Dose)
-		printNameF(printN, "Units:\t%q\n\n", useLog.DoseUnits)
-
-		printName(printN, "=== Time left in minutes until ===")
-
-		if onsetAvg != 0 {
-			printNameF(printN, "Onset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOnset)/60)))
-		}
-
-		if comeupAvg != 0 {
-			printNameF(printN, "Comeup:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillComeup/60))))
-		}
-
-		if peakAvg != 0 {
-			printNameF(printN, "Peak:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillPeak/60))))
-		}
-
-		if offsetAvg != 0 {
-			printNameF(printN, "Offset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOffset/60))))
-		}
-
-		if totalAvg != 0 {
-			printNameF(printN, "Total:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillTotal/60))))
-		}
-
-		printNameF(printN, "Total:\tMin: %d ; Max: %d\n",
-			int(math.Round(
-				float64(
-					(gotInfoProper.TotalDurMin-
-						(timeTill.TotalCompleteMin*gotInfoProper.TotalDurMin))/60))),
-			int(math.Round(
-				float64(
-					(gotInfoProper.TotalDurMax-
-						(timeTill.TotalCompleteMax*gotInfoProper.TotalDurMax))/60))))
-
-		printName(printN, "=== Percentage of time left completed ===")
-
-		printNameF(printN, "Total:\t%d%% (of %d average minutes)\n",
-			int(timeTill.TotalCompleteAvg*100),
-			int(math.Round(float64(totalAvg)/60)))
-
-		printNameF(printN, "Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
-			int(timeTill.TotalCompleteMin*100),
-			int(math.Round(float64(gotInfoProper.TotalDurMin)/60)),
-			int(timeTill.TotalCompleteMax*100),
-			int(math.Round(float64(gotInfoProper.TotalDurMax)/60)))
+// PrintTimeTill prints the information gotten using GetTimes() to the terminal.
+//
+// timeTillErr - the struct returned from GetTimes()
+//
+// prefix - if true, adds the function name to every print
+func (cfg Config) PrintTimeTill(timeTillErr TimeTillError, prefix bool) error {
+	var printN string
+	if prefix == true {
+		printN = "GetTimes()"
+	} else {
+		printN = ""
 	}
 
-	return &timeTill
+	location, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		err = errors.New(sprintName(printN, "LoadLocation:", err))
+		return err
+	}
+
+	timeTill := timeTillErr.TimeT
+	useLog := timeTillErr.useLog
+	approxEnd := timeTillErr.approxEnd
+	useLoggedTime := timeTillErr.useLoggedTime
+	gotInfoProper := timeTillErr.gotInfoProper
+
+	printName(printN, "Warning: All data in here is approximations based on averages.")
+	printName(printN, "Please don't let that influence the experience too much!")
+	fmt.Println()
+	printNameF(printN, "Start Dose:\t%q (%d)\n",
+		time.Unix(useLog.StartTime, 0).In(location),
+		useLog.StartTime)
+	if approxEnd != useLog.StartTime {
+		printNameF(printN, "Approx. End:\t%q (%d)\n",
+			time.Unix(approxEnd, 0).In(location),
+			approxEnd)
+	}
+
+	if useLog.EndTime != 0 {
+		printNameF(printN, "Finish Dose:\t%q (%d)\n",
+			time.Unix(useLog.EndTime, 0).In(location),
+			useLog.EndTime)
+
+		printNameF(printN, "Adjust Finish:\t%q (%d)\n",
+			time.Unix(useLoggedTime, 0).In(location), useLoggedTime)
+	}
+	curTime := time.Now().Unix()
+	printNameF(printN, "Current Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
+
+	getDiffSinceLastLog := curTime - useLoggedTime
+	printNameF(printN, "Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
+	fmt.Println()
+	printNameF(printN, "Drug:\t%q\n", useLog.DrugName)
+	printNameF(printN, "Dose:\t%f\n", useLog.Dose)
+	printNameF(printN, "Units:\t%q\n\n", useLog.DoseUnits)
+
+	printName(printN, "=== Time left in minutes until ===")
+
+	if timeTillErr.onsetAvg != 0 {
+		printNameF(printN, "Onset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOnset)/60)))
+	}
+
+	if timeTillErr.comeupAvg != 0 {
+		printNameF(printN, "Comeup:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillComeup/60))))
+	}
+
+	if timeTillErr.peakAvg != 0 {
+		printNameF(printN, "Peak:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillPeak/60))))
+	}
+
+	if timeTillErr.offsetAvg != 0 {
+		printNameF(printN, "Offset:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillOffset/60))))
+	}
+
+	if timeTillErr.totalAvg != 0 {
+		printNameF(printN, "Total:\t%d (average)\n", int(math.Round(float64(timeTill.TimeTillTotal/60))))
+	}
+
+	printNameF(printN, "Total:\tMin: %d ; Max: %d\n",
+		int(math.Round(
+			float64(
+				(gotInfoProper.TotalDurMin-
+					(timeTill.TotalCompleteMin*gotInfoProper.TotalDurMin))/60))),
+		int(math.Round(
+			float64(
+				(gotInfoProper.TotalDurMax-
+					(timeTill.TotalCompleteMax*gotInfoProper.TotalDurMax))/60))))
+
+	printName(printN, "=== Percentage of time left completed ===")
+
+	printNameF(printN, "Total:\t%d%% (of %d average minutes)\n",
+		int(timeTill.TotalCompleteAvg*100),
+		int(math.Round(float64(timeTillErr.totalAvg)/60)))
+
+	printNameF(printN, "Total:\tMin: %d%% (of %d minutes) ; Max: %d%% (of %d minutes)\n",
+		int(timeTill.TotalCompleteMin*100),
+		int(math.Round(float64(gotInfoProper.TotalDurMin)/60)),
+		int(timeTill.TotalCompleteMax*100),
+		int(math.Round(float64(gotInfoProper.TotalDurMax)/60)))
+
+	return nil
 }

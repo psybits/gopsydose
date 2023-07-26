@@ -77,8 +77,7 @@ type PsychonautwikiSubstance []struct {
 // Used to initialise the GraphQL struct, using the source address from
 // the drugdose Config struct.
 //
-// returns: bool (true if client is initialised, false otherwise),
-// client (the GraphQL struct used with github.com/hasura/go-graphql-client
+// returns the GraphQL struct used with github.com/hasura/go-graphql-client
 func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 	const printN string = "InitGraphqlClient()"
 
@@ -119,6 +118,23 @@ func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 	return nil, *client_new
 }
 
+// FetchPsyWiki gets information from Psychonautwiki about a given substance
+// and stores it in the local info table. The table is determined by the
+// source chosen in the Config struct. The name of the table is the same as the
+// name of the source, in this case "psychonautwiki".
+//
+// This function is meant to be run concurrently.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// errChannel - the gorouting channel which returns the errors
+//
+// drugname - the substance to get information about
+//
+// client - the initialised structure for the graphql client,
+// best done using InitGraphqlClient(), but can be done manually if needed
 func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 	errChannel chan error, drugname string, client graphql.Client) {
 	const printN string = "FetchPsyWiki()"
