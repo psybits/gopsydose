@@ -442,9 +442,11 @@ func main() {
 	}
 
 	if *getUsers {
-		ret := gotsetcfg.GetUsers(db, ctx)
-		if len(ret) == 0 {
-			printCLI("Couldn't get users because of an error.")
+		err, ret := gotsetcfg.GetUsers(db, ctx)
+		if err != nil {
+			printCLI("Couldn't get users because of an error:", err)
+		} else if len(ret) == 0 {
+			printCLI("No users logged.")
 		} else {
 			fmt.Print("All users: ")
 			for i := 0; i < len(ret); i++ {
@@ -468,17 +470,17 @@ func main() {
 
 	if *getLogs {
 		if *noGetLimit {
-			go gotsetcfg.GetLogs(db, userLogsErrChan, ctx, 0, *forID, *forUser, false, *searchStr)
+			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 0, *forID, *forUser, false, *searchStr)
 		} else {
-			go gotsetcfg.GetLogs(db, userLogsErrChan, ctx, 100, *forID, *forUser, false, *searchStr)
+			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 100, *forID, *forUser, false, *searchStr)
 			logsLimit = true
 		}
 		gettingLogs = true
 	} else if *getNewLogs != 0 {
-		go gotsetcfg.GetLogs(db, userLogsErrChan, ctx, *getNewLogs, 0, *forUser, true, *searchStr)
+		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getNewLogs, 0, *forUser, true, *searchStr)
 		gettingLogs = true
 	} else if *getOldLogs != 0 {
-		go gotsetcfg.GetLogs(db, userLogsErrChan, ctx, *getOldLogs, 0, *forUser, false, *searchStr)
+		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getOldLogs, 0, *forUser, false, *searchStr)
 		gettingLogs = true
 	}
 
@@ -502,9 +504,15 @@ func main() {
 	}
 
 	if *getLocalInfoDrugs {
-		locinfolist := gotsetcfg.GetLocalInfoNames(db, ctx)
-		if len(locinfolist) == 0 {
-			printCLI("Couldn't get database list of drugs names from info table.")
+		drugNamesErrChan := make(chan drugdose.DrugNamesError)
+		go gotsetcfg.GetLocalInfoNames(db, ctx, drugNamesErrChan)
+		gotDrugNamesErr := <-drugNamesErrChan
+		err = gotDrugNamesErr.Err
+		locinfolist := gotDrugNamesErr.DrugNames
+		if err != nil {
+			printCLI("Error getting drug names list:", err)
+		} else if len(locinfolist) == 0 {
+			printCLI("Empty list of drug names from info table.")
 		} else {
 			fmt.Print("For source: " + gotsetcfg.UseSource + " ; All local drugs: ")
 			for i := 0; i < len(locinfolist); i++ {
@@ -514,12 +522,32 @@ func main() {
 		}
 	}
 
+	getNamesWhich := "none"
+	getNamesValue := ""
 	if *getSubNames != "" {
-		subsNames := gotsetcfg.GetAllNames(db, ctx, *getSubNames, "substance", false)
-		if subsNames == nil {
-			printCLI("Couldn't get substance names, because of an error.")
+		getNamesWhich = "substance"
+		getNamesValue = *getSubNames
+	} else if *getRouteNames != "" {
+		getNamesWhich = "route"
+		getNamesValue = *getRouteNames
+	} else if *getUnitsNames != "" {
+		getNamesWhich = "units"
+		getNamesValue = *getUnitsNames
+	}
+
+	if getNamesWhich != "none" {
+		drugNamesErrChan := make(chan drugdose.DrugNamesError)
+		go gotsetcfg.GetAllNames(db, ctx, drugNamesErrChan,
+			getNamesValue, getNamesWhich, false)
+		gotDrugNamesErr := <-drugNamesErrChan
+		subsNames := gotDrugNamesErr.DrugNames
+		err = gotDrugNamesErr.Err
+		if err != nil {
+			printCLI("Couldn't get substance names, because of error:", err)
+		} else if len(subsNames) == 0 {
+			printCLI("No names returned for " + getNamesWhich + ": " + getNamesValue)
 		} else {
-			fmt.Print("For substance: " + *getSubNames + " ; Alternative names: ")
+			fmt.Print("For " + getNamesWhich + ": " + getNamesValue + " ; Alternative names: ")
 			for i := 0; i < len(subsNames); i++ {
 				fmt.Print(subsNames[i] + ", ")
 			}
@@ -527,36 +555,16 @@ func main() {
 		}
 	}
 
-	if *getRouteNames != "" {
-		routeNames := gotsetcfg.GetAllNames(db, ctx, *getRouteNames, "route", false)
-		if routeNames == nil {
-			printCLI("Couldn't get route names, because of an error.")
-		} else {
-			fmt.Print("For route: " + *getRouteNames + " ; Alternative names: ")
-			for i := 0; i < len(routeNames); i++ {
-				fmt.Print(routeNames[i] + ", ")
-			}
-			fmt.Println()
-		}
-	}
-
-	if *getUnitsNames != "" {
-		unitsNames := gotsetcfg.GetAllNames(db, ctx, *getUnitsNames, "units", false)
-		if unitsNames == nil {
-			printCLI("Couldn't get units names, because of an error.")
-		} else {
-			fmt.Print("For unit: " + *getUnitsNames + " ; Alternative names: ")
-			for i := 0; i < len(unitsNames); i++ {
-				fmt.Print(unitsNames[i] + ", ")
-			}
-			fmt.Println()
-		}
-	}
-
 	if *getLocalInfoDrug != "none" {
-		locinfo := gotsetcfg.GetLocalInfo(db, ctx, *getLocalInfoDrug)
-		if len(locinfo) == 0 {
-			printCLI("Couldn't get database info for drug:", *getLocalInfoDrug)
+		drugInfoErrChan := make(chan drugdose.DrugInfoError)
+		go gotsetcfg.GetLocalInfo(db, ctx, drugInfoErrChan, *getLocalInfoDrug)
+		gotDrugInfoErr := <-drugInfoErrChan
+		locinfo := gotDrugInfoErr.DrugI
+		err = gotDrugInfoErr.Err
+		if err != nil {
+			printCLI("Couldn't get info for drug because of error:", err)
+		} else if len(locinfo) == 0 {
+			printCLI("No info returned for drug:", *getLocalInfoDrug)
 		} else {
 			gotsetcfg.PrintLocalInfo(locinfo, false)
 		}
@@ -654,9 +662,10 @@ func main() {
 			setValue = *drugroute
 		}
 
-		ret := gotsetcfg.SetUserLogs(db, ctx, setType, *forID, *forUser, setValue)
-		if !ret {
-			printCLI("Couldn't change user log, because of an error.")
+		go gotsetcfg.SetUserLogs(db, ctx, errChannel, setType, *forID, *forUser, setValue)
+		err = <-errChannel
+		if err != nil {
+			printCLI(err)
 		}
 	}
 
@@ -667,10 +676,11 @@ func main() {
 		err := gotTimeTillErr.Err
 		if err != nil {
 			printCLI("Times couldn't be retrieved because of an error:", err)
-		}
-		err = gotsetcfg.PrintTimeTill(gotTimeTillErr, false)
-		if err != nil {
-			printCLI("Couldn't print times because of an error:", err)
+		} else {
+			err = gotsetcfg.PrintTimeTill(gotTimeTillErr, false)
+			if err != nil {
+				printCLI("Couldn't print times because of an error:", err)
+			}
 		}
 	}
 }

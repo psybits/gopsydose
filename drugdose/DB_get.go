@@ -73,7 +73,7 @@ func (cfg Config) GetDBSize() int64 {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) []string {
+func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) (error, []string) {
 	const printN string = "GetUsers()"
 
 	var allUsers []string
@@ -81,20 +81,20 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) []string {
 
 	rows, err := db.QueryContext(ctx, "select distinct username from "+loggingTableName)
 	if err != nil {
-		printName(printN, "Query: error getting usernames:", err)
-		return nil
+		err = errors.New(sprintName(printN, "Query: error getting usernames:", err))
+		return err, nil
 	}
 
 	for rows.Next() {
 		err = rows.Scan(&tempUser)
 		if err != nil {
-			printName(printN, "Scan: error getting usernames:", err)
-			return nil
+			err = errors.New(sprintName(printN, "Scan: error getting usernames:", err))
+			return err, nil
 		}
 		allUsers = append(allUsers, tempUser)
 	}
 
-	return allUsers
+	return nil, allUsers
 }
 
 // GetLogsCount returns total amount of logs in
@@ -126,12 +126,14 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) (er
 // the error must be checked before reading the logs. Every log is a separate
 // element of the UserLogs slice.
 //
+// This function is meant to be run concurrently.
+//
 // db - an open database connection
+//
+// ctx - context that will be passed to the sql query function
 //
 // userLogsErrorChannel - the goroutine channel used to return the logs and
 // the error
-//
-// ctx - context that will be passed to the sql query function
 //
 // num - amount of logs to return (limit), if 0 returns all logs (without limit)
 //
@@ -144,8 +146,9 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) (er
 // this should return the newest logs first, false is the opposite direction
 //
 // search - return logs only matching this string
-func (cfg Config) GetLogs(db *sql.DB, userLogsErrorChannel chan UserLogsError,
-	ctx context.Context, num int, id int64, user string, reverse bool,
+func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
+	userLogsErrorChannel chan UserLogsError, num int, id int64,
+	user string, reverse bool,
 	search string) {
 
 	printN := "GetLogs()"
@@ -243,16 +246,28 @@ func (cfg Config) GetLogs(db *sql.DB, userLogsErrorChannel chan UserLogsError,
 // GetLocalInfoNames returns a slice containing all unique names of drugs
 // present in the local database gotten from a source.
 //
+// This function is meant to be run concurrently.
+//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context) []string {
+//
+// drugNamesErrorChannel - the goroutine channel used to return the list of
+// drug names and the error
+func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context,
+	drugNamesErrorChannel chan DrugNamesError) {
 	const printN string = "GetLocalInfoNames()"
+
+	tempDrugNamesError := DrugNamesError{
+		DrugNames: nil,
+		Err:       nil,
+	}
 
 	rows, err := db.QueryContext(ctx, "select distinct drugName from "+cfg.UseSource)
 	if err != nil {
-		printName(printN, err)
-		return nil
+		tempDrugNamesError.Err = errors.New(sprintName(printN, err))
+		drugNamesErrorChannel <- tempDrugNamesError
+		return
 	}
 	defer rows.Close()
 
@@ -261,33 +276,46 @@ func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context) []string {
 		var holdName string
 		err := rows.Scan(&holdName)
 		if err != nil {
-			printName(printN, err)
-			return nil
+			tempDrugNamesError.Err = errors.New(sprintName(printN, err))
+			drugNamesErrorChannel <- tempDrugNamesError
+			return
 		}
 
 		drugList = append(drugList, holdName)
 	}
 	err = rows.Err()
 	if err != nil {
-		printName(printN, err)
-		return nil
+		tempDrugNamesError.Err = errors.New(sprintName(printN, err))
+		drugNamesErrorChannel <- tempDrugNamesError
+		return
 	}
 
-	return drugList
+	tempDrugNamesError.DrugNames = drugList
+	drugNamesErrorChannel <- tempDrugNamesError
 }
 
 // GetLocalInfo returns a slice containing all information about a drug.
+//
+// This function is meant to be run concurrently.
 //
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
+// drugInfoErrChan - the goroutine channel used to return the slice containing
+// information about all routes for a drug and the error
+//
 // drug - drug to get information about
 func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
-	drug string) []DrugInfo {
+	drugInfoErrChan chan DrugInfoError, drug string) {
 	printN := "GerLocalInfo()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
+
+	tempDrugInfoErr := DrugInfoError{
+		DrugI: nil,
+		Err:   nil,
+	}
 
 	ret := checkIfExistsDB(db, ctx,
 		"drugName",
@@ -297,14 +325,16 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 		nil,
 		drug)
 	if !ret {
-		printName(printN, "No such drug in info database:", drug)
-		return nil
+		tempDrugInfoErr.Err = errors.New(sprintName(printN, "No such drug in info database: ", drug))
+		drugInfoErrChan <- tempDrugInfoErr
+		return
 	}
 
 	rows, err := db.QueryContext(ctx, "select * from "+cfg.UseSource+" where drugName = ?", drug)
 	if err != nil {
-		printName(printN, err)
-		return nil
+		tempDrugInfoErr.Err = errors.New(sprintName(printN, err))
+		drugInfoErrChan <- tempDrugInfoErr
+		return
 	}
 	defer rows.Close()
 	infoDrug := []DrugInfo{}
@@ -321,17 +351,20 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 			&tempdrinfo.OffsetUnits, &tempdrinfo.TotalDurMin, &tempdrinfo.TotalDurMax,
 			&tempdrinfo.TotalDurUnits, &tempdrinfo.TimeOfFetch)
 		if err != nil {
-			printName(printN, err)
-			return nil
+			tempDrugInfoErr.Err = errors.New(sprintName(printN, err))
+			drugInfoErrChan <- tempDrugInfoErr
+			return
 		}
 
 		infoDrug = append(infoDrug, tempdrinfo)
 	}
 	err = rows.Err()
 	if err != nil {
-		printName(printN, err)
-		return nil
+		tempDrugInfoErr.Err = errors.New(sprintName(printN, err))
+		drugInfoErrChan <- tempDrugInfoErr
+		return
 	}
 
-	return infoDrug
+	tempDrugInfoErr.DrugI = infoDrug
+	drugInfoErrChan <- tempDrugInfoErr
 }

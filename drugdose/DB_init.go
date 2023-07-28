@@ -76,6 +76,11 @@ func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) error {
 		return nil
 	}
 
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+	}
+
 	caseInsensitive := " "
 	if cfg.DBDriver == SqliteDriver {
 		caseInsensitive = " COLLATE NOCASE "
@@ -109,9 +114,16 @@ func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) error {
 		"timeOfFetch bigint not null," +
 		"primary key (drugName, drugRoute));"
 
-	_, err := db.ExecContext(ctx, initDBsql)
+	_, err = tx.Exec(initDBsql)
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, "db.ExecContext(): ", err))
+		return err
+	}
+
+	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
+	if err != nil {
+		return err
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+cfg.UseSource+"' table for drug info in database.")
@@ -132,6 +144,11 @@ func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) error {
 		return nil
 	}
 
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+	}
+
 	caseInsensitive := " "
 	if cfg.DBDriver == SqliteDriver {
 		caseInsensitive = " COLLATE NOCASE "
@@ -146,9 +163,16 @@ func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) error {
 		"drugRoute text" + caseInsensitive + "not null," +
 		"primary key (timeOfDoseStart, username));"
 
-	_, err := db.ExecContext(ctx, initDBsql)
+	_, err = tx.Exec(initDBsql)
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, "db.ExecContext(): ", err))
+		return err
+	}
+
+	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
+	if err != nil {
+		return err
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Created: 'userLogs' table in database.")
@@ -169,13 +193,25 @@ func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) error {
 		return nil
 	}
 
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+	}
+
 	initDBsql := "create table " + userSetTableName + " (username varchar(255) not null," +
 		"useIDForRemember bigint not null," +
 		"primary key (username));"
 
-	_, err := db.ExecContext(ctx, initDBsql)
+	_, err = tx.Exec(initDBsql)
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, "db.ExecContext(): ", err))
+		return err
+	}
+
+	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
+	if err != nil {
+		return err
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Created: 'userSettings' table in database.")
@@ -231,21 +267,26 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 		return nil
 	}
 
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+	}
+
 	caseInsensitive := " "
 	if cfg.DBDriver == SqliteDriver {
 		caseInsensitive = " COLLATE NOCASE "
 	}
 
-	var err error
 	if !subsExists {
 		initDBsql := "create table " + altNamesSubsTableName + tableSuffix +
 			" (localName varchar(255)" + caseInsensitive + "not null," +
 			"alternativeName varchar(255)" + caseInsensitive + "not null," +
 			"primary key (localName, alternativeName));"
 
-		_, err = db.ExecContext(ctx, initDBsql)
+		_, err = tx.Exec(initDBsql)
+		err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 		if err != nil {
-			return errors.New(sprintName(printN, "db.ExecContext(): ", err))
+			return err
 		}
 
 		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesSubsTableName+tableSuffix+"' table in database.")
@@ -257,9 +298,10 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 			"alternativeName varchar(255)" + caseInsensitive + "not null," +
 			"primary key (localName, alternativeName));"
 
-		_, err = db.ExecContext(ctx, initDBsql)
+		_, err = tx.Exec(initDBsql)
+		err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 		if err != nil {
-			return errors.New(sprintName(printN, "db.ExecContext(): ", err))
+			return err
 		}
 
 		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesRouteTableName+tableSuffix+"' table in database.")
@@ -271,9 +313,10 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 			"alternativeName varchar(255)" + caseInsensitive + "not null," +
 			"primary key (localName, alternativeName));"
 
-		_, err = db.ExecContext(ctx, initDBsql)
+		_, err = tx.Exec(initDBsql)
+		err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 		if err != nil {
-			return errors.New(sprintName(printN, "db.ExecContext(): ", err))
+			return err
 		}
 
 		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesUnitsTableName+tableSuffix+"' table in database.")
@@ -285,12 +328,19 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 			"alternativeName varchar(255)" + caseInsensitive + "not null," +
 			"primary key (localName, alternativeName));"
 
-		_, err = db.ExecContext(ctx, initDBsql)
+		_, err = tx.Exec(initDBsql)
+		err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 		if err != nil {
-			return errors.New(sprintName(printN, "db.ExecContext(): ", err))
+			return err
 		}
 
 		printNameVerbose(cfg.VerbosePrinting, printN, "Created: '"+altNamesConvUnitsTableName+tableSuffix+"' table in database.")
+	}
+
+	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
+	if err != nil {
+		return err
 	}
 
 	return nil

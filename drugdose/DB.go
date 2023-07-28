@@ -102,6 +102,21 @@ type UserLogsError struct {
 	Err      error
 }
 
+type DrugNamesError struct {
+	DrugNames []string
+	Err       error
+}
+
+type DrugInfoError struct {
+	DrugI []DrugInfo
+	Err   error
+}
+
+type UserSettingError struct {
+	UserSetting string
+	Err         error
+}
+
 type DrugInfo struct {
 	DrugName      string
 	DrugRoute     string
@@ -284,6 +299,22 @@ func (cfg Config) CheckDBTables(db *sql.DB, ctx context.Context, tableName strin
 	return len(tableList) != 0
 }
 
+// FetchFromSource goes through all source names and picks the proper
+// function for fetching drug information. The information is automatically
+// added to the proper info table depending on the Config struct.
+//
+// This function is meant to be run concurrently.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// errChannel - the gorouting channel which returns the errors
+//
+// drugname - the name of the substance to fetch information for
+//
+// client - the initialised structure for the graphql client,
+// best done using InitGraphqlClient(), but can be done manually if needed
 func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 	errChannel chan error, drugname string, client graphql.Client) {
 
@@ -402,22 +433,42 @@ func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 	}
 }
 
-func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, set string, id int64, username string, setValue string) bool {
+// SetUserLogs can be used to change a log's data.
+//
+// This function is meant to be run concurrently.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// errChannel - the gorouting channel which returns the errors
+//
+// set - what log data to change, the options are: start-time, end-time, drug,
+// dose, units, route
+//
+// id - if 0 will change the newest log, else it will change the log with
+// the given id
+//
+// username - the user who's log we're changing
+//
+// setValue - the new value to set
+func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, errChannel chan error,
+	set string, id int64, username string, setValue string) {
 	const printN string = "SetUserLogs()"
 
 	if username == "none" {
-		printName(printN, "Please specify an username!")
-		return false
+		errChannel <- errors.New(sprintName(printN, "Please specify an username!"))
+		return
 	}
 
 	if set == "none" {
-		printName(printN, "Please specify a set type!")
-		return false
+		errChannel <- errors.New(sprintName(printN, "Please specify a set type!"))
+		return
 	}
 
 	if setValue == "none" {
-		printName(printN, "Please specify a value to set!")
-		return false
+		errChannel <- errors.New(sprintName(printN, "Please specify a value to set!"))
+		return
 	}
 
 	if setValue == "now" && set == "start-time" || setValue == "now" && set == "end-time" {
@@ -426,15 +477,15 @@ func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, set string, id in
 
 	if set == "start-time" || set == "end-time" {
 		if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
-			printName(printN, "Error when checking if integer:", err)
-			return false
+			errChannel <- errors.New(sprintName(printN, "Error when checking if integer:", err))
+			return
 		}
 	}
 
 	if set == "dose" {
 		if _, err := strconv.ParseFloat(setValue, 64); err != nil {
-			printName(printN, "Error when checking if float:", err)
-			return false
+			errChannel <- errors.New(sprintName(printN, "Error when checking if float:", err))
+			return
 		}
 	}
 
@@ -451,57 +502,43 @@ func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, set string, id in
 	var gotLogs []UserLog
 	var gotErr error
 
-	if id == 0 {
-		go cfg.GetLogs(db, userLogsErrChan, ctx, 1, 0, username, true, "")
-		gotUserLogsErr := <-userLogsErrChan
-		gotErr = gotUserLogsErr.Err
-		if gotErr != nil {
-			printName(printN, gotErr)
-			return false
-		}
-
-		gotLogs = gotUserLogsErr.UserLogs
-		id = gotLogs[0].StartTime
-	} else {
-		go cfg.GetLogs(db, userLogsErrChan, ctx, 1, id, username, true, "")
-		gotUserLogsErr := <-userLogsErrChan
-		gotErr = gotUserLogsErr.Err
-		if gotErr != nil {
-			printName(printN, gotErr)
-			return false
-		}
-		gotLogs = gotUserLogsErr.UserLogs
+	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, id, username, true, "")
+	gotUserLogsErr := <-userLogsErrChan
+	gotErr = gotUserLogsErr.Err
+	if gotErr != nil {
+		errChannel <- errors.New(sprintName(printN, gotErr))
+		return
 	}
+
+	gotLogs = gotUserLogsErr.UserLogs
+	id = gotLogs[0].StartTime
 
 	stmtStr := fmt.Sprintf("update "+loggingTableName+" set %s = ? where timeOfDoseStart = ?",
 		setName[set])
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, "db.Begin():", err)
-		return false
+		errChannel <- errors.New(sprintName(printN, "db.Begin():", err))
+		return
 	}
 
-	stmt, err := tx.PrepareContext(ctx, stmtStr)
-	if err != nil {
-		printName(printN, "tx.Prepare():", err)
-		return false
+	stmt, err := tx.Prepare(stmtStr)
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
+		return
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, setValue, id)
-	if err != nil {
-		printName(printN, "stmt.Exec():", err)
-		return false
+	_, err = stmt.Exec(setValue, id)
+	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
+		return
 	}
 
 	err = tx.Commit()
-	if err != nil {
-		printName(printN, "tx.Commit():", err)
-		return false
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
+		return
 	}
 
 	printName(printN, "entry:", id, "; changed:", set, "; to value:", setValue)
 
-	return true
+	errChannel <- nil
 }

@@ -13,11 +13,6 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
-type UserSettingError struct {
-	UserSetting string
-	Err         error
-}
-
 // InitUserSettings creates the row with default settings for a user.
 // These settings are kept in the database and are not global like the config
 // files. All users have their own settings.
@@ -27,38 +22,38 @@ type UserSettingError struct {
 // ctx - context to be passed to sql queries
 //
 // username - the user to create default settings for
-func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context, username string) bool {
+func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context, username string) error {
 	const printN string = "InitUserSettings()"
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		printName(printN, err)
-		return false
+		err = errors.New(sprintName(printN, err))
+		return err
 	}
 
 	stmt, err := tx.Prepare("insert into userSettings" +
 		" (username, useIDForRemember) " +
 		"values(?, ?)")
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Prepare(): ")
 	if err != nil {
-		printName(printN, err)
-		return false
+		return err
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(username, ForgetInputConfigMagicNumber)
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 	if err != nil {
-		printName(printN, err)
-		return false
+		return err
 	}
 	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
 	if err != nil {
-		printName(printN, err)
-		return false
+		return err
 	}
 
 	printName(printN, "User settings initialized successfully!")
 
-	return true
+	return nil
 }
 
 // SetUserSettings changes the user settings in the database.
@@ -86,7 +81,11 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 		cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
 		nil, username)
 	if ret == false {
-		cfg.InitUserSettings(db, ctx, username)
+		err := cfg.InitUserSettings(db, ctx, username)
+		if err != nil {
+			errChannel <- errors.New(sprintName(printN, err))
+			return
+		}
 	}
 
 	if username == "none" {
@@ -203,7 +202,7 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 	forIDStr := strconv.FormatInt(forID, 10)
 	if forIDStr == "0" {
 		userLogsErrChan := make(chan UserLogsError)
-		go cfg.GetLogs(db, userLogsErrChan, ctx, 1, 0, username, true, "none")
+		go cfg.GetLogs(db, ctx, userLogsErrChan, 1, 0, username, true, "none")
 		gotLogs := <-userLogsErrChan
 		if gotLogs.Err != nil {
 			errChannel <- errors.New(sprintName(printN, gotLogs.Err))
@@ -268,7 +267,7 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 	}
 
 	userLogsErrChan2 := make(chan UserLogsError)
-	go cfg.GetLogs(db, userLogsErrChan2, ctx, 1, gotInt, username, false, "")
+	go cfg.GetLogs(db, ctx, userLogsErrChan2, 1, gotInt, username, false, "")
 	tempUserLogsError = <-userLogsErrChan2
 	err = tempUserLogsError.Err
 	if err != nil {

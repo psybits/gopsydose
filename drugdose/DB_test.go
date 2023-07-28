@@ -154,7 +154,7 @@ func TestConcurrentGetLogs(t *testing.T) {
 
 			userLogsErrChan := make(chan UserLogsError)
 			for i := 0; i < count; i++ {
-				go cfg.GetLogs(db, userLogsErrChan, ctx, count,
+				go cfg.GetLogs(db, ctx, userLogsErrChan, count,
 					0, temp_users[useUser(i, o)], true, "")
 			}
 
@@ -186,7 +186,7 @@ func TestConcurrentGetLogs(t *testing.T) {
 		// Test invalid logs
 		userLogsErrChan := make(chan UserLogsError)
 		for i := 0; i < 5; i++ {
-			go cfg.GetLogs(db, userLogsErrChan, ctx, 1,
+			go cfg.GetLogs(db, ctx, userLogsErrChan, 1,
 				0, "W2IK&m9)abN8*(x9Ms90mMm", true, "")
 		}
 
@@ -240,7 +240,7 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 
 			userLogsErrChan := make(chan UserLogsError)
 			for i := 0; i < count; i++ {
-				go cfg.GetLogs(db, userLogsErrChan, ctx, count,
+				go cfg.GetLogs(db, ctx, userLogsErrChan, count,
 					0, temp_users[useUser(i, o)], true, "")
 				gotUserLogsErr := <-userLogsErrChan
 				gotLog := gotUserLogsErr.UserLogs
@@ -304,7 +304,7 @@ func TestUseConfigTimeout(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	userLogsErrChan := make(chan UserLogsError)
-	go cfg.GetLogs(db, userLogsErrChan, ctx2, 1, 0, test_user,
+	go cfg.GetLogs(db, ctx2, userLogsErrChan, 1, 0, test_user,
 		false, "")
 	gotUserLogsErr := <-userLogsErrChan
 	gotErr := gotUserLogsErr.Err

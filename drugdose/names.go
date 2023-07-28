@@ -281,7 +281,6 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 // nameType - checkout namesTables()
 //
 // sourceNames - if true, it will use the config for the source,
-//
 // meaning the names specific for the source
 //
 // overwrite - if true will overwrite the names config directory
@@ -332,6 +331,7 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 }
 
 // Returns the local name, using both the global config and the source specific config.
+// Checkout MatchName()
 //
 // db - open database connection
 //
@@ -350,7 +350,7 @@ func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 // Tries matching a single string to all alternative names tables.
 // If it finds a match it will return the alt name for that single string.
 // It matches all alt drugs, route and units, so a single input can be checked
-// for all of them.
+// for all of them. Checkout MatchAndReplace()
 //
 // db - open database connection
 //
@@ -373,18 +373,36 @@ func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context, inputName 
 // etc. The alt names themselves can't be used to find the other alt names,
 // it requires the "main" name in the local info table.
 //
+// This function is meant to be run concurrently.
+//
 // db - open database connection
 //
 // ctx - context to passed to sql query function
 //
+// namesErrChan - the goroutine channel used to return the alternative names for
+// a given "global" name and the error
+//
 // inputName - local name to get alt names for
-func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context, inputName string,
-	nameType string, sourceNames bool) []string {
+//
+// nameType - choose between getting alt names for: substance, route, units or
+// convUnits (conversion units)
+//
+// sourceNames - use source specific names instead of global ones
+func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context,
+	namesErrChan chan DrugNamesError, inputName string,
+	nameType string, sourceNames bool) {
 	const printN string = "GetAllNames()"
+
+	tempDrugNamesErr := DrugNamesError{
+		DrugNames: nil,
+		Err:       nil,
+	}
 
 	table := namesTables(nameType)
 	if table == "" {
-		return nil
+		tempDrugNamesErr.Err = errors.New(sprintName(printN, "No name type: ", nameType))
+		namesErrChan <- tempDrugNamesErr
+		return
 	}
 
 	tableSuffix := ""
@@ -407,29 +425,26 @@ func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context, inputName string,
 	rows, err := db.QueryContext(ctx, "select alternativeName from "+table+
 		" where localName = ?", repName)
 	if err != nil {
-		printName(printN, "Error:", err)
-		return nil
+		err = errors.New(sprintName(printN, "Error: ", err))
+		tempDrugNamesErr.Err = err
+		namesErrChan <- tempDrugNamesErr
+		return
 	}
 
 	for rows.Next() {
 		err = rows.Scan(&tempName)
 		if err != nil {
-			printName(printN, "Scan: Error:", err)
-			return nil
+			err = errors.New(sprintName(printN, "Scan: Error:", err))
+			tempDrugNamesErr.Err = err
+			namesErrChan <- tempDrugNamesErr
+			return
 		}
 		allNames = append(allNames, tempName)
 	}
 
-	addToErrMsg := ""
-	if sourceNames {
-		addToErrMsg = "; for source: " + cfg.UseSource
-	}
-
-	if len(allNames) == 0 {
-		printName(printN, "No names found for:", repName, addToErrMsg)
-	}
-
-	return allNames
+	tempDrugNamesErr.DrugNames = allNames
+	namesErrChan <- tempDrugNamesErr
+	return
 }
 
 // Converts percentage to pure substance.
@@ -522,7 +537,15 @@ func unitsFunctionsOutput(inputName string, substance string, unitInputs ...floa
 func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string, unitInputs ...float32) (error, float32, string) {
 	const printN string = "ConvertUnits()"
 
-	allNames := cfg.GetAllNames(db, ctx, substance, "convUnits", true)
+	drugNamesErrChan := make(chan DrugNamesError)
+	go cfg.GetAllNames(db, ctx, drugNamesErrChan, substance, "convUnits", true)
+	gotDrugNamesErr := <-drugNamesErrChan
+	allNames := gotDrugNamesErr.DrugNames
+	err := gotDrugNamesErr.Err
+	if err != nil {
+		err = errors.New(sprintName(printN, err))
+		return err, 0, ""
+	}
 	gotAllNamesLen := len(allNames)
 	if gotAllNamesLen != 2 {
 		err := errors.New(sprintName(printN, "Wrong amount of names:", gotAllNamesLen,

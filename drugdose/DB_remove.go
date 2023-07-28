@@ -164,6 +164,8 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) 
 
 // RemoveLogs removes logs from the dose log table.
 //
+// This function is meant to be run concurrently.
+//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
@@ -195,7 +197,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 		}
 
 		userLogsErrChan := make(chan UserLogsError)
-		go cfg.GetLogs(db, userLogsErrChan, ctx, amount, 0, username, reverse, search)
+		go cfg.GetLogs(db, ctx, userLogsErrChan, amount, 0, username, reverse, search)
 		gotLogs := <-userLogsErrChan
 		if gotLogs.Err != nil {
 			errChannel <- gotLogs.Err
@@ -268,6 +270,8 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 // clear all information about dosage and timing for a specific drug if it's
 // old or incorrect.
 //
+// This function is meant to be run concurrently.
+//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
@@ -301,20 +305,17 @@ func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context,
 
 	stmt, err := tx.Prepare("delete from " + cfg.UseSource +
 		" where drugName = ?")
-	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "tx.Prepare(): ", err))
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(drug)
-	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "stmt.Exec(): ", err))
+	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
 		return
 	}
 
 	err = tx.Commit()
-	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "tx.Commit(): ", err))
+	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
 		return
 	}
 

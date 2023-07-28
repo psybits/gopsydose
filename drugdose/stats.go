@@ -125,7 +125,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 		TimeT: nil,
 	}
 	userLogsErrChan := make(chan UserLogsError)
-	go cfg.GetLogs(db, userLogsErrChan, ctx, 1, getid, username, true, "none")
+	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, getid, username, true, "none")
 	gotLogs := <-userLogsErrChan
 	if gotLogs.Err != nil {
 		tempTimeTillErr.Err = errors.New(sprintName(printN, gotLogs.Err))
@@ -134,7 +134,18 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	}
 
 	useLog := gotLogs.UserLogs[0]
-	gotInfo := cfg.GetLocalInfo(db, ctx, useLog.DrugName)
+
+	drugInfoErrChan := make(chan DrugInfoError)
+	go cfg.GetLocalInfo(db, ctx, drugInfoErrChan, useLog.DrugName)
+	gotDrugInfoErr := <-drugInfoErrChan
+	gotInfo := gotDrugInfoErr.DrugI
+	err := gotDrugInfoErr.Err
+	if err != nil {
+		err = errors.New(sprintName(printN, err))
+		tempTimeTillErr.Err = err
+		timeTillErrChan <- tempTimeTillErr
+		return
+	}
 
 	gotInfoNum := -1
 	for i := 0; i < len(gotInfo); i++ {
