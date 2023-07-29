@@ -12,7 +12,7 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
-// AddToInfoDB uses subs[] to fill up the currently configured source table
+// AddToInfoTable uses subs[] to fill up the currently configured source table
 // in the database. subs[] has to be filled prior to calling the function.
 // This is usually achieved by fetching data from a source using it's API.
 //
@@ -25,8 +25,9 @@ import (
 // errChannel - the gorouting channel which returns the errors
 //
 // subs - all substances of type DrugInfo to go through to add to source table
-func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan error, subs []DrugInfo) {
-	const printN string = "AddToInfoDB()"
+func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
+	errChannel chan<- error, subs []DrugInfo) {
+	const printN string = "AddToInfoTable()"
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -93,7 +94,7 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan e
 	errChannel <- nil
 }
 
-// AddToDoseDB adds a new logged dose to the local database.
+// AddToDoseTable adds a new logged dose to the local database.
 //
 // This function is meant to be run concurrently.
 //
@@ -103,7 +104,7 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan e
 //
 // errChannel - the gorouting channel which returns the errors
 //
-// synct - pointer to SyncTimestamps struct used for synchronizing all AddToDoseDB() goroutines,
+// synct - pointer to SyncTimestamps struct used for synchronizing all AddToDoseTable() goroutines,
 // it makes sure no conflicts happen when new doses are added
 //
 // user - the username to log, if the same timestamps for the same username are chosen,
@@ -123,11 +124,11 @@ func (cfg Config) AddToInfoDB(db *sql.DB, ctx context.Context, errChannel chan e
 // names.go for more information on how this works
 //
 // printit - when true, prints what has been added to the database in the terminal
-func (cfg Config) AddToDoseDB(db *sql.DB, ctx context.Context, errChannel chan error,
+func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel chan<- error,
 	synct *SyncTimestamps, user string, drug string, route string,
 	dose float32, units string, perc float32, printit bool) {
 
-	const printN string = "AddToDoseDB()"
+	const printN string = "AddToDoseTable()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
 	route = cfg.MatchAndReplace(db, ctx, route, "route")

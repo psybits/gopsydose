@@ -63,7 +63,7 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	testsub = append(testsub, tempsub)
 
 	errChannel := make(chan error)
-	go gotsetcfg.AddToInfoDB(db, ctx, errChannel, testsub)
+	go gotsetcfg.AddToInfoTable(db, ctx, errChannel, testsub)
 	err := <-errChannel
 	if err != nil {
 		fmt.Println(err)
@@ -74,13 +74,13 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 }
 
 func (cfg Config) cleanAfterTest(db *sql.DB, ctx context.Context) {
-	err := cfg.CleanInfo(db, ctx)
+	err := cfg.CleanInfoTable(db, ctx)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	err = cfg.CleanNames(db, ctx, true)
+	err = cfg.CleanNamesTables(db, ctx, true)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -140,7 +140,7 @@ func TestConcurrentGetLogs(t *testing.T) {
 			errorChannel := make(chan error)
 			count := 0
 			for count < 5 {
-				go cfg.AddToDoseDB(db, ctx, errorChannel, &synct, temp_users[useUser(count, o)], test_drug,
+				go cfg.AddToDoseTable(db, ctx, errorChannel, &synct, temp_users[useUser(count, o)], test_drug,
 					test_route, temp_doses[count], test_units, 0, true)
 				gotErr := <-errorChannel
 				if gotErr != nil {
@@ -222,7 +222,7 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 			synct := SyncTimestamps{}
 			errorChannel := make(chan error)
 			for i := 0; i < 5; i++ {
-				go cfg.AddToDoseDB(db, ctx, errorChannel, &synct, temp_users[useUser(i, o)], test_drug,
+				go cfg.AddToDoseTable(db, ctx, errorChannel, &synct, temp_users[useUser(i, o)], test_drug,
 					test_route, temp_doses[i], test_units, 0, true)
 			}
 
@@ -270,7 +270,7 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 		synct := SyncTimestamps{}
 		errorChannel := make(chan error)
 		for i := 0; i < 5; i++ {
-			go cfg.AddToDoseDB(db, ctx, errorChannel, &synct, "test_user", "W2IK&m9)abN\"8*(x9Ms90mMm",
+			go cfg.AddToDoseTable(db, ctx, errorChannel, &synct, "test_user", "W2IK&m9)abN\"8*(x9Ms90mMm",
 				"W2IK&m9)abN\"8*(x9Ms90mMm", 123.12, "W2IK&m9)abN\"8*(x9Ms90mMm", 0, true)
 		}
 

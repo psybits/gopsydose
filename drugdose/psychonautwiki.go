@@ -136,7 +136,7 @@ func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 // client - the initialised structure for the graphql client,
 // best done using InitGraphqlClient(), but can be done manually if needed
 func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
-	errChannel chan error, drugname string, client graphql.Client) {
+	errChannel chan<- error, drugname string, client graphql.Client) {
 	const printN string = "FetchPsyWiki()"
 
 	if !cfg.AutoFetch {
@@ -232,7 +232,7 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 
 		if len(InfoDrug) != 0 {
 			errChannel2 := make(chan error)
-			go cfg.AddToInfoDB(db, ctx, errChannel2, InfoDrug)
+			go cfg.AddToInfoTable(db, ctx, errChannel2, InfoDrug)
 			err := <-errChannel2
 			if err != nil {
 				errChannel <- errors.New(sprintName(printN, "Data couldn't be added to info DB, because of an error: ", err))

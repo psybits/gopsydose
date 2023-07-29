@@ -72,7 +72,7 @@ func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context, username str
 //
 // setValue - the value the setting is changed to
 func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
-	errChannel chan error, set string, username string, setValue string) {
+	errChannel chan<- error, set string, username string, setValue string) {
 
 	const printN string = "SetUserSettings()"
 
@@ -149,7 +149,7 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 //
 // username - the user for which to get the setting
 func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
-	userSetErrChannel chan UserSettingError, set string, username string) {
+	userSetErrChannel chan<- UserSettingError, set string, username string) {
 
 	const printN string = "GetUserSettings()"
 
@@ -196,7 +196,7 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 //
 // forID - the ID to use for remembering a dosing
 func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
-	errChannel chan error, username string, forID int64) {
+	errChannel chan<- error, username string, forID int64) {
 	const printN string = "RememberDosing()"
 
 	forIDStr := strconv.FormatInt(forID, 10)
@@ -237,7 +237,7 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 //
 // username - the user to recall the logs for
 func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
-	userLogsErrorChannel chan UserLogsError, username string) {
+	userLogsErrorChannel chan<- UserLogsError, username string) {
 	const printN string = "RememberConfig()"
 
 	tempUserLogsError := UserLogsError{}
@@ -290,7 +290,8 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 // errChannel - the gorouting channel which returns the errors
 //
 // username - the user for which to forget the dosing
-func (cfg Config) ForgetDosing(db *sql.DB, ctx context.Context, errChannel chan error, username string) {
+func (cfg Config) ForgetDosing(db *sql.DB, ctx context.Context,
+	errChannel chan<- error, username string) {
 	const printN string = "ForgetConfig()"
 
 	errChannel2 := make(chan error)

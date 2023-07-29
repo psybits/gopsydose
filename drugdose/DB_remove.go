@@ -72,7 +72,7 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
 	return nil
 }
 
-// CleanInfo removes the currently configured info table. For example if source
+// CleanInfoTable removes the currently configured info table. For example if source
 // is set to "psychonautwiki" it will delete the table with the same name as
 // the source, containing all data like dosages and timings. All user dosages
 // aren't touched since they're not apart of the drug general information.
@@ -80,8 +80,8 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) error {
-	const printN string = "CleanInfo()"
+func (cfg Config) CleanInfoTable(db *sql.DB, ctx context.Context) error {
+	const printN string = "CleanInfoTable()"
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -105,7 +105,7 @@ func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) error {
 	return nil
 }
 
-// CleanNames removes the main names tables and the currently configured ones
+// CleanNamesTables removes the main names tables and the currently configured ones
 // as well. Names are "alternative names" like "weed" for "cannabis" and etc.
 // Main names are global, they apply to all sources. Currently configured ones
 // are source specific and are chosen based on the currently used source.
@@ -117,8 +117,8 @@ func (cfg Config) CleanInfo(db *sql.DB, ctx context.Context) error {
 //
 // replaceOnly - if true, remove only replace tables (source specific),
 // keep the global ones intact
-func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) error {
-	const printN string = "CleanNames()"
+func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly bool) error {
+	const printN string = "CleanNamesTables()"
 
 	tableSuffix := "_" + cfg.UseSource
 	tableNames := [8]string{altNamesSubsTableName,
@@ -185,7 +185,7 @@ func (cfg Config) CleanNames(db *sql.DB, ctx context.Context, replaceOnly bool) 
 //
 // search - remove logs only matching this string
 func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
-	errChannel chan error, username string, amount int, reverse bool,
+	errChannel chan<- error, username string, amount int, reverse bool,
 	remID int64, search string) {
 
 	const printN string = "RemoveLogs()"
@@ -265,7 +265,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 	errChannel <- nil
 }
 
-// RemoveSingleDrugInfoDB removes all entries of a single drug from the local
+// RemoveSingleDrugInfo removes all entries of a single drug from the local
 // info DB, instead of deleting the whole DB/table. For example if there's a need to
 // clear all information about dosage and timing for a specific drug if it's
 // old or incorrect.
@@ -279,9 +279,9 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 // errChannel - go routine channel which returns any errors
 //
 // drug - name of drug to be removed from source table
-func (cfg Config) RemoveSingleDrugInfoDB(db *sql.DB, ctx context.Context,
-	errChannel chan error, drug string) {
-	const printN string = "RemoveSingleDrugInfoDB()"
+func (cfg Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
+	errChannel chan<- error, drug string) {
+	const printN string = "RemoveSingleDrugInfo()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
 

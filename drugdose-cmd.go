@@ -381,7 +381,7 @@ func main() {
 	}
 
 	if *cleanInfo {
-		err := gotsetcfg.CleanInfo(db, ctx)
+		err := gotsetcfg.CleanInfoTable(db, ctx)
 		if err != nil {
 			printCLI(err)
 			os.Exit(1)
@@ -402,7 +402,7 @@ func main() {
 	}
 
 	if *removeInfoDrug != "none" {
-		go gotsetcfg.RemoveSingleDrugInfoDB(db, ctx, errChannel, *removeInfoDrug)
+		go gotsetcfg.RemoveSingleDrugInfo(db, ctx, errChannel, *removeInfoDrug)
 		err := <-errChannel
 		if err != nil {
 			printCLI(err)
@@ -429,7 +429,7 @@ func main() {
 	}
 
 	if *cleanNames {
-		err := gotsetcfg.CleanNames(db, ctx, false)
+		err := gotsetcfg.CleanNamesTables(db, ctx, false)
 		if err != nil {
 			printCLI(err)
 		}
@@ -620,7 +620,7 @@ func main() {
 
 		synct := drugdose.SyncTimestamps{}
 		if *dontLog == false {
-			go gotsetcfg.AddToDoseDB(db, ctx, errChannel, &synct, *forUser, *drugname, *drugroute,
+			go gotsetcfg.AddToDoseTable(db, ctx, errChannel, &synct, *forUser, *drugname, *drugroute,
 				float32(*drugargdose), *drugunits, float32(*drugperc), true)
 			gotErr := <-errChannel
 			if gotErr != nil {
@@ -662,7 +662,7 @@ func main() {
 			setValue = *drugroute
 		}
 
-		go gotsetcfg.SetUserLogs(db, ctx, errChannel, setType, *forID, *forUser, setValue)
+		go gotsetcfg.ChangeUserLog(db, ctx, errChannel, setType, *forID, *forUser, setValue)
 		err = <-errChannel
 		if err != nil {
 			printCLI(err)

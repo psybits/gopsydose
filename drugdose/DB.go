@@ -58,7 +58,7 @@ func errorCantOpenDB(path string, err error, printN string) {
 // This function is meant to be used within concurrently ran functions.
 //
 // Returns true if there's an error, false otherwise.
-func handleErrRollback(err error, tx *sql.Tx, errChannel chan error, printN string, xtraMsg string) bool {
+func handleErrRollback(err error, tx *sql.Tx, errChannel chan<- error, printN string, xtraMsg string) bool {
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
@@ -265,7 +265,7 @@ func (cfg Config) getTableNamesQuery(tableName string) string {
 	return queryStr
 }
 
-// CheckDBTables returns true if a table exists in the database with the name
+// CheckTables returns true if a table exists in the database with the name
 // tableName. It returns false in case of error or if the table isn't found.
 // If tableName is empty it will search for all tables in the database.
 //
@@ -274,8 +274,8 @@ func (cfg Config) getTableNamesQuery(tableName string) string {
 // ctx - context to be passed to sql queries
 //
 // tableName - name of table to check if it exists
-func (cfg Config) CheckDBTables(db *sql.DB, ctx context.Context, tableName string) bool {
-	const printN string = "CheckDBTables()"
+func (cfg Config) CheckTables(db *sql.DB, ctx context.Context, tableName string) bool {
+	const printN string = "CheckTables()"
 
 	queryStr := cfg.getTableNamesQuery(tableName)
 	rows, err := db.QueryContext(ctx, queryStr)
@@ -316,7 +316,7 @@ func (cfg Config) CheckDBTables(db *sql.DB, ctx context.Context, tableName strin
 // client - the initialised structure for the graphql client,
 // best done using InitGraphqlClient(), but can be done manually if needed
 func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
-	errChannel chan error, drugname string, client graphql.Client) {
+	errChannel chan<- error, drugname string, client graphql.Client) {
 
 	const printN string = "FetchFromSource()"
 
@@ -433,7 +433,7 @@ func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 	}
 }
 
-// SetUserLogs can be used to change a log's data.
+// ChangeUserLog can be used to modify log data of a single log.
 //
 // This function is meant to be run concurrently.
 //
@@ -452,9 +452,9 @@ func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 // username - the user who's log we're changing
 //
 // setValue - the new value to set
-func (cfg Config) SetUserLogs(db *sql.DB, ctx context.Context, errChannel chan error,
+func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan<- error,
 	set string, id int64, username string, setValue string) {
-	const printN string = "SetUserLogs()"
+	const printN string = "ChangeUserLog()"
 
 	if username == "none" {
 		errChannel <- errors.New(sprintName(printN, "Please specify an username!"))

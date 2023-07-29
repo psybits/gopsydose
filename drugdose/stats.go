@@ -117,7 +117,7 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 // getid - if 0 gives information about the last log, a specific ID can be
 // passed to get the times for that log
 func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
-	timeTillErrChan chan TimeTillError, username string, getid int64) {
+	timeTillErrChan chan<- TimeTillError, username string, getid int64) {
 	const printN string = "GetTimes()"
 
 	tempTimeTillErr := TimeTillError{

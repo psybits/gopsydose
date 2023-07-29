@@ -45,7 +45,10 @@ const nameTypeUnits = "units"
 const nameTypeConvertUnits = "convUnits"
 
 // Read the config file for matching names and return the proper struct.
-// nameType - checkout namesFiles()
+//
+// nameType - choose between getting alt names for: substance, route, units or
+// convUnits (conversion units)
+//
 // source - if not empty, will read the source specific config
 func GetNamesConfig(nameType string, source string) (error, *SubstanceName) {
 	const printN string = "GetNamesConfig()"
@@ -83,7 +86,7 @@ func GetNamesConfig(nameType string, source string) (error, *SubstanceName) {
 	return nil, &subName
 }
 
-func namesTables(nameType string) string {
+func namesTables(nameType string) (error, string) {
 	const printN string = "namesTables()"
 
 	table := ""
@@ -96,10 +99,10 @@ func namesTables(nameType string) string {
 	} else if nameType == nameTypeConvertUnits {
 		table = altNamesConvUnitsTableName
 	} else {
-		printName(printN, "No nameType:", nameType)
+		return errors.New(sprintName(printN, "No nameType:", nameType)), ""
 	}
 
-	return table
+	return nil, table
 }
 
 func namesFiles(nameType string) (error, string) {
@@ -125,14 +128,19 @@ func namesFiles(nameType string) (error, string) {
 // create the proper tables in the database, which will later be used
 // to match alternative names to local names.
 //
-// nameType - checkout namesTables() and namesFiles()
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// nameType - which table type to create: substance, route, units or
+// convUnits (conversion units)
 //
 // sourceNames - if true, will add data to the source specific config tables
 //
 // overwrite - force overwrite of directory and tables
-func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
+func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 	nameType string, sourceNames bool, overwrite bool) error {
-	const printN string = "AddToSubstanceNamesTable()"
+	const printN string = "AddToNamesTable()"
 
 	err, setdir := InitSettingsDir()
 	if err != nil {
@@ -142,7 +150,7 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 	var CopyToPath string = setdir + "/" + allNamesConfigsDir
 
 	if overwrite == true {
-		err := cfg.CleanNames(db, ctx, false)
+		err := cfg.CleanNamesTables(db, ctx, false)
 		if err != nil {
 			return errors.New(sprintName(printN,
 				"Couldn't clean names from database for overwrite: ", err))
@@ -162,9 +170,9 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 		}
 	}
 
-	table := namesTables(nameType)
-	if table == "" {
-		return errors.New(sprintName(printN, "No tables returned."))
+	err, table := namesTables(nameType)
+	if err != nil {
+		return errors.New(sprintName(printN, err))
 	}
 
 	tableSuffix := ""
@@ -228,38 +236,42 @@ func (cfg Config) AddToSubstanceNamesTable(db *sql.DB, ctx context.Context,
 		return errors.New(sprintName(printN, err))
 	}
 
-	subsStmt, err := db.PrepareContext(ctx, "insert into "+table+
-		" (localName, alternativeName) "+
-		"values(?, ?)")
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return errors.New(sprintName(printN, err))
+	}
+
+	subsStmt, err := tx.Prepare("insert into " + table +
+		" (localName, alternativeName) " +
+		"values(?, ?)")
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Prepare(): ")
+	if err != nil {
+		return err
 	}
 	defer subsStmt.Close()
 
-	tx, err := db.Begin()
+	_, err = tx.Stmt(subsStmt).Exec(namesMagicWord, namesMagicWord)
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Stmt.Exec(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, err))
-	}
-
-	_, err = tx.Stmt(subsStmt).ExecContext(ctx, namesMagicWord, namesMagicWord)
-	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return err
 	}
 
 	for locName, altNames := range namesCfg.LocalName {
 		locName = strings.ReplaceAll(locName, "_", " ")
 		altName := altNames.AltNames
 		for i := 0; i < len(altName); i++ {
-			_, err = tx.Stmt(subsStmt).ExecContext(ctx, locName, altName[i])
+			_, err = tx.Stmt(subsStmt).Exec(locName, altName[i])
+			err = handleErrRollbackSeq(err, tx, printN, "tx.Stmt.Exec(): ")
 			if err != nil {
-				return errors.New(sprintName(printN, err))
+				return err
 			}
 		}
 	}
 
 	err = tx.Commit()
+	err = handleErrRollbackSeq(err, tx, printN, "tx.Commit(): ")
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return err
 	}
 
 	printName(printN, nameType, "names initialized successfully! sourceNames:", sourceNames)
@@ -292,7 +304,7 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 	nameType string, sourceNames bool, overwrite bool) string {
 	const printN string = "MatchName()"
 
-	table := namesTables(nameType)
+	_, table := namesTables(nameType)
 	if table == "" {
 		return inputName
 	}
@@ -304,7 +316,7 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 
 	table = table + tableSuffix
 
-	err := cfg.AddToSubstanceNamesTable(db, ctx, nameType, sourceNames, overwrite)
+	err := cfg.AddToNamesTable(db, ctx, nameType, sourceNames, overwrite)
 	if err != nil {
 		return inputName
 	}
@@ -389,7 +401,7 @@ func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context, inputName 
 //
 // sourceNames - use source specific names instead of global ones
 func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context,
-	namesErrChan chan DrugNamesError, inputName string,
+	namesErrChan chan<- DrugNamesError, inputName string,
 	nameType string, sourceNames bool) {
 	const printN string = "GetAllNames()"
 
@@ -398,9 +410,9 @@ func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context,
 		Err:       nil,
 	}
 
-	table := namesTables(nameType)
-	if table == "" {
-		tempDrugNamesErr.Err = errors.New(sprintName(printN, "No name type: ", nameType))
+	err, table := namesTables(nameType)
+	if err != nil {
+		tempDrugNamesErr.Err = errors.New(sprintName(printN, err))
 		namesErrChan <- tempDrugNamesErr
 		return
 	}
@@ -412,7 +424,7 @@ func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context,
 
 	table = table + tableSuffix
 
-	cfg.AddToSubstanceNamesTable(db, ctx, nameType, sourceNames, false)
+	cfg.AddToNamesTable(db, ctx, nameType, sourceNames, false)
 
 	repName := cfg.MatchName(db, ctx, inputName, nameType, true, false)
 	if repName != inputName {

@@ -147,7 +147,7 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) (er
 //
 // search - return logs only matching this string
 func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
-	userLogsErrorChannel chan UserLogsError, num int, id int64,
+	userLogsErrorChannel chan<- UserLogsError, num int, id int64,
 	user string, reverse bool,
 	search string) {
 
@@ -255,7 +255,7 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 // drugNamesErrorChannel - the goroutine channel used to return the list of
 // drug names and the error
 func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context,
-	drugNamesErrorChannel chan DrugNamesError) {
+	drugNamesErrorChannel chan<- DrugNamesError) {
 	const printN string = "GetLocalInfoNames()"
 
 	tempDrugNamesError := DrugNamesError{
@@ -307,7 +307,7 @@ func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context,
 //
 // drug - drug to get information about
 func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
-	drugInfoErrChan chan DrugInfoError, drug string) {
+	drugInfoErrChan chan<- DrugInfoError, drug string) {
 	printN := "GerLocalInfo()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")

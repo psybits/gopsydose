@@ -60,7 +60,7 @@ func (cfg Config) InitDBFileStructure() {
 	printName(printN, "Initialised the DB file structure without errors.")
 }
 
-// InitInfoDB creates the table for the currently configured source if it
+// InitInfoTable creates the table for the currently configured source if it
 // doesn't exist. It will use the source's name to set the table's name.
 // It's called "Info", because it stores general information like dosages and
 // timings for every route of administration.
@@ -68,10 +68,10 @@ func (cfg Config) InitDBFileStructure() {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) error {
-	const printN string = "InitDrugDB()"
+func (cfg Config) InitInfoTable(db *sql.DB, ctx context.Context) error {
+	const printN string = "InitInfoTable()"
 
-	ret := cfg.CheckDBTables(db, ctx, cfg.UseSource)
+	ret := cfg.CheckTables(db, ctx, cfg.UseSource)
 	if ret {
 		return nil
 	}
@@ -131,15 +131,15 @@ func (cfg Config) InitInfoDB(db *sql.DB, ctx context.Context) error {
 	return nil
 }
 
-// InitLogDB creates the table for all user drug logs if it doesn't exist.
+// InitLogsTable creates the table for all user drug logs if it doesn't exist.
 //
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) error {
-	const printN string = "InitLogDB()"
+func (cfg Config) InitLogsTable(db *sql.DB, ctx context.Context) error {
+	const printN string = "InitLogsTable()"
 
-	ret := cfg.CheckDBTables(db, ctx, loggingTableName)
+	ret := cfg.CheckTables(db, ctx, loggingTableName)
 	if ret {
 		return nil
 	}
@@ -180,15 +180,15 @@ func (cfg Config) InitLogDB(db *sql.DB, ctx context.Context) error {
 	return nil
 }
 
-// InitUserSetDB creates the table for all user settings if it doesn't exist.
+// InitUserSetTable creates the table for all user settings if it doesn't exist.
 //
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) error {
-	const printN string = "InitUserSetDB()"
+func (cfg Config) InitUserSetTable(db *sql.DB, ctx context.Context) error {
+	const printN string = "InitUserSetTable()"
 
-	ret := cfg.CheckDBTables(db, ctx, userSetTableName)
+	ret := cfg.CheckTables(db, ctx, userSetTableName)
 	if ret {
 		return nil
 	}
@@ -219,7 +219,7 @@ func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) error {
 	return nil
 }
 
-// InitAltNamesDB creates all alternative names tables if they don't exist.
+// InitNamesAltTables creates all alternative names tables if they don't exist.
 // Alternative names are names like "weed" instead of "cannabis" and etc.
 // There are global tables which are used for any source. There are also source
 // specific names which "replace" the global names.
@@ -230,8 +230,8 @@ func (cfg Config) InitUserSetDB(db *sql.DB, ctx context.Context) error {
 //
 // replace - if true, creates the tables for the currently configured source
 // only, meaning for alt names specific to the source
-func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) error {
-	const printN string = "InitAltNamesDB()"
+func (cfg Config) InitNamesAltTables(db *sql.DB, ctx context.Context, replace bool) error {
+	const printN string = "InitNamesAltTables()"
 
 	tableSuffix := ""
 	if replace {
@@ -243,22 +243,22 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 	unitsExists := false
 	convUnitsExists := false
 
-	ret := cfg.CheckDBTables(db, ctx, altNamesSubsTableName+tableSuffix)
+	ret := cfg.CheckTables(db, ctx, altNamesSubsTableName+tableSuffix)
 	if ret {
 		subsExists = true
 	}
 
-	ret = cfg.CheckDBTables(db, ctx, altNamesRouteTableName+tableSuffix)
+	ret = cfg.CheckTables(db, ctx, altNamesRouteTableName+tableSuffix)
 	if ret {
 		routesExists = true
 	}
 
-	ret = cfg.CheckDBTables(db, ctx, altNamesUnitsTableName+tableSuffix)
+	ret = cfg.CheckTables(db, ctx, altNamesUnitsTableName+tableSuffix)
 	if ret {
 		unitsExists = true
 	}
 
-	ret = cfg.CheckDBTables(db, ctx, altNamesConvUnitsTableName+tableSuffix)
+	ret = cfg.CheckTables(db, ctx, altNamesConvUnitsTableName+tableSuffix)
 	if ret {
 		convUnitsExists = true
 	}
@@ -358,27 +358,27 @@ func (cfg Config) InitAltNamesDB(db *sql.DB, ctx context.Context, replace bool) 
 func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitAllDBTables()"
 
-	err := cfg.InitInfoDB(db, ctx)
+	err := cfg.InitInfoTable(db, ctx)
 	if err != nil {
 		return errors.New(sprintName(printN, err))
 	}
 
-	err = cfg.InitLogDB(db, ctx)
+	err = cfg.InitLogsTable(db, ctx)
 	if err != nil {
 		return errors.New(sprintName(printN, err))
 	}
 
-	err = cfg.InitUserSetDB(db, ctx)
+	err = cfg.InitUserSetTable(db, ctx)
 	if err != nil {
 		return errors.New(sprintName(printN, err))
 	}
 
-	err = cfg.InitAltNamesDB(db, ctx, false)
+	err = cfg.InitNamesAltTables(db, ctx, false)
 	if err != nil {
 		return errors.New(sprintName(printN, err))
 	}
 
-	err = cfg.InitAltNamesDB(db, ctx, true)
+	err = cfg.InitNamesAltTables(db, ctx, true)
 	if err != nil {
 		return errors.New(sprintName(printN, err))
 	}
