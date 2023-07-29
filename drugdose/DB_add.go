@@ -123,10 +123,16 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 // according to the configurations present in the database, checkout ConvertUnits() in
 // names.go for more information on how this works
 //
+// cost - the cost in money for the log, it has to be calculated manually
+// using the total amount paid
+//
+// costCur - the currency the cost is in
+//
 // printit - when true, prints what has been added to the database in the terminal
 func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel chan<- error,
 	synct *SyncTimestamps, user string, drug string, route string,
-	dose float32, units string, perc float32, printit bool) {
+	dose float32, units string, perc float32, cost float32, costCur string,
+	printit bool) {
 
 	const printN string = "AddToDoseTable()"
 
@@ -196,8 +202,8 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	}
 
 	stmt, err := tx.Prepare("insert into " + loggingTableName +
-		" (timeOfDoseStart, username, timeOfDoseEnd, drugName, dose, doseUnits, drugRoute) " +
-		"values(?, ?, ?, ?, ?, ?, ?)")
+		" (timeOfDoseStart, username, drugName, dose, doseUnits, drugRoute, cost, costCurrency) " +
+		"values(?, ?, ?, ?, ?, ?, ?, ?)")
 	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
 		return
 	}
@@ -211,7 +217,11 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 		currTime = synct.LastTimestamp + 1
 	}
 
-	_, err = stmt.Exec(currTime, user, 0, drug, dose, units, route)
+	if costCur == "" && cost != 0 {
+		costCur = cfg.CostCurrency
+	}
+
+	_, err = stmt.Exec(currTime, user, drug, dose, units, route, cost, costCur)
 	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
 		// release lock
 		synct.Lock.Unlock()
@@ -231,8 +241,9 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	synct.Lock.Unlock()
 
 	if printit {
-		printNameF(printN, "Logged: drug: %q ; dose: %g ; units: %q ; route: %q ; username: %q\n",
-			drug, dose, units, route, user)
+		printNameF(printN, "Logged: drug: %q ; dose: %g ; units: %q ; route: %q ; username: %q "+
+			"; cost: %g ; costCurrency: %q\n",
+			drug, dose, units, route, user, cost, costCur)
 	}
 
 	errChannel <- nil

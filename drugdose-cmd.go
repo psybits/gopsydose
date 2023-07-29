@@ -37,6 +37,17 @@ var (
 		"this is only used for alcohol currently,\n"+
 			"again just a number, no % around it")
 
+	drugcost = flag.Float64(
+		"cost",
+		0,
+		"the cost in money for the logged dose,\n"+
+			"you have to calculate using the total you paid")
+
+	costCur = flag.String(
+		"cost-cur",
+		"",
+		"the currency to be used for the cost")
+
 	changeLog = flag.Bool(
 		"change-log",
 		false,
@@ -621,7 +632,8 @@ func main() {
 		synct := drugdose.SyncTimestamps{}
 		if *dontLog == false {
 			go gotsetcfg.AddToDoseTable(db, ctx, errChannel, &synct, *forUser, *drugname, *drugroute,
-				float32(*drugargdose), *drugunits, float32(*drugperc), true)
+				float32(*drugargdose), *drugunits, float32(*drugperc), float32(*drugcost), *costCur,
+				true)
 			gotErr := <-errChannel
 			if gotErr != nil {
 				printCLI(gotErr)
@@ -669,6 +681,12 @@ func main() {
 		} else if *drugroute != "none" {
 			setType = "route"
 			setValue = *drugroute
+		} else if *drugcost != 0 {
+			setType = "cost"
+			setValue = strconv.FormatFloat(*drugcost, 'f', -1, 64)
+		} else if *costCur != "" {
+			setType = "cost-cur"
+			setValue = *costCur
 		}
 
 		go gotsetcfg.ChangeUserLog(db, ctx, errChannel, setType, *forID, *forUser, setValue)

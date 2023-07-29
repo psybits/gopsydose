@@ -335,6 +335,10 @@ not ignored, try setting the value higher.
 The possible values are described here:
 https://pkg.go.dev/time#ParseDuration
 
+#### CostCurrency
+Sets a default currency to log when using the `-cost` flag. It can be bypassed
+using the `-cost-cur` flag per log.
+
 #### DBSettings
 
 ##### DBSettings.mysql

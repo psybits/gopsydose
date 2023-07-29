@@ -204,7 +204,7 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 		rows, err = db.QueryContext(ctx, "select * from "+loggingTableName+" where username = ? and timeOfDoseStart = ?", user, id)
 	}
 	if err != nil {
-		tempUserLogsError.Err = err
+		tempUserLogsError.Err = errors.New(sprintName(printN, "db.QueryContext(): ", err))
 		tempUserLogsError.UserLogs = userlogs
 		userLogsErrorChannel <- tempUserLogsError
 		return
@@ -214,9 +214,9 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	for rows.Next() {
 		tempul := UserLog{}
 		err = rows.Scan(&tempul.StartTime, &tempul.Username, &tempul.EndTime, &tempul.DrugName,
-			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute)
+			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute, &tempul.Cost, &tempul.CostCurrency)
 		if err != nil {
-			tempUserLogsError.Err = err
+			tempUserLogsError.Err = errors.New(sprintName(printN, "rows.Next(): ", err))
 			tempUserLogsError.UserLogs = userlogs
 			userLogsErrorChannel <- tempUserLogsError
 			return
@@ -226,7 +226,7 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	}
 	err = rows.Err()
 	if err != nil {
-		tempUserLogsError.Err = err
+		tempUserLogsError.Err = errors.New(sprintName(printN, "rows.Err(): ", err))
 		tempUserLogsError.UserLogs = userlogs
 		userLogsErrorChannel <- tempUserLogsError
 		return

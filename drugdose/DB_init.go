@@ -156,11 +156,13 @@ func (cfg Config) InitLogsTable(db *sql.DB, ctx context.Context) error {
 
 	initDBsql := "create table " + loggingTableName + " (timeOfDoseStart bigint not null," +
 		"username varchar(255) not null," +
-		"timeOfDoseEnd bigint not null," +
+		"timeOfDoseEnd bigint default 0," +
 		"drugName text" + caseInsensitive + "not null," +
 		"dose real not null," +
 		"doseUnits text" + caseInsensitive + "not null," +
 		"drugRoute text" + caseInsensitive + "not null," +
+		"cost real default 0," +
+		"costCurrency text" + caseInsensitive + "default \"\" not null," +
 		"primary key (timeOfDoseStart, username));"
 
 	_, err = tx.Exec(initDBsql)

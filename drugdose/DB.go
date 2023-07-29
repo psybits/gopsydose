@@ -84,13 +84,15 @@ func handleErrRollbackSeq(err error, tx *sql.Tx, printN string, xtraMsg string) 
 }
 
 type UserLog struct {
-	StartTime int64
-	Username  string
-	EndTime   int64
-	DrugName  string
-	Dose      float32
-	DoseUnits string
-	DrugRoute string
+	StartTime    int64
+	Username     string
+	EndTime      int64
+	DrugName     string
+	Dose         float32
+	DoseUnits    string
+	DrugRoute    string
+	Cost         float32
+	CostCurrency string
 }
 
 type UserLogsError struct {
@@ -368,6 +370,10 @@ func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
 		printNameF(printN, "Units:\t%q\n", elem.DoseUnits)
 		printNameF(printN, "Route:\t%q\n", elem.DrugRoute)
 		printNameF(printN, "User:\t%q\n", elem.Username)
+		if elem.Cost != 0 {
+			printNameF(printN, "Cost:\t%g\n", elem.Cost)
+			printNameF(printN, "Curr:\t%q\n", elem.CostCurrency)
+		}
 		printName(printN, "=========================")
 	}
 }
@@ -440,7 +446,7 @@ func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 // errChannel - the gorouting channel which returns the errors
 //
 // set - what log data to change, the options are: start-time, end-time, drug,
-// dose, units, route
+// dose, units, route, cost, cost-cur
 //
 // id - if 0 will change the newest log, else it will change the log with
 // the given id
@@ -492,6 +498,8 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 		"dose":       "dose",
 		"units":      "doseUnits",
 		"route":      "drugRoute",
+		"cost":       "cost",
+		"cost-cur":   "costCurrency",
 	}
 
 	userLogsErrChan := make(chan UserLogsError)

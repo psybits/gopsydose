@@ -25,6 +25,7 @@ type Config struct {
 	Timezone        string
 	ProxyURL        string
 	Timeout         string
+	CostCurrency    string
 }
 
 type DBSettings struct {
@@ -45,6 +46,7 @@ const DefaultVerbose bool = false
 const DefaultTimezone string = "Local"
 const DefaultProxyURL string = ""
 const DefaultTimeout string = "5s"
+const DefaultCostCurr string = ""
 
 const DefaultUsername string = "defaultUser"
 const DefaultSource string = "psychonautwiki"
@@ -165,6 +167,7 @@ func InitConfigStruct(sourcecfg string) Config {
 		Timezone:        DefaultTimezone,
 		ProxyURL:        DefaultProxyURL,
 		Timeout:         DefaultTimeout,
+		CostCurrency:    DefaultCostCurr,
 	}
 	return cfg
 }
