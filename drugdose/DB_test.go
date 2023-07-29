@@ -289,6 +289,7 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 }
 
 func TestUseConfigTimeout(t *testing.T) {
+	fmt.Println("\t---Starting TestUseConfigTimeout()")
 	db, ctx, cfg := initForTests(SqliteDriver)
 	defer db.Close()
 
@@ -322,4 +323,83 @@ func TestUseConfigTimeout(t *testing.T) {
 	fmt.Println(gotErr)
 
 	cfg.cleanAfterTest(db, ctx)
+}
+
+func TestForcedRollback(t *testing.T) {
+	fmt.Println("\t---Starting TestForcedRollback()")
+	for _, v := range testWithDrivers() {
+		db, ctx, cfg := initForTests(v)
+		defer db.Close()
+
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			cfg.cleanAfterTest(db, ctx)
+			t.Fatal(err)
+		}
+
+		err, set := settingsTables(settingTypeID)
+		if err != nil {
+			cfg.cleanAfterTest(db, ctx)
+			t.Fatal(err)
+		}
+
+		stmtStr := returnSetUserSetStmt(set)
+
+		err = errors.New("Test error.")
+		errChannel := make(chan error)
+		printN := "testName"
+
+		fmt.Println("\tConcurrent rollback")
+		stmt, _ := tx.Prepare(stmtStr)
+		defer stmt.Close()
+		var testConcurrentRollback = func(err error, tx *sql.Tx,
+			errChannel chan error, printN string,
+			xtra string, t *testing.T) {
+			if handleErrRollback(err, tx, errChannel, printN, xtra) {
+				fmt.Println("handleErrRollback():", err)
+			} else {
+				t.Log("handleErrRollback():", err)
+				t.Fail()
+			}
+		}
+		go testConcurrentRollback(err, tx, errChannel,
+			printN, "tx.Prepare(): ", t)
+		err = <-errChannel
+		fmt.Println("errChannel:", err)
+		err = tx.Commit()
+		if err != nil {
+			fmt.Println("tx.Commit():", err)
+		} else {
+			t.Log("tx.Commit():", err)
+			t.Fail()
+		}
+		// End of concurrent rollback
+
+		fmt.Println("\tSequential rollback")
+		tx, err = db.BeginTx(ctx, nil)
+		if err != nil {
+			cfg.cleanAfterTest(db, ctx)
+			t.Fatal(err)
+		}
+		err = errors.New("Test error.")
+		stmt, _ = tx.Prepare(stmtStr)
+		err = handleErrRollbackSeq(err, tx, printN, "tx.Prepare(): ")
+		if err != nil {
+			fmt.Println("handleErrRollbackSeq():", err)
+		} else {
+			t.Log("handleErrRollbackSeq():", err)
+			t.Fail()
+		}
+		defer stmt.Close()
+		err = tx.Commit()
+		if err != nil {
+			fmt.Println("tx.Commit():", err)
+		} else {
+			t.Log("tx.Commit():", err)
+			t.Fail()
+		}
+		// End of sequential rollback
+
+		cfg.cleanAfterTest(db, ctx)
+	}
 }

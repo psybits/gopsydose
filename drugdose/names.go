@@ -43,6 +43,10 @@ const nameTypeSubstance = "substance"
 const nameTypeRoute = "route"
 const nameTypeUnits = "units"
 const nameTypeConvertUnits = "convUnits"
+const altNamesSubsTableName string = "substanceNames"
+const altNamesRouteTableName string = "routeNames"
+const altNamesUnitsTableName string = "unitsNames"
+const altNamesConvUnitsTableName string = "convUnitsNames"
 
 // Read the config file for matching names and return the proper struct.
 //

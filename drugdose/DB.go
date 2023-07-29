@@ -31,10 +31,6 @@ const MysqlDriver string = "mysql"
 
 const loggingTableName string = "userLogs"
 const userSetTableName string = "userSettings"
-const altNamesSubsTableName string = "substanceNames"
-const altNamesRouteTableName string = "routeNames"
-const altNamesUnitsTableName string = "unitsNames"
-const altNamesConvUnitsTableName string = "convUnitsNames"
 
 // When this number is set as the reference ID for remembering
 // a particular input, it means that it's now "forgotten"

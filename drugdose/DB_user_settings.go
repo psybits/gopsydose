@@ -13,6 +13,23 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
+// Constants used for matching settings
+const settingTypeID string = "remember-id"
+const rememberIDTableName string = "useIDForRemember"
+
+func settingsTables(settingType string) (error, string) {
+	const printN string = "settingsTables()"
+
+	table := ""
+	if settingType == settingTypeID {
+		table = rememberIDTableName
+	} else {
+		return errors.New(sprintName(printN, "No nameType:", settingType)), ""
+	}
+
+	return nil, table
+}
+
 // InitUserSettings creates the row with default settings for a user.
 // These settings are kept in the database and are not global like the config
 // files. All users have their own settings.
@@ -56,6 +73,10 @@ func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context, username str
 	return nil
 }
 
+func returnSetUserSetStmt(set string) string {
+	return fmt.Sprintf("update userSettings set %s = ? where username = ?", set)
+}
+
 // SetUserSettings changes the user settings in the database.
 //
 // This function is meant to be run concurrently.
@@ -66,7 +87,7 @@ func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context, username str
 //
 // errChannel - the gorouting channel which returns the errors
 //
-// set - the name of the setting to change
+// set - the name of the setting to change, available names are: remember-id
 //
 // username - the user the setting is changed for
 //
@@ -103,7 +124,13 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 		return
 	}
 
-	stmtStr := fmt.Sprintf("update userSettings set %s = ? where username = ?", set)
+	err, set := settingsTables(set)
+	if err != nil {
+		errChannel <- errors.New(sprintName(printN, err))
+		return
+	}
+
+	stmtStr := returnSetUserSetStmt(set)
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -212,7 +239,7 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 	}
 
 	errChannel2 := make(chan error)
-	go cfg.SetUserSettings(db, ctx, errChannel2, "useIDForRemember", username, forIDStr)
+	go cfg.SetUserSettings(db, ctx, errChannel2, settingTypeID, username, forIDStr)
 	err := <-errChannel2
 	if err != nil {
 		err := errors.New(sprintName(printN, err))
@@ -295,7 +322,7 @@ func (cfg Config) ForgetDosing(db *sql.DB, ctx context.Context,
 	const printN string = "ForgetConfig()"
 
 	errChannel2 := make(chan error)
-	go cfg.SetUserSettings(db, ctx, errChannel2, "useIDForRemember", username, ForgetInputConfigMagicNumber)
+	go cfg.SetUserSettings(db, ctx, errChannel2, settingTypeID, username, ForgetInputConfigMagicNumber)
 	err := <-errChannel2
 	if err != nil {
 		err = errors.New(sprintName(printN, "Couldn't reset setting: useIDForRemember: ", err))
