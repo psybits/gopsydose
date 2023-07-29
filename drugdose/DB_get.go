@@ -3,6 +3,7 @@ package drugdose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -13,6 +14,18 @@ import (
 	// SQLite driver needed for sql module
 	_ "github.com/glebarez/go-sqlite"
 )
+
+// NoLogsError is the error returned when no logs for a specified user could
+// be retrieved from the database.
+var NoLogsError error = errors.New("no logs returned for user")
+
+// EmptyListDrugNamesError is the error returned when no drug names could be
+// retrieved from the database.
+var EmptyListDrugNamesError error = errors.New("empty list of drug names from info table")
+
+// NoDrugInfoTable is the error returned when the drug could not be
+// found locally in the database.
+var NoDrugInfoTable error = errors.New("no such drug in info table")
 
 // GetDBSize returns the total size of the database in bytes (int64).
 func (cfg Config) GetDBSize() int64 {
@@ -92,6 +105,11 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) (error, []string) {
 			return err, nil
 		}
 		allUsers = append(allUsers, tempUser)
+	}
+
+	if len(allUsers) == 0 {
+		err = errors.New(sprintName(printN, "No users returned."))
+		return err, nil
 	}
 
 	return nil, allUsers
@@ -204,7 +222,7 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 		rows, err = db.QueryContext(ctx, "select * from "+loggingTableName+" where username = ? and timeOfDoseStart = ?", user, id)
 	}
 	if err != nil {
-		tempUserLogsError.Err = errors.New(sprintName(printN, "db.QueryContext(): ", err))
+		tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.QueryContext()"), err)
 		tempUserLogsError.UserLogs = userlogs
 		userLogsErrorChannel <- tempUserLogsError
 		return
@@ -216,7 +234,7 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 		err = rows.Scan(&tempul.StartTime, &tempul.Username, &tempul.EndTime, &tempul.DrugName,
 			&tempul.Dose, &tempul.DoseUnits, &tempul.DrugRoute, &tempul.Cost, &tempul.CostCurrency)
 		if err != nil {
-			tempUserLogsError.Err = errors.New(sprintName(printN, "rows.Next(): ", err))
+			tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "rows.Scan()"), err)
 			tempUserLogsError.UserLogs = userlogs
 			userLogsErrorChannel <- tempUserLogsError
 			return
@@ -226,13 +244,13 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	}
 	err = rows.Err()
 	if err != nil {
-		tempUserLogsError.Err = errors.New(sprintName(printN, "rows.Err(): ", err))
+		tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "rows.Err()"), err)
 		tempUserLogsError.UserLogs = userlogs
 		userLogsErrorChannel <- tempUserLogsError
 		return
 	}
 	if len(userlogs) == 0 {
-		tempUserLogsError.Err = errors.New(sprintName(printN, "No logs returned for user: ", user))
+		tempUserLogsError.Err = fmt.Errorf("%s%w: %s", sprintName(printN), NoLogsError, user)
 		tempUserLogsError.UserLogs = userlogs
 		userLogsErrorChannel <- tempUserLogsError
 		return
@@ -290,6 +308,10 @@ func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context,
 		return
 	}
 
+	if len(drugList) == 0 {
+		tempDrugNamesError.Err = fmt.Errorf("%s%w", sprintName(printN), EmptyListDrugNamesError)
+	}
+
 	tempDrugNamesError.DrugNames = drugList
 	drugNamesErrorChannel <- tempDrugNamesError
 }
@@ -325,7 +347,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 		nil,
 		drug)
 	if !ret {
-		tempDrugInfoErr.Err = errors.New(sprintName(printN, "No such drug in info database: ", drug))
+		tempDrugInfoErr.Err = fmt.Errorf("%s%w: %s", sprintName(printN), NoDrugInfoTable, drug)
 		drugInfoErrChan <- tempDrugInfoErr
 		return
 	}

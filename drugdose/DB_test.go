@@ -8,7 +8,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	// "time"
+	"time"
 )
 
 const test_drug string = "test_drug"
@@ -288,7 +288,6 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 	}
 }
 
-/* TODO: needs to be fixed later, formatting makes checking for specific error not possible
 func TestUseConfigTimeout(t *testing.T) {
 	fmt.Println("\t---Starting TestUseConfigTimeout()")
 	db, ctx, cfg := initForTests(SqliteDriver)
@@ -325,7 +324,6 @@ func TestUseConfigTimeout(t *testing.T) {
 
 	cfg.cleanAfterTest(db, ctx)
 }
-*/
 
 func TestForcedRollback(t *testing.T) {
 	fmt.Println("\t---Starting TestForcedRollback()")

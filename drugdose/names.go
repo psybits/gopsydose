@@ -459,6 +459,11 @@ func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context,
 		allNames = append(allNames, tempName)
 	}
 
+	if len(allNames) == 0 {
+		tempDrugNamesErr.Err = errors.New(sprintName(printN,
+			"No names returned for "+nameType+": "+inputName))
+	}
+
 	tempDrugNamesErr.DrugNames = allNames
 	namesErrChan <- tempDrugNamesErr
 	return

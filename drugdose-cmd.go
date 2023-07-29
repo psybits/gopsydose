@@ -456,8 +456,6 @@ func main() {
 		err, ret := gotsetcfg.GetUsers(db, ctx)
 		if err != nil {
 			printCLI("Couldn't get users because of an error:", err)
-		} else if len(ret) == 0 {
-			printCLI("No users logged.")
 		} else {
 			fmt.Print("All users: ")
 			for i := 0; i < len(ret); i++ {
@@ -522,8 +520,6 @@ func main() {
 		locinfolist := gotDrugNamesErr.DrugNames
 		if err != nil {
 			printCLI("Error getting drug names list:", err)
-		} else if len(locinfolist) == 0 {
-			printCLI("Empty list of drug names from info table.")
 		} else {
 			fmt.Print("For source: " + gotsetcfg.UseSource + " ; All local drugs: ")
 			for i := 0; i < len(locinfolist); i++ {
@@ -555,8 +551,6 @@ func main() {
 		err = gotDrugNamesErr.Err
 		if err != nil {
 			printCLI("Couldn't get substance names, because of error:", err)
-		} else if len(subsNames) == 0 {
-			printCLI("No names returned for " + getNamesWhich + ": " + getNamesValue)
 		} else {
 			fmt.Print("For " + getNamesWhich + ": " + getNamesValue + " ; Alternative names: ")
 			for i := 0; i < len(subsNames); i++ {
@@ -574,8 +568,6 @@ func main() {
 		err = gotDrugInfoErr.Err
 		if err != nil {
 			printCLI("Couldn't get info for drug because of error:", err)
-		} else if len(locinfo) == 0 {
-			printCLI("No info returned for drug:", *getLocalInfoDrug)
 		} else {
 			gotsetcfg.PrintLocalInfo(locinfo, false)
 		}
