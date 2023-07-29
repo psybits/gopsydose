@@ -355,7 +355,8 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 //
 // inputName - the alternative name
 //
-// nameType - checkout namesTables()
+// nameType - choose type to replace between: substance, route, units or
+// convUnits (conversion units)
 func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 	inputName string, nameType string) string {
 	ret := cfg.MatchName(db, ctx, inputName, nameType, false, false)
@@ -553,6 +554,8 @@ func unitsFunctionsOutput(inputName string, substance string, unitInputs ...floa
 func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string, unitInputs ...float32) (error, float32, string) {
 	const printN string = "ConvertUnits()"
 
+	substance = cfg.MatchAndReplace(db, ctx, substance, "substance")
+
 	drugNamesErrChan := make(chan DrugNamesError)
 	go cfg.GetAllNames(db, ctx, drugNamesErrChan, substance, "convUnits", true)
 	gotDrugNamesErr := <-drugNamesErrChan
@@ -573,6 +576,12 @@ func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string
 	convertUnit := allNames[1]
 
 	err, output := unitsFunctionsOutput(convertFunc, substance, unitInputs...)
+
+	if output == 0 || convertUnit == "" || err != nil {
+		err = errors.New(sprintfName(printN, "Error converting units for drug: %q"+
+			" ; dose: %g ; units: %q ; error: %q", substance,
+			output, convertUnit, err))
+	}
 
 	return err, output, convertUnit
 }

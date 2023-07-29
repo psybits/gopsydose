@@ -626,16 +626,25 @@ func main() {
 			if gotErr != nil {
 				printCLI(gotErr)
 			}
+		} else {
+			err, convOutput, convUnit := gotsetcfg.ConvertUnits(db, ctx, *drugname,
+				float32(*drugargdose), float32(*drugperc))
+			if err != nil {
+				printCLI(err)
+			} else {
+				convSubs := gotsetcfg.MatchAndReplace(db, ctx, *drugname, "substance")
+				printCLI(fmt.Sprintf("Didn't log, converted dose: "+
+					"%g ; units: %q ; substance: %q ; username: %q",
+					convOutput, convUnit, convSubs, *forUser))
+			}
 		}
 	}
 
-	if *dontLog == false {
-		if *remember {
-			go gotsetcfg.RememberDosing(db, ctx, errChannel, *forUser, *forID)
-			err = <-errChannel
-			if err != nil {
-				printCLI(err)
-			}
+	if *dontLog == false && *remember == true {
+		go gotsetcfg.RememberDosing(db, ctx, errChannel, *forUser, *forID)
+		err = <-errChannel
+		if err != nil {
+			printCLI(err)
 		}
 	}
 

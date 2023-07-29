@@ -134,11 +134,11 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	route = cfg.MatchAndReplace(db, ctx, route, "route")
 	units = cfg.MatchAndReplace(db, ctx, units, "units")
 
+	var err error = nil
 	if perc != 0 {
-		err, dose, units := cfg.ConvertUnits(db, ctx, drug, dose, perc)
-		if dose == 0 || units == "" || err != nil {
-			errChannel <- errors.New(sprintfName(printN, "Error converting units for drug: %q"+
-				" ; dose: %g ; perc: %g ; units: %q ; error: %q", drug, dose, perc, units, err))
+		err, dose, units = cfg.ConvertUnits(db, ctx, drug, dose, perc)
+		if err != nil {
+			errChannel <- errors.New(sprintName(printN, err))
 			return
 		}
 	}
@@ -157,7 +157,7 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	}
 
 	var count uint32
-	err, count := cfg.GetLogsCount(db, ctx, user)
+	err, count = cfg.GetLogsCount(db, ctx, user)
 	if err != nil {
 		errChannel <- errors.New(sprintName(printN, err))
 		return
