@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"database/sql"
 	// MySQL driver needed for sql module
@@ -26,6 +27,10 @@ var EmptyListDrugNamesError error = errors.New("empty list of drug names from in
 // NoDrugInfoTable is the error returned when the drug could not be
 // found locally in the database.
 var NoDrugInfoTable error = errors.New("no such drug in info table")
+
+// InvalidColInput is the error returned when the column given as string,
+// doesn't match any valid name.
+var InvalidColInput error = errors.New("an invalid column name has been given")
 
 // GetDBSize returns the total size of the database in bytes (int64).
 func (cfg Config) GetDBSize() int64 {
@@ -160,14 +165,19 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) (er
 // user - the user which created the logs, will returns only the logs for that
 // username
 //
-// reverse - if true go from high values to low values,
-// this should return the newest logs first, false is the opposite direction
+// desc - if true (descending) go from high values to low values,
+// this should return the newest logs first, false (ascending) is
+// the opposite direction
 //
-// search - return logs only matching this string
+// search - return logs which contain this string
+//
+// getExact - if not empty, choose which column to search for and changes
+// the search behavior to exact matching, if name is invalid, InvalidColInput
+// error will be send through userLogsErrorChannel
 func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	userLogsErrorChannel chan<- UserLogsError, num int, id int64,
-	user string, reverse bool,
-	search string) {
+	user string, desc bool,
+	search string, getExact string) {
 
 	printN := "GetLogs()"
 
@@ -187,45 +197,68 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	}
 
 	orientation := "asc"
-	if reverse {
+	if desc {
 		orientation = "desc"
+	}
+
+	err := checkColIsInvalid(validLogCols(), getExact, printN)
+	if err != nil {
+		tempUserLogsError.Err = err
+		userLogsErrorChannel <- tempUserLogsError
+		return
 	}
 
 	searchStmt := ""
 	var searchArr []any
 	if search != "none" && search != "" {
 		search = cfg.MatchAndReplaceAll(db, ctx, search)
-		searchColumns := []string{"drugName",
-			"dose",
-			"doseUnits",
-			"drugRoute"}
-		searchArr = append(searchArr, user)
-		searchStmt += "and " + searchColumns[0] + " like ? "
-		searchArr = append(searchArr, "%"+search+"%")
-		for i := 1; i < len(searchColumns); i++ {
-			searchStmt += "or " + searchColumns[i] + " like ? "
+		if getExact == "none" || getExact == "" {
+			searchColumns := []string{"drugName",
+				"dose",
+				"doseUnits",
+				"drugRoute"}
+			searchArr = append(searchArr, user)
+			searchStmt += "and " + searchColumns[0] + " like ? "
 			searchArr = append(searchArr, "%"+search+"%")
+			for i := 1; i < len(searchColumns); i++ {
+				searchStmt += "or " + searchColumns[i] + " like ? "
+				searchArr = append(searchArr, "%"+search+"%")
+			}
+		} else {
+			searchArr = append(searchArr, user)
+			searchArr = append(searchArr, search)
+			searchStmt = "and " + getExact + " = ? "
 		}
 	}
 
 	mainQuery := "select * from " + loggingTableName + " where username = ? " + searchStmt +
 		"order by timeOfDoseStart " + orientation + endstmt
-	var rows *sql.Rows
-	var err error
-	if id == 0 {
-		if search == "none" || search == "" {
-			rows, err = db.QueryContext(ctx, mainQuery, user)
-		} else {
-			rows, err = db.QueryContext(ctx, mainQuery, searchArr...)
-		}
-	} else {
-		rows, err = db.QueryContext(ctx, "select * from "+loggingTableName+" where username = ? and timeOfDoseStart = ?", user, id)
-	}
+	stmt, err := db.PrepareContext(ctx, mainQuery)
 	if err != nil {
-		tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.QueryContext()"), err)
-		tempUserLogsError.UserLogs = userlogs
+		tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.PrepareContext()"), err)
 		userLogsErrorChannel <- tempUserLogsError
 		return
+	}
+	var rows *sql.Rows
+	if id == 0 {
+		if search == "none" || search == "" {
+			rows, err = stmt.QueryContext(ctx, user)
+		} else {
+			rows, err = stmt.QueryContext(ctx, searchArr...)
+		}
+	} else {
+		stmt, err = db.PrepareContext(ctx, "select * from "+loggingTableName+" where username = ? and timeOfDoseStart = ?")
+		if err != nil {
+			tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.PrepareContext()"), err)
+			userLogsErrorChannel <- tempUserLogsError
+			return
+		}
+		rows, err = stmt.QueryContext(ctx, user, id)
+		if err != nil {
+			tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.QueryContext()"), err)
+			userLogsErrorChannel <- tempUserLogsError
+			return
+		}
 	}
 	defer rows.Close()
 
@@ -261,59 +294,44 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	userLogsErrorChannel <- tempUserLogsError
 }
 
-// GetLocalInfoNames returns a slice containing all unique names of drugs
-// present in the local database gotten from a source.
+// PrintLogs writes all logs present in userLogs to console.
 //
-// This function is meant to be run concurrently.
+// userLogs - the logs slice returned from GetLogs()
 //
-// db - open database connection
-//
-// ctx - context to be passed to sql queries
-//
-// drugNamesErrorChannel - the goroutine channel used to return the list of
-// drug names and the error
-func (cfg Config) GetLocalInfoNames(db *sql.DB, ctx context.Context,
-	drugNamesErrorChannel chan<- DrugNamesError) {
-	const printN string = "GetLocalInfoNames()"
-
-	tempDrugNamesError := DrugNamesError{
-		DrugNames: nil,
-		Err:       nil,
+// prefix - if true the name of the function should be shown
+// when writing to console
+func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
+	var printN string
+	if prefix == true {
+		printN = "GetLogs()"
+	} else {
+		printN = ""
 	}
 
-	rows, err := db.QueryContext(ctx, "select distinct drugName from "+cfg.UseSource)
+	location, err := time.LoadLocation(cfg.Timezone)
 	if err != nil {
-		tempDrugNamesError.Err = errors.New(sprintName(printN, err))
-		drugNamesErrorChannel <- tempDrugNamesError
+		printName(printN, "LoadLocation:", err)
 		return
 	}
-	defer rows.Close()
 
-	var drugList []string
-	for rows.Next() {
-		var holdName string
-		err := rows.Scan(&holdName)
-		if err != nil {
-			tempDrugNamesError.Err = errors.New(sprintName(printN, err))
-			drugNamesErrorChannel <- tempDrugNamesError
-			return
+	for _, elem := range userLogs {
+		printNameF(printN, "Start:\t%q (%d) < ID\n",
+			time.Unix(int64(elem.StartTime), 0).In(location), elem.StartTime)
+		if elem.EndTime != 0 {
+			printNameF(printN, "End:\t%q (%d)\n",
+				time.Unix(int64(elem.EndTime), 0).In(location), elem.EndTime)
 		}
-
-		drugList = append(drugList, holdName)
+		printNameF(printN, "Drug:\t%q\n", elem.DrugName)
+		printNameF(printN, "Dose:\t%g\n", elem.Dose)
+		printNameF(printN, "Units:\t%q\n", elem.DoseUnits)
+		printNameF(printN, "Route:\t%q\n", elem.DrugRoute)
+		printNameF(printN, "User:\t%q\n", elem.Username)
+		if elem.Cost != 0 {
+			printNameF(printN, "Cost:\t%g\n", elem.Cost)
+			printNameF(printN, "Curr:\t%q\n", elem.CostCurrency)
+		}
+		printName(printN, "=========================")
 	}
-	err = rows.Err()
-	if err != nil {
-		tempDrugNamesError.Err = errors.New(sprintName(printN, err))
-		drugNamesErrorChannel <- tempDrugNamesError
-		return
-	}
-
-	if len(drugList) == 0 {
-		tempDrugNamesError.Err = fmt.Errorf("%s%w", sprintName(printN), EmptyListDrugNamesError)
-	}
-
-	tempDrugNamesError.DrugNames = drugList
-	drugNamesErrorChannel <- tempDrugNamesError
 }
 
 // GetLocalInfo returns a slice containing all information about a drug.
@@ -389,4 +407,152 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 
 	tempDrugInfoErr.DrugI = infoDrug
 	drugInfoErrChan <- tempDrugInfoErr
+}
+
+// PrintLocalInfo prints the information gotten from the source, present in the
+// local database.
+//
+// drugInfo - slice returned from GetLocalInfo()
+//
+// prefix - whether to add the function name to console output
+func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
+	var printN string
+	if prefix == true {
+		printN = "GetLocalInfo()"
+	} else {
+		printN = ""
+	}
+
+	location, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		printName(printN, err)
+		return
+	}
+
+	for _, elem := range drugInfo {
+		printName(printN, "Source:", cfg.UseSource)
+		printName(printN, "Drug:", elem.DrugName, ";", "Route:", elem.DrugRoute)
+		printName(printN, "---Dosages---")
+		printNameF(printN, "Threshold: %g\n", elem.Threshold)
+		printName(printN, "Min\tMax\tRange")
+		printNameF(printN, "%g\t%g\tLow\n", elem.LowDoseMin, elem.LowDoseMax)
+		printNameF(printN, "%g\t%g\tMedium\n", elem.MediumDoseMin, elem.MediumDoseMax)
+		printNameF(printN, "%g\t%g\tHigh\n", elem.HighDoseMin, elem.HighDoseMax)
+		printName(printN, "Dose units:", elem.DoseUnits)
+		printName(printN, "---Times---")
+		printName(printN, "Min\tMax\tPeriod\tUnits")
+		printNameF(printN, "%g\t%g\tOnset\t%q\n",
+			elem.OnsetMin,
+			elem.OnsetMax,
+			elem.OnsetUnits)
+		printNameF(printN, "%g\t%g\tComeup\t%q\n",
+			elem.ComeUpMin,
+			elem.ComeUpMax,
+			elem.ComeUpUnits)
+		printNameF(printN, "%g\t%g\tPeak\t%q\n",
+			elem.PeakMin,
+			elem.PeakMax,
+			elem.PeakUnits)
+		printNameF(printN, "%g\t%g\tOffset\t%q\n",
+			elem.OffsetMin,
+			elem.OffsetMax,
+			elem.OffsetUnits)
+		printNameF(printN, "%g\t%g\tTotal\t%q\n",
+			elem.TotalDurMin,
+			elem.TotalDurMax,
+			elem.TotalDurUnits)
+		printName(printN, "Time of fetch:", time.Unix(int64(elem.TimeOfFetch), 0).In(location))
+		printName(printN, "====================")
+	}
+}
+
+// GetLoggedNames returns a slice containing all unique names of drugs
+// present in the local info table or log table.
+//
+// This function is meant to be run concurrently.
+//
+// db - open database connection
+//
+// ctx - context to be passed to sql queries
+//
+// drugNamesErrorChannel - the goroutine channel used to return the list of
+// drug names and the error
+//
+// info - if true will get names from local info table, if false from log table
+//
+// getExact - choose which column to get unique names for, if name is invalid,
+// InvalidColInput error will be send through userLogsErrorChannel
+func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
+	drugNamesErrorChannel chan<- DrugNamesError, info bool,
+	username string, getExact string) {
+	const printN string = "GetLoggedNames()"
+
+	tempDrugNamesError := DrugNamesError{
+		DrugNames: nil,
+		Err:       nil,
+	}
+
+	useTable := loggingTableName
+	logCols := validLogCols()
+	addToStmt := ""
+	if info == true {
+		useTable = cfg.UseSource
+		logCols = validInfoCols()
+	} else {
+		addToStmt = " where username = ?"
+	}
+
+	err := checkColIsInvalid(logCols, getExact, printN)
+	if err != nil {
+		tempDrugNamesError.Err = err
+		drugNamesErrorChannel <- tempDrugNamesError
+		return
+	}
+
+	mainStmt := "select distinct " + getExact + " from " + useTable + addToStmt
+	stmt, err := db.PrepareContext(ctx, mainStmt)
+	if err != nil {
+		tempDrugNamesError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.PreapeContext()"), err)
+		drugNamesErrorChannel <- tempDrugNamesError
+		return
+	}
+
+	var rows *sql.Rows
+	if info == true {
+		rows, err = db.QueryContext(ctx, mainStmt)
+	} else {
+		rows, err = stmt.QueryContext(ctx, username)
+	}
+	if err != nil {
+		tempDrugNamesError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.QueryContext()"), err)
+		drugNamesErrorChannel <- tempDrugNamesError
+		return
+	}
+	defer rows.Close()
+
+	var drugList []string
+	for rows.Next() {
+		var holdName string
+		err := rows.Scan(&holdName)
+		if err != nil {
+			tempDrugNamesError.Err = errors.New(sprintName(printN, err))
+			drugNamesErrorChannel <- tempDrugNamesError
+			return
+		}
+
+		drugList = append(drugList, holdName)
+	}
+	err = rows.Err()
+	if err != nil {
+		tempDrugNamesError.Err = errors.New(sprintName(printN, err))
+		drugNamesErrorChannel <- tempDrugNamesError
+		return
+	}
+
+	if len(drugList) == 0 {
+		tempDrugNamesError.Err = fmt.Errorf("%s%w", sprintName(printN), EmptyListDrugNamesError)
+	}
+
+	tempDrugNamesError.DrugNames = drugList
+	drugNamesErrorChannel <- tempDrugNamesError
 }

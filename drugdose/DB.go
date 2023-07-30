@@ -83,6 +83,27 @@ func handleErrRollbackSeq(err error, tx *sql.Tx, printN string, xtraMsg string) 
 	return nil
 }
 
+// Make sure the input column name matches exactly with the proper names.
+func checkColIsInvalid(validCols []string, gotCol string, printN string) error {
+	validCol := false
+	if gotCol != "" && gotCol != "none" && len(validCols) != 0 {
+		validCols := validLogCols()
+		for i := 0; i < len(validCols); i++ {
+			if gotCol == validCols[i] {
+				validCol = true
+				break
+			}
+		}
+		if validCol == false {
+			return fmt.Errorf("%s%w", sprintName(printN), InvalidColInput)
+		}
+	} else if len(validCols) == 0 {
+		return errors.New(sprintName(printN, "Invalid parameters when checking if column is invalid."))
+	}
+
+	return nil
+}
+
 type UserLog struct {
 	StartTime    int64
 	Username     string
@@ -338,103 +359,6 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 	errChannel <- nil
 }
 
-// PrintLogs writes all logs present in userLogs to console.
-//
-// userLogs - the logs slice returned from GetLogs()
-//
-// prefix - if true the name of the function should be shown
-// when writing to console
-func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
-	var printN string
-	if prefix == true {
-		printN = "GetLogs()"
-	} else {
-		printN = ""
-	}
-
-	location, err := time.LoadLocation(cfg.Timezone)
-	if err != nil {
-		printName(printN, "LoadLocation:", err)
-		return
-	}
-
-	for _, elem := range userLogs {
-		printNameF(printN, "Start:\t%q (%d) < ID\n",
-			time.Unix(int64(elem.StartTime), 0).In(location), elem.StartTime)
-		if elem.EndTime != 0 {
-			printNameF(printN, "End:\t%q (%d)\n",
-				time.Unix(int64(elem.EndTime), 0).In(location), elem.EndTime)
-		}
-		printNameF(printN, "Drug:\t%q\n", elem.DrugName)
-		printNameF(printN, "Dose:\t%g\n", elem.Dose)
-		printNameF(printN, "Units:\t%q\n", elem.DoseUnits)
-		printNameF(printN, "Route:\t%q\n", elem.DrugRoute)
-		printNameF(printN, "User:\t%q\n", elem.Username)
-		if elem.Cost != 0 {
-			printNameF(printN, "Cost:\t%g\n", elem.Cost)
-			printNameF(printN, "Curr:\t%q\n", elem.CostCurrency)
-		}
-		printName(printN, "=========================")
-	}
-}
-
-// PrintLocalInfo prints the information gotten from the source, present in the
-// local database.
-//
-// drugInfo - slice returned from GetLocalInfo()
-//
-// prefix - whether to add the function name to console output
-func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
-	var printN string
-	if prefix == true {
-		printN = "GetLocalInfo()"
-	} else {
-		printN = ""
-	}
-
-	location, err := time.LoadLocation(cfg.Timezone)
-	if err != nil {
-		printName(printN, err)
-		return
-	}
-
-	for _, elem := range drugInfo {
-		printName(printN, "Source:", cfg.UseSource)
-		printName(printN, "Drug:", elem.DrugName, ";", "Route:", elem.DrugRoute)
-		printName(printN, "---Dosages---")
-		printNameF(printN, "Threshold: %g\n", elem.Threshold)
-		printName(printN, "Min\tMax\tRange")
-		printNameF(printN, "%g\t%g\tLow\n", elem.LowDoseMin, elem.LowDoseMax)
-		printNameF(printN, "%g\t%g\tMedium\n", elem.MediumDoseMin, elem.MediumDoseMax)
-		printNameF(printN, "%g\t%g\tHigh\n", elem.HighDoseMin, elem.HighDoseMax)
-		printName(printN, "Dose units:", elem.DoseUnits)
-		printName(printN, "---Times---")
-		printName(printN, "Min\tMax\tPeriod\tUnits")
-		printNameF(printN, "%g\t%g\tOnset\t%q\n",
-			elem.OnsetMin,
-			elem.OnsetMax,
-			elem.OnsetUnits)
-		printNameF(printN, "%g\t%g\tComeup\t%q\n",
-			elem.ComeUpMin,
-			elem.ComeUpMax,
-			elem.ComeUpUnits)
-		printNameF(printN, "%g\t%g\tPeak\t%q\n",
-			elem.PeakMin,
-			elem.PeakMax,
-			elem.PeakUnits)
-		printNameF(printN, "%g\t%g\tOffset\t%q\n",
-			elem.OffsetMin,
-			elem.OffsetMax,
-			elem.OffsetUnits)
-		printNameF(printN, "%g\t%g\tTotal\t%q\n",
-			elem.TotalDurMin,
-			elem.TotalDurMax,
-			elem.TotalDurUnits)
-		printName(printN, "Time of fetch:", time.Unix(int64(elem.TimeOfFetch), 0).In(location))
-		printName(printN, "====================")
-	}
-}
-
 // ChangeUserLog can be used to modify log data of a single log.
 //
 // This function is meant to be run concurrently.
@@ -506,7 +430,7 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	var gotLogs []UserLog
 	var gotErr error
 
-	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, id, username, true, "")
+	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, id, username, true, "", "")
 	gotUserLogsErr := <-userLogsErrChan
 	gotErr = gotUserLogsErr.Err
 	if gotErr != nil {

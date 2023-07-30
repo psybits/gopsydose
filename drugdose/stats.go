@@ -125,7 +125,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 		TimeT: nil,
 	}
 	userLogsErrChan := make(chan UserLogsError)
-	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, getid, username, true, "none")
+	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, getid, username, true, "none", "")
 	gotLogs := <-userLogsErrChan
 	if gotLogs.Err != nil {
 		tempTimeTillErr.Err = errors.New(sprintName(printN, gotLogs.Err))

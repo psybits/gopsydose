@@ -200,8 +200,19 @@ var (
 	getLocalInfoDrugs = flag.Bool(
 		"get-local-info-drugs",
 		false,
-		"get all cached drugs names (from info tables, not logs)\n"+
+		"get all unique drug names (from info tables, not logs)\n"+
 			"according to set source")
+
+	getLoggedDrugs = flag.Bool(
+		"get-logged-drugs",
+		false,
+		"get all unique drug names (from log tables, not info)\n"+
+			"using the provided username")
+
+	getTotalCosts = flag.Bool(
+		"get-total-costs",
+		false,
+		"print all costs for all drugs in all currencies")
 
 	getSubNames = flag.String(
 		"get-subst-alt-names",
@@ -294,6 +305,16 @@ var (
 		"search",
 		"none",
 		"search all columns for specific string")
+
+	searchExact = flag.Bool(
+		"search-exact",
+		false,
+		"search for a specific column\n"+
+			"the column you search for is dependent on\n"+
+			"the -drug -route -units flags, you don't need\n"+
+			"to use the -search flag,\n"+
+			"compared to -search, this doesn't look if the\n"+
+			"string is contained, but if it's exactly the same")
 )
 
 // Print strings properly formatted for the Command Line Interface (CLI) program.
@@ -359,6 +380,7 @@ func main() {
 		err := <-errChannel
 		if err != nil {
 			printCLI("Couldn't 'forget' the remember config, because of an error:", err)
+			os.Exit(1)
 		}
 	}
 
@@ -370,6 +392,7 @@ func main() {
 		err := gotUserLogsErr.Err
 		if err != nil {
 			printCLI("Couldn't recall dosing configuration: ", err)
+			os.Exit(1)
 		} else if err == nil && gotUserLogsErr.UserLogs != nil {
 			remCfg := gotUserLogsErr.UserLogs[0]
 			printCLI("Remembering from config using ID:", remCfg.StartTime)
@@ -417,6 +440,7 @@ func main() {
 		err := <-errChannel
 		if err != nil {
 			printCLI(err)
+			os.Exit(1)
 		}
 	}
 
@@ -443,6 +467,7 @@ func main() {
 		err := gotsetcfg.CleanNamesTables(db, ctx, false)
 		if err != nil {
 			printCLI(err)
+			os.Exit(1)
 		}
 	}
 
@@ -456,6 +481,7 @@ func main() {
 		err, ret := gotsetcfg.GetUsers(db, ctx)
 		if err != nil {
 			printCLI("Couldn't get users because of an error:", err)
+			os.Exit(1)
 		} else {
 			fmt.Print("All users: ")
 			for i := 0; i < len(ret); i++ {
@@ -469,6 +495,7 @@ func main() {
 		err, ret := gotsetcfg.GetLogsCount(db, ctx, *forUser)
 		if err != nil {
 			printCLI(err)
+			os.Exit(1)
 		}
 		printCLI("Total number of logs:", ret, "; for user:", *forUser)
 	}
@@ -477,19 +504,33 @@ func main() {
 	var gettingLogs bool = false
 	var logsLimit bool = false
 
+	getExact := ""
+	if *searchExact {
+		if *drugname != "none" {
+			getExact = drugdose.LogDrugNameCol
+			*searchStr = *drugname
+		} else if *drugroute != "none" {
+			getExact = drugdose.LogDrugRouteCol
+			*searchStr = *drugroute
+		} else if *drugunits != "none" {
+			getExact = drugdose.LogDoseUnitsCol
+			*searchStr = *drugunits
+		}
+	}
+
 	if *getLogs {
 		if *noGetLimit {
-			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 0, *forID, *forUser, false, *searchStr)
+			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 0, *forID, *forUser, false, *searchStr, getExact)
 		} else {
-			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 100, *forID, *forUser, false, *searchStr)
+			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 100, *forID, *forUser, false, *searchStr, getExact)
 			logsLimit = true
 		}
 		gettingLogs = true
 	} else if *getNewLogs != 0 {
-		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getNewLogs, 0, *forUser, true, *searchStr)
+		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getNewLogs, 0, *forUser, true, *searchStr, getExact)
 		gettingLogs = true
 	} else if *getOldLogs != 0 {
-		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getOldLogs, 0, *forUser, false, *searchStr)
+		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getOldLogs, 0, *forUser, false, *searchStr, getExact)
 		gettingLogs = true
 	}
 
@@ -512,20 +553,41 @@ func main() {
 		}
 	}
 
+	getUniqueNames := false
+	getInfoNames := false
+	useCol := ""
 	if *getLocalInfoDrugs {
+		getUniqueNames = true
+		getInfoNames = true
+		useCol = drugdose.InfoDrugNameCol
+	} else if *getLoggedDrugs {
+		getUniqueNames = true
+		useCol = drugdose.LogDrugNameCol
+	}
+
+	if getUniqueNames == true {
 		drugNamesErrChan := make(chan drugdose.DrugNamesError)
-		go gotsetcfg.GetLocalInfoNames(db, ctx, drugNamesErrChan)
+		go gotsetcfg.GetLoggedNames(db, ctx, drugNamesErrChan, *&getInfoNames, *forUser, useCol)
 		gotDrugNamesErr := <-drugNamesErrChan
 		err = gotDrugNamesErr.Err
 		locinfolist := gotDrugNamesErr.DrugNames
 		if err != nil {
 			printCLI("Error getting drug names list:", err)
+			os.Exit(1)
 		} else {
-			fmt.Print("For source: " + gotsetcfg.UseSource + " ; All local drugs: ")
-			for i := 0; i < len(locinfolist); i++ {
-				fmt.Print(locinfolist[i] + " ; ")
+			if getInfoNames {
+				str := fmt.Sprint("For source: " + gotsetcfg.UseSource + " ; All local drugs: ")
+				for i := 0; i < len(locinfolist); i++ {
+					str += fmt.Sprint(locinfolist[i] + " ; ")
+				}
+				printCLI(str)
+			} else {
+				str := fmt.Sprint("Logged unique drug names: ")
+				for i := 0; i < len(locinfolist); i++ {
+					str += fmt.Sprint(locinfolist[i] + " ; ")
+				}
+				printCLI(str)
 			}
-			fmt.Println()
 		}
 	}
 
@@ -544,13 +606,14 @@ func main() {
 
 	if getNamesWhich != "none" {
 		drugNamesErrChan := make(chan drugdose.DrugNamesError)
-		go gotsetcfg.GetAllNames(db, ctx, drugNamesErrChan,
+		go gotsetcfg.GetAllAltNames(db, ctx, drugNamesErrChan,
 			getNamesValue, getNamesWhich, false)
 		gotDrugNamesErr := <-drugNamesErrChan
 		subsNames := gotDrugNamesErr.DrugNames
 		err = gotDrugNamesErr.Err
 		if err != nil {
 			printCLI("Couldn't get substance names, because of error:", err)
+			os.Exit(1)
 		} else {
 			fmt.Print("For " + getNamesWhich + ": " + getNamesValue + " ; Alternative names: ")
 			for i := 0; i < len(subsNames); i++ {
@@ -568,13 +631,14 @@ func main() {
 		err = gotDrugInfoErr.Err
 		if err != nil {
 			printCLI("Couldn't get info for drug because of error:", err)
+			os.Exit(1)
 		} else {
 			gotsetcfg.PrintLocalInfo(locinfo, false)
 		}
 	}
 
 	inputDose := false
-	if *changeLog == false && remembering == false && *dontLog == false {
+	if *changeLog == false && remembering == false && *dontLog == false && *getLogs == false {
 		if *drugname != "none" ||
 			*drugroute != "none" ||
 			*drugargdose != 0 ||
@@ -615,7 +679,7 @@ func main() {
 			err = <-errChannel
 			if err != nil {
 				printCLI(err)
-				*dontLog = true
+				os.Exit(1)
 			}
 		} else {
 			printCLI(err)
@@ -635,6 +699,7 @@ func main() {
 				float32(*drugargdose), float32(*drugperc))
 			if err != nil {
 				printCLI(err)
+				os.Exit(1)
 			} else {
 				convSubs := gotsetcfg.MatchAndReplace(db, ctx, *drugname, "substance")
 				printCLI(fmt.Sprintf("Didn't log, converted dose: "+
@@ -649,6 +714,7 @@ func main() {
 		err = <-errChannel
 		if err != nil {
 			printCLI(err)
+			os.Exit(1)
 		}
 	}
 
@@ -685,6 +751,7 @@ func main() {
 		err = <-errChannel
 		if err != nil {
 			printCLI(err)
+			os.Exit(1)
 		}
 	}
 
@@ -695,11 +762,25 @@ func main() {
 		err := gotTimeTillErr.Err
 		if err != nil {
 			printCLI("Times couldn't be retrieved because of an error:", err)
+			os.Exit(1)
 		} else {
 			err = gotsetcfg.PrintTimeTill(gotTimeTillErr, false)
 			if err != nil {
 				printCLI("Couldn't print times because of an error:", err)
+				os.Exit(1)
 			}
 		}
+	}
+
+	if *getTotalCosts {
+		costsErrChan := make(chan drugdose.CostsError)
+		go gotsetcfg.GetTotalCosts(db, ctx, costsErrChan, *forUser)
+		gotCostsErr := <-costsErrChan
+		err := gotCostsErr.Err
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
+		}
+		drugdose.PrintTotalCosts(gotCostsErr.Costs, false)
 	}
 }

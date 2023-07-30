@@ -405,10 +405,10 @@ func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context, inputName 
 // convUnits (conversion units)
 //
 // sourceNames - use source specific names instead of global ones
-func (cfg Config) GetAllNames(db *sql.DB, ctx context.Context,
+func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	namesErrChan chan<- DrugNamesError, inputName string,
 	nameType string, sourceNames bool) {
-	const printN string = "GetAllNames()"
+	const printN string = "GetAllAltNames()"
 
 	tempDrugNamesErr := DrugNamesError{
 		DrugNames: nil,
@@ -562,7 +562,7 @@ func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string
 	substance = cfg.MatchAndReplace(db, ctx, substance, "substance")
 
 	drugNamesErrChan := make(chan DrugNamesError)
-	go cfg.GetAllNames(db, ctx, drugNamesErrChan, substance, "convUnits", true)
+	go cfg.GetAllAltNames(db, ctx, drugNamesErrChan, substance, "convUnits", true)
 	gotDrugNamesErr := <-drugNamesErrChan
 	allNames := gotDrugNamesErr.DrugNames
 	err := gotDrugNamesErr.Err

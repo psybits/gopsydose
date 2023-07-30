@@ -131,6 +131,25 @@ func (cfg Config) InitInfoTable(db *sql.DB, ctx context.Context) error {
 	return nil
 }
 
+const LogDrugNameCol string = "drugName"
+const LogDoseCol string = "dose"
+const LogDoseUnitsCol string = "doseUnits"
+const LogDrugRouteCol string = "drugRoute"
+const LogCostCol string = "cost"
+const LogCostCurrencyCol string = "costCurrency"
+
+func validLogCols() []string {
+	return []string{LogDrugNameCol, LogDoseCol, LogDoseUnitsCol,
+		LogDrugRouteCol, LogCostCol, LogCostCurrencyCol}
+}
+
+const InfoDrugNameCol string = "drugName"
+const InfoRouteCol string = "drugRoute"
+
+func validInfoCols() []string {
+	return []string{InfoDrugNameCol, InfoRouteCol}
+}
+
 // InitLogsTable creates the table for all user drug logs if it doesn't exist.
 //
 // db - open database connection
@@ -156,13 +175,13 @@ func (cfg Config) InitLogsTable(db *sql.DB, ctx context.Context) error {
 
 	initDBsql := "create table " + loggingTableName + " (timeOfDoseStart bigint not null," +
 		"username varchar(255) not null," +
-		"timeOfDoseEnd bigint default 0," +
-		"drugName text" + caseInsensitive + "not null," +
-		"dose real not null," +
-		"doseUnits text" + caseInsensitive + "not null," +
-		"drugRoute text" + caseInsensitive + "not null," +
-		"cost real default 0," +
-		"costCurrency text" + caseInsensitive + "default \"\" not null," +
+		"timeOfDoseEnd bigint default 0 not null," +
+		LogDrugNameCol + " text" + caseInsensitive + "not null," +
+		LogDoseCol + " real not null," +
+		LogDoseUnitsCol + " text" + caseInsensitive + "not null," +
+		LogDrugRouteCol + "drugRoute text" + caseInsensitive + "not null," +
+		LogCostCol + "cost real default 0 not null," +
+		LogCostCurrencyCol + "costCurrency text" + caseInsensitive + "default \"\" not null," +
 		"primary key (timeOfDoseStart, username));"
 
 	_, err = tx.Exec(initDBsql)

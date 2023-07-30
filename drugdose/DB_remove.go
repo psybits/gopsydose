@@ -197,7 +197,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 		}
 
 		userLogsErrChan := make(chan UserLogsError)
-		go cfg.GetLogs(db, ctx, userLogsErrChan, amount, 0, username, reverse, search)
+		go cfg.GetLogs(db, ctx, userLogsErrChan, amount, 0, username, reverse, search, "")
 		gotLogs := <-userLogsErrChan
 		if gotLogs.Err != nil {
 			errChannel <- gotLogs.Err
