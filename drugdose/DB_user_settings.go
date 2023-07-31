@@ -180,7 +180,11 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 
 	const printN string = "GetUserSettings()"
 
-	tempUserSetErr := UserSettingError{}
+	tempUserSetErr := UserSettingError{
+		UserSetting: "",
+		Username:    "",
+		Err:         nil,
+	}
 
 	fmtStmt := fmt.Sprintf("select %s from userSettings where username = ?", set)
 	stmt, err := db.PrepareContext(ctx, fmtStmt)
@@ -203,6 +207,7 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 
 	tempUserSetErr.Err = nil
 	tempUserSetErr.UserSetting = got
+	tempUserSetErr.Username = username
 
 	userSetErrChannel <- tempUserSetErr
 }

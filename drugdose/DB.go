@@ -123,16 +123,19 @@ type UserLogsError struct {
 
 type DrugNamesError struct {
 	DrugNames []string
+	Username  string
 	Err       error
 }
 
 type DrugInfoError struct {
-	DrugI []DrugInfo
-	Err   error
+	DrugI    []DrugInfo
+	Username string
+	Err      error
 }
 
 type UserSettingError struct {
 	UserSetting string
+	Username    string
 	Err         error
 }
 

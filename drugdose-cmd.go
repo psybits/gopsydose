@@ -607,7 +607,7 @@ func main() {
 	if getNamesWhich != "none" {
 		drugNamesErrChan := make(chan drugdose.DrugNamesError)
 		go gotsetcfg.GetAllAltNames(db, ctx, drugNamesErrChan,
-			getNamesValue, getNamesWhich, false)
+			getNamesValue, getNamesWhich, false, *forUser)
 		gotDrugNamesErr := <-drugNamesErrChan
 		subsNames := gotDrugNamesErr.DrugNames
 		err = gotDrugNamesErr.Err
@@ -625,7 +625,7 @@ func main() {
 
 	if *getLocalInfoDrug != "none" {
 		drugInfoErrChan := make(chan drugdose.DrugInfoError)
-		go gotsetcfg.GetLocalInfo(db, ctx, drugInfoErrChan, *getLocalInfoDrug)
+		go gotsetcfg.GetLocalInfo(db, ctx, drugInfoErrChan, *getLocalInfoDrug, *forUser)
 		gotDrugInfoErr := <-drugInfoErrChan
 		locinfo := gotDrugInfoErr.DrugI
 		err = gotDrugInfoErr.Err

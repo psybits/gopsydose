@@ -346,15 +346,18 @@ func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
 // information about all routes for a drug and the error
 //
 // drug - drug to get information about
+//
+// username - the user requesting the local info
 func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
-	drugInfoErrChan chan<- DrugInfoError, drug string) {
+	drugInfoErrChan chan<- DrugInfoError, drug string, username string) {
 	printN := "GerLocalInfo()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
 
 	tempDrugInfoErr := DrugInfoError{
-		DrugI: nil,
-		Err:   nil,
+		DrugI:    nil,
+		Username: "",
+		Err:      nil,
 	}
 
 	ret := checkIfExistsDB(db, ctx,
@@ -405,6 +408,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 		return
 	}
 
+	tempDrugInfoErr.Username = username
 	tempDrugInfoErr.DrugI = infoDrug
 	drugInfoErrChan <- tempDrugInfoErr
 }
@@ -489,6 +493,7 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 
 	tempDrugNamesError := DrugNamesError{
 		DrugNames: nil,
+		Username:  "",
 		Err:       nil,
 	}
 
@@ -554,5 +559,6 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	}
 
 	tempDrugNamesError.DrugNames = drugList
+	tempDrugNamesError.Username = username
 	drugNamesErrorChannel <- tempDrugNamesError
 }

@@ -48,8 +48,9 @@ type TimeTill struct {
 }
 
 type TimeTillError struct {
-	TimeT *TimeTill
-	Err   error
+	TimeT    *TimeTill
+	Username string
+	Err      error
 	// Bellow is extra information only needed internally
 	useLog        UserLog
 	approxEnd     int64
@@ -121,8 +122,9 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	const printN string = "GetTimes()"
 
 	tempTimeTillErr := TimeTillError{
-		Err:   nil,
-		TimeT: nil,
+		Err:      nil,
+		Username: "",
+		TimeT:    nil,
 	}
 	userLogsErrChan := make(chan UserLogsError)
 	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, getid, username, true, "none", "")
@@ -136,7 +138,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	useLog := gotLogs.UserLogs[0]
 
 	drugInfoErrChan := make(chan DrugInfoError)
-	go cfg.GetLocalInfo(db, ctx, drugInfoErrChan, useLog.DrugName)
+	go cfg.GetLocalInfo(db, ctx, drugInfoErrChan, useLog.DrugName, username)
 	gotDrugInfoErr := <-drugInfoErrChan
 	gotInfo := gotDrugInfoErr.DrugI
 	err := gotDrugInfoErr.Err
@@ -293,6 +295,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 
 	var approxEnd int64 = useLoggedTime + int64(totalAvg)
 
+	tempTimeTillErr.Username = username
 	tempTimeTillErr.TimeT = &timeTill
 	tempTimeTillErr.useLog = useLog
 	tempTimeTillErr.approxEnd = approxEnd
