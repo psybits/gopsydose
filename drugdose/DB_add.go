@@ -163,7 +163,11 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	}
 
 	var count uint32
-	err, count = cfg.GetLogsCount(db, ctx, user)
+	logCountErrChan := make(chan LogCountError)
+	go cfg.GetLogsCount(db, ctx, user, logCountErrChan)
+	gotLogCountErr := <-logCountErrChan
+	err = gotLogCountErr.Err
+	count = gotLogCountErr.LogCount
 	if err != nil {
 		errChannel <- errors.New(sprintName(printN, err))
 		return

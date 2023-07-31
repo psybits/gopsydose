@@ -20,6 +20,10 @@ import (
 // be retrieved from the database.
 var NoLogsError error = errors.New("no logs returned for user")
 
+// NoUsersReturned is the error returned when no unique usernames from the log
+// table have been retrieved.
+var NoUsersReturned error = errors.New("no usernames have been returned")
+
 // EmptyListDrugNamesError is the error returned when no drug names could be
 // retrieved from the database.
 var EmptyListDrugNamesError error = errors.New("empty list of drug names from info table")
@@ -88,59 +92,99 @@ func (cfg Config) GetDBSize() int64 {
 // GetUsers returns all unique usernames
 // currently present in the dose log table.
 //
+// This function is meant to be run concurrently.
+//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) GetUsers(db *sql.DB, ctx context.Context) (error, []string) {
+//
+// allUsersErrChan - the goroutine channel used to return all unique usernames
+// and the error
+//
+// username - user to get unique usernames for
+func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
+	allUsersErrChan chan<- AllUsersError, username string) {
 	const printN string = "GetUsers()"
 
 	var allUsers []string
 	var tempUser string
 
+	tempAllUsersErr := AllUsersError{
+		AllUsers: nil,
+		Username: username,
+		Err:      nil,
+	}
+
 	rows, err := db.QueryContext(ctx, "select distinct username from "+loggingTableName)
 	if err != nil {
-		err = errors.New(sprintName(printN, "Query: error getting usernames:", err))
-		return err, nil
+		tempAllUsersErr.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.QueryContext()"), err)
+		allUsersErrChan <- tempAllUsersErr
+		return
 	}
 
 	for rows.Next() {
 		err = rows.Scan(&tempUser)
 		if err != nil {
-			err = errors.New(sprintName(printN, "Scan: error getting usernames:", err))
-			return err, nil
+			tempAllUsersErr.Err = fmt.Errorf("%s: %w", sprintName(printN, "rows.Scan()"), err)
+			allUsersErrChan <- tempAllUsersErr
+			return
 		}
 		allUsers = append(allUsers, tempUser)
 	}
 
 	if len(allUsers) == 0 {
-		err = errors.New(sprintName(printN, "No users returned."))
-		return err, nil
+		tempAllUsersErr.Err = fmt.Errorf("%s%w", sprintName(printN), NoUsersReturned)
+		allUsersErrChan <- tempAllUsersErr
+		return
 	}
 
-	return nil, allUsers
+	tempAllUsersErr.AllUsers = allUsers
+	allUsersErrChan <- tempAllUsersErr
 }
 
 // GetLogsCount returns total amount of logs in
 // the dose log table for username set in user parameter.
+//
+// This function is meant to be run concurrently.
 //
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // user - user to get log count for
-func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string) (error, uint32) {
+//
+// logCountErrChan - the goroutine channel used to return the log count and
+// the error
+func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
+	logCountErrChan chan<- LogCountError) {
 	const printN string = "GetLogsCount()"
+
+	tempLogCountErr := LogCountError{
+		LogCount: 0,
+		Username: user,
+		Err:      nil,
+	}
 
 	var count uint32
 
-	row := db.QueryRowContext(ctx, "select count(*) from "+loggingTableName+" where username = ?", user)
-	err := row.Scan(&count)
+	stmt, err := db.PrepareContext(ctx,
+		"select count(*) from "+loggingTableName+" where username = ?")
 	if err != nil {
-		err = errors.New(sprintName(printN, "Error getting count:", err))
-		return err, 0
+		tempLogCountErr.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.PrepareContext()"), err)
+		logCountErrChan <- tempLogCountErr
+		return
 	}
 
-	return nil, count
+	row := stmt.QueryRowContext(ctx, user)
+	err = row.Scan(&count)
+	if err != nil {
+		tempLogCountErr.Err = fmt.Errorf("%s: %w", sprintName(printN, "row.Scan()"), err)
+		logCountErrChan <- tempLogCountErr
+		return
+	}
+
+	tempLogCountErr.LogCount = count
+	logCountErrChan <- tempLogCountErr
 }
 
 // GetLogs returns all logs for a given username in the drug log table.
@@ -186,6 +230,7 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	userlogs := []UserLog{}
 	tempUserLogsError := UserLogsError{
 		UserLogs: userlogs,
+		Username: user,
 		Err:      nil,
 	}
 
@@ -356,7 +401,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 
 	tempDrugInfoErr := DrugInfoError{
 		DrugI:    nil,
-		Username: "",
+		Username: username,
 		Err:      nil,
 	}
 
@@ -408,7 +453,6 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 		return
 	}
 
-	tempDrugInfoErr.Username = username
 	tempDrugInfoErr.DrugI = infoDrug
 	drugInfoErrChan <- tempDrugInfoErr
 }
@@ -493,7 +537,7 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 
 	tempDrugNamesError := DrugNamesError{
 		DrugNames: nil,
-		Username:  "",
+		Username:  username,
 		Err:       nil,
 	}
 
@@ -559,6 +603,5 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	}
 
 	tempDrugNamesError.DrugNames = drugList
-	tempDrugNamesError.Username = username
 	drugNamesErrorChannel <- tempDrugNamesError
 }

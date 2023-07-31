@@ -118,6 +118,7 @@ type UserLog struct {
 
 type UserLogsError struct {
 	UserLogs []UserLog
+	Username string
 	Err      error
 }
 
@@ -137,6 +138,18 @@ type UserSettingError struct {
 	UserSetting string
 	Username    string
 	Err         error
+}
+
+type LogCountError struct {
+	LogCount uint32
+	Username string
+	Err      error
+}
+
+type AllUsersError struct {
+	AllUsers []string
+	Username string
+	Err      error
 }
 
 type DrugInfo struct {

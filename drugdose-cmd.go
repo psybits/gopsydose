@@ -478,26 +478,33 @@ func main() {
 	}
 
 	if *getUsers {
-		err, ret := gotsetcfg.GetUsers(db, ctx)
+		allUsersErrChan := make(chan drugdose.AllUsersError)
+		go gotsetcfg.GetUsers(db, ctx, allUsersErrChan, *forUser)
+		gotAllUsersErr := <-allUsersErrChan
+		err = gotAllUsersErr.Err
+		ret := gotAllUsersErr.AllUsers
 		if err != nil {
 			printCLI("Couldn't get users because of an error:", err)
 			os.Exit(1)
-		} else {
-			fmt.Print("All users: ")
+		} else if err == nil {
+			str := fmt.Sprint("All users: ")
 			for i := 0; i < len(ret); i++ {
-				fmt.Print(ret[i] + " ; ")
+				str += fmt.Sprintf("%q ; ", ret[i])
 			}
-			fmt.Println()
+			printCLI(str)
 		}
 	}
 
 	if *getLogsCount {
-		err, ret := gotsetcfg.GetLogsCount(db, ctx, *forUser)
+		logCountErrChan := make(chan drugdose.LogCountError)
+		go gotsetcfg.GetLogsCount(db, ctx, *forUser, logCountErrChan)
+		gotLogCountErr := <-logCountErrChan
+		err := gotLogCountErr.Err
 		if err != nil {
 			printCLI(err)
 			os.Exit(1)
 		}
-		printCLI("Total number of logs:", ret, "; for user:", *forUser)
+		printCLI("Total number of logs:", gotLogCountErr.LogCount, "; for user:", gotLogCountErr.Username)
 	}
 
 	userLogsErrChan := make(chan drugdose.UserLogsError)
