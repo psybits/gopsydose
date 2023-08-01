@@ -3,6 +3,7 @@ package drugdose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 
@@ -78,7 +79,7 @@ func (cfg Config) InitInfoTable(db *sql.DB, ctx context.Context) error {
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+		return fmt.Errorf("%s%w", sprintName(printN, "db.BeginTx(): "), err)
 	}
 
 	caseInsensitive := " "
@@ -165,7 +166,7 @@ func (cfg Config) InitLogsTable(db *sql.DB, ctx context.Context) error {
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+		return fmt.Errorf("%s%w", sprintName(printN, "db.BeginTx(): "), err)
 	}
 
 	caseInsensitive := " "
@@ -216,7 +217,7 @@ func (cfg Config) InitUserSetTable(db *sql.DB, ctx context.Context) error {
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+		return fmt.Errorf("%s%w", sprintName(printN, "db.BeginTx(): "), err)
 	}
 
 	initDBsql := "create table " + userSetTableName + " (username varchar(255) not null," +
@@ -290,7 +291,7 @@ func (cfg Config) InitNamesAltTables(db *sql.DB, ctx context.Context, replace bo
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+		return fmt.Errorf("%s%w", sprintName(printN, "db.BeginTx(): "), err)
 	}
 
 	caseInsensitive := " "
@@ -381,27 +382,27 @@ func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
 
 	err := cfg.InitInfoTable(db, ctx)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	err = cfg.InitLogsTable(db, ctx)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	err = cfg.InitUserSetTable(db, ctx)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	err = cfg.InitNamesAltTables(db, ctx, false)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	err = cfg.InitNamesAltTables(db, ctx, true)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Ran through all tables for initialisation.")

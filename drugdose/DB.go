@@ -38,6 +38,20 @@ const userSetTableName string = "userSettings"
 // This is related to the RememberConfig() and ForgetConfig() functions.
 const ForgetInputConfigMagicNumber string = "0"
 
+const ActionFetchFromSource string = "fetching from source completed"
+const ActionChangeUserLog string = "changing user log completed"
+const ActionAddToInfoTable string = "adding to info table completed"
+const ActionFetchFromPsychonautWiki string = "fetching from psychonautwiki completed"
+const ActionAddToDoseTable string = "adding to dose table completed"
+const ActionRemoveLogs string = "removing logs from dose table completed"
+const ActionRemoveSingleDrugInfo string = "removing single drug info completed"
+const ActionSetUserSettings string = "user settings change completed"
+const ActionRememberDosing string = "dosing remember completed"
+const ActionForgetDosing string = "dosing forgetting completed"
+
+var NoValidAPISel error = errors.New("no valid API selected")
+var TimeoutValueEmptyError error = errors.New("timeout value is empty")
+
 func exitProgram(printN string) {
 	printName(printN, "exitProgram(): Exiting")
 	os.Exit(1)
@@ -54,14 +68,17 @@ func errorCantOpenDB(path string, err error, printN string) {
 // This function is meant to be used within concurrently ran functions.
 //
 // Returns true if there's an error, false otherwise.
-func handleErrRollback(err error, tx *sql.Tx, errChannel chan<- error, printN string, xtraMsg string) bool {
+func handleErrRollback(err error, tx *sql.Tx, errChannel chan<- ErrorInfo,
+	errInfo ErrorInfo, printN string, xtraMsg string) bool {
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
-			errChannel <- errors.New(sprintName(printN, xtraMsg, err2))
+			errInfo.Err = fmt.Errorf("%s%w", sprintName(printN, xtraMsg), err2)
+			errChannel <- errInfo
 			return true
 		}
-		errChannel <- errors.New(sprintName(printN, xtraMsg, err))
+		errInfo.Err = fmt.Errorf("%s%w", sprintName(printN, xtraMsg), err)
+		errChannel <- errInfo
 		return true
 	}
 	return false
@@ -76,9 +93,9 @@ func handleErrRollbackSeq(err error, tx *sql.Tx, printN string, xtraMsg string) 
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
-			return errors.New(sprintName(printN, xtraMsg, err2))
+			return fmt.Errorf("%s%w", sprintName(printN, xtraMsg), err2)
 		}
-		return errors.New(sprintName(printN, xtraMsg, err))
+		return fmt.Errorf("%s%w", sprintName(printN, xtraMsg), err)
 	}
 	return nil
 }
@@ -150,6 +167,12 @@ type AllUsersError struct {
 	AllUsers []string
 	Username string
 	Err      error
+}
+
+type ErrorInfo struct {
+	Err      error
+	Action   string
+	Username string
 }
 
 type DrugInfo struct {
@@ -230,13 +253,15 @@ func checkIfExistsDB(db *sql.DB, ctx context.Context,
 // context. If no errors are found, it then returns the context to be used
 // where it's needed.
 func (cfg Config) UseConfigTimeout() (context.Context, context.CancelFunc, error) {
+	const printN string = "UseConfigTimeout()"
+
 	if cfg.Timeout == "" || cfg.Timeout == "none" {
-		return nil, nil, errors.New("Timeout value is empty.")
+		return nil, nil, fmt.Errorf("%s%w", sprintName(printN), TimeoutValueEmptyError)
 	}
 
 	gotDuration, err := time.ParseDuration(cfg.Timeout)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("%s%w", sprintName(printN, "time.ParseDuration(): "), err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), gotDuration)
@@ -350,29 +375,44 @@ func (cfg Config) CheckTables(db *sql.DB, ctx context.Context, tableName string)
 //
 // client - the initialised structure for the graphql client,
 // best done using InitGraphqlClient(), but can be done manually if needed
+//
+// username - the user requesting the fetch
 func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
-	errChannel chan<- error, drugname string, client graphql.Client) {
+	errChannel chan<- ErrorInfo, drugname string, client graphql.Client,
+	username string) {
 
 	const printN string = "FetchFromSource()"
 
+	tempErrInfo := ErrorInfo{
+		Err:      nil,
+		Action:   ActionFetchFromSource,
+		Username: username,
+	}
+
 	gotsrcData := GetSourceData()
-	printNameVerbose(cfg.VerbosePrinting, printN, "Using API from settings.toml:", cfg.UseSource)
-	printNameVerbose(cfg.VerbosePrinting, printN, "Got API URL from sources.toml:", gotsrcData[cfg.UseSource].API_ADDRESS)
+	printNameVerbose(cfg.VerbosePrinting,
+		printN, "Using API from settings.toml:", cfg.UseSource)
+	printNameVerbose(cfg.VerbosePrinting,
+		printN, "Got API URL from sources.toml:", gotsrcData[cfg.UseSource].API_ADDRESS)
 
 	if cfg.UseSource == "psychonautwiki" {
-		errChannel2 := make(chan error)
-		go cfg.FetchPsyWiki(db, ctx, errChannel2, drugname, client)
-		err := <-errChannel2
-		if err != nil {
-			errChannel <- errors.New(sprintName(printN, "While fetching from: ", cfg.UseSource, " ; error: ", err))
+		errChannel2 := make(chan ErrorInfo)
+		go cfg.FetchPsyWiki(db, ctx, errChannel2, drugname, client, username)
+		gotErrInfo := <-errChannel2
+		if gotErrInfo.Err != nil {
+			tempErrInfo.Err = fmt.Errorf("%s%w",
+				sprintName(printN, "While fetching from: ", cfg.UseSource, " ; error: "),
+				gotErrInfo.Err)
+			errChannel <- tempErrInfo
 			return
 		}
 	} else {
-		errChannel <- errors.New(sprintName(printN, "No valid API selected:", cfg.UseSource))
+		tempErrInfo.Err = fmt.Errorf("%s%w: %s", sprintName(printN), NoValidAPISel, cfg.UseSource)
+		errChannel <- tempErrInfo
 		return
 	}
 
-	errChannel <- nil
+	errChannel <- tempErrInfo
 }
 
 // ChangeUserLog can be used to modify log data of a single log.
@@ -394,23 +434,14 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 // username - the user who's log we're changing
 //
 // setValue - the new value to set
-func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan<- error,
+func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan<- ErrorInfo,
 	set string, id int64, username string, setValue string) {
 	const printN string = "ChangeUserLog()"
 
-	if username == "none" {
-		errChannel <- errors.New(sprintName(printN, "Please specify an username!"))
-		return
-	}
-
-	if set == "none" {
-		errChannel <- errors.New(sprintName(printN, "Please specify a set type!"))
-		return
-	}
-
-	if setValue == "none" {
-		errChannel <- errors.New(sprintName(printN, "Please specify a value to set!"))
-		return
+	tempErrInfo := ErrorInfo{
+		Err:      nil,
+		Action:   ActionChangeUserLog,
+		Username: username,
 	}
 
 	if setValue == "now" && set == "start-time" || setValue == "now" && set == "end-time" {
@@ -419,14 +450,16 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 
 	if set == "start-time" || set == "end-time" {
 		if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
-			errChannel <- errors.New(sprintName(printN, "Error when checking if integer:", err))
+			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "strconv.ParseInt(): "), err)
+			errChannel <- tempErrInfo
 			return
 		}
 	}
 
 	if set == "dose" {
 		if _, err := strconv.ParseFloat(setValue, 64); err != nil {
-			errChannel <- errors.New(sprintName(printN, "Error when checking if float:", err))
+			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "strconv.ParseFloat(): "), err)
+			errChannel <- tempErrInfo
 			return
 		}
 	}
@@ -450,7 +483,8 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	gotUserLogsErr := <-userLogsErrChan
 	gotErr = gotUserLogsErr.Err
 	if gotErr != nil {
-		errChannel <- errors.New(sprintName(printN, gotErr))
+		tempErrInfo.Err = fmt.Errorf(sprintName(printN), gotErr)
+		errChannel <- tempErrInfo
 		return
 	}
 
@@ -462,27 +496,28 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "db.Begin():", err))
+		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "db.Begin(): "), err)
+		errChannel <- tempErrInfo
 		return
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(setValue, id)
-	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
 		return
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
 		return
 	}
 
-	printName(printN, "entry:", id, "; changed:", set, "; to value:", setValue)
+	printName(printN, "entry:", id, "; changed:", set, "; to value:", setValue, "; for user:", username)
 
-	errChannel <- nil
+	errChannel <- tempErrInfo
 }

@@ -16,24 +16,18 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
-// NoLogsError is the error returned when no logs for a specified user could
-// be retrieved from the database.
 var NoLogsError error = errors.New("no logs returned for user")
 
 // NoUsersReturned is the error returned when no unique usernames from the log
 // table have been retrieved.
 var NoUsersReturned error = errors.New("no usernames have been returned")
 
-// EmptyListDrugNamesError is the error returned when no drug names could be
-// retrieved from the database.
+// EmptyListDrugNamesError is the error returned when no unique drug names could
+// be retrieved from the database.
 var EmptyListDrugNamesError error = errors.New("empty list of drug names from info table")
 
-// NoDrugInfoTable is the error returned when the drug could not be
-// found locally in the database.
 var NoDrugInfoTable error = errors.New("no such drug in info table")
 
-// InvalidColInput is the error returned when the column given as string,
-// doesn't match any valid name.
 var InvalidColInput error = errors.New("an invalid column name has been given")
 
 // GetDBSize returns the total size of the database in bytes (int64).
@@ -420,7 +414,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 
 	rows, err := db.QueryContext(ctx, "select * from "+cfg.UseSource+" where drugName = ?", drug)
 	if err != nil {
-		tempDrugInfoErr.Err = errors.New(sprintName(printN, err))
+		tempDrugInfoErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 		drugInfoErrChan <- tempDrugInfoErr
 		return
 	}
@@ -439,7 +433,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 			&tempdrinfo.OffsetUnits, &tempdrinfo.TotalDurMin, &tempdrinfo.TotalDurMax,
 			&tempdrinfo.TotalDurUnits, &tempdrinfo.TimeOfFetch)
 		if err != nil {
-			tempDrugInfoErr.Err = errors.New(sprintName(printN, err))
+			tempDrugInfoErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 			drugInfoErrChan <- tempDrugInfoErr
 			return
 		}
@@ -448,7 +442,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 	}
 	err = rows.Err()
 	if err != nil {
-		tempDrugInfoErr.Err = errors.New(sprintName(printN, err))
+		tempDrugInfoErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 		drugInfoErrChan <- tempDrugInfoErr
 		return
 	}
@@ -584,7 +578,7 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 		var holdName string
 		err := rows.Scan(&holdName)
 		if err != nil {
-			tempDrugNamesError.Err = errors.New(sprintName(printN, err))
+			tempDrugNamesError.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 			drugNamesErrorChannel <- tempDrugNamesError
 			return
 		}
@@ -593,7 +587,7 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	}
 	err = rows.Err()
 	if err != nil {
-		tempDrugNamesError.Err = errors.New(sprintName(printN, err))
+		tempDrugNamesError.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 		drugNamesErrorChannel <- tempDrugNamesError
 		return
 	}

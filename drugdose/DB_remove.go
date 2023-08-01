@@ -28,13 +28,13 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
 	queryStr := cfg.getTableNamesQuery("")
 	rows, err := db.QueryContext(ctx, queryStr)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 	defer rows.Close()
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+		return fmt.Errorf("%s%w", sprintName(printN, "db.BeginTx(): "), err)
 	}
 
 	if cfg.VerbosePrinting == true {
@@ -44,7 +44,7 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
 		var name string
 		err = rows.Scan(&name)
 		if err != nil {
-			return errors.New(sprintName(printN, err))
+			return fmt.Errorf("%s%w", sprintName(printN), err)
 		}
 
 		if cfg.VerbosePrinting == true {
@@ -85,7 +85,7 @@ func (cfg Config) CleanInfoTable(db *sql.DB, ctx context.Context) error {
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.New(sprintName(printN, "db.BeginTx(): ", err))
+		return fmt.Errorf("%s%w", sprintName(printN, "db.BeginTx(): "), err)
 	}
 
 	_, err = tx.Exec("drop table " + cfg.UseSource)
@@ -132,7 +132,7 @@ func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly 
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	startCount := 0
@@ -185,10 +185,16 @@ func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly 
 //
 // search - remove logs only matching this string
 func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
-	errChannel chan<- error, username string, amount int, reverse bool,
+	errChannel chan<- ErrorInfo, username string, amount int, reverse bool,
 	remID int64, search string) {
 
 	const printN string = "RemoveLogs()"
+
+	tempErrInfo := ErrorInfo{
+		Err:      nil,
+		Username: username,
+		Action:   ActionRemoveLogs,
+	}
 
 	stmtStr := "delete from " + loggingTableName + " where username = ?"
 	if (amount != 0 && remID == 0) || (search != "none" && search != "") {
@@ -200,7 +206,8 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 		go cfg.GetLogs(db, ctx, userLogsErrChan, amount, 0, username, reverse, search, "")
 		gotLogs := <-userLogsErrChan
 		if gotLogs.Err != nil {
-			errChannel <- gotLogs.Err
+			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotLogs.Err)
+			errChannel <- tempErrInfo
 			return
 		}
 
@@ -226,7 +233,8 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 			cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path,
 			xtrs[:], remID, username)
 		if !ret {
-			errChannel <- errors.New(sprintName(printN, "Log with ID:", remID, "doesn't exists."))
+			tempErrInfo.Err = fmt.Errorf("%s%w: %s%q", sprintName(printN), LogDoesntExistError, "with ID: ", remID)
+			errChannel <- tempErrInfo
 			return
 		}
 
@@ -235,12 +243,13 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		errChannel <- err
+		tempErrInfo.Err = fmt.Errorf("%s%s: %w", sprintName(printN), "db.BeginTx()", err)
+		errChannel <- tempErrInfo
 		return
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
@@ -249,12 +258,12 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 	} else {
 		_, err = stmt.Exec(username)
 	}
-	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
 		return
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
 		return
 	}
 
@@ -262,7 +271,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 		username, "; amount:", amount, "; reverse:", reverse, "; remID:", remID,
 		"; search:", search)
 
-	errChannel <- nil
+	errChannel <- tempErrInfo
 }
 
 // RemoveSingleDrugInfo removes all entries of a single drug from the local
@@ -279,11 +288,19 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 // errChannel - go routine channel which returns any errors
 //
 // drug - name of drug to be removed from source table
+//
+// username - the user which requested the drug removal
 func (cfg Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
-	errChannel chan<- error, drug string) {
+	errChannel chan<- ErrorInfo, drug string, username string) {
 	const printN string = "RemoveSingleDrugInfo()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
+
+	tempErrInfo := ErrorInfo{
+		Err:      nil,
+		Username: username,
+		Action:   ActionRemoveSingleDrugInfo,
+	}
 
 	ret := checkIfExistsDB(db, ctx,
 		"drugName",
@@ -293,33 +310,36 @@ func (cfg Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
 		nil,
 		drug)
 	if !ret {
-		errChannel <- errors.New(sprintName(printN, "No such drug in info database: ", drug))
+		tempErrInfo.Err = fmt.Errorf("%s%w: %q", sprintName(printN), NoDrugInfoTableError, drug)
+		errChannel <- tempErrInfo
 		return
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		errChannel <- errors.New(sprintName(printN, err))
+		tempErrInfo.Err = fmt.Errorf("%s%s: %w", sprintName(printN), "db.BeginTx()", err)
+		errChannel <- tempErrInfo
 		return
 	}
 
 	stmt, err := tx.Prepare("delete from " + cfg.UseSource +
 		" where drugName = ?")
-	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(drug)
-	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
 		return
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
 		return
 	}
 
-	printName(printN, "Data removed from info DB successfully:", drug, "; source: ", cfg.UseSource)
-
-	errChannel <- nil
+	errChannel <- tempErrInfo
 }
+
+var LogDoesntExistError error = errors.New("log doesn't exist")
+var NoDrugInfoTableError error = errors.New("no such drug in the info (source) table")

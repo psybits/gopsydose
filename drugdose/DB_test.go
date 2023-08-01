@@ -62,9 +62,10 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	}
 	testsub = append(testsub, tempsub)
 
-	errChannel := make(chan error)
-	go gotsetcfg.AddToInfoTable(db, ctx, errChannel, testsub)
-	err := <-errChannel
+	errChannel := make(chan ErrorInfo)
+	go gotsetcfg.AddToInfoTable(db, ctx, errChannel, testsub, "")
+	errInfo := <-errChannel
+	err := errInfo.Err
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -137,15 +138,15 @@ func TestConcurrentGetLogs(t *testing.T) {
 			fmt.Println("\t=== Testing", testUsernames(o), "usernames ===")
 
 			synct := SyncTimestamps{}
-			errorChannel := make(chan error)
+			errorChannel := make(chan ErrorInfo)
 			count := 0
 			for count < 5 {
 				go cfg.AddToDoseTable(db, ctx, errorChannel, &synct, temp_users[useUser(count, o)], test_drug,
 					test_route, temp_doses[count], test_units, 0, 0, "", true)
-				gotErr := <-errorChannel
-				if gotErr != nil {
+				gotErrInfo := <-errorChannel
+				if gotErrInfo.Err != nil {
 					fmt.Println("\tFailed adding to database.")
-					t.Log(gotErr)
+					t.Log(gotErrInfo.Err)
 					t.Fail()
 					break
 				}
@@ -176,9 +177,9 @@ func TestConcurrentGetLogs(t *testing.T) {
 
 			for i := 0; i < count; i++ {
 				go cfg.RemoveLogs(db, ctx, errorChannel, temp_users[useUser(i, o)], 1, true, 0, "")
-				gotErr := <-errorChannel
-				if gotErr != nil {
-					fmt.Println(gotErr)
+				gotErrInfo := <-errorChannel
+				if gotErrInfo.Err != nil {
+					fmt.Println(gotErrInfo.Err)
 				}
 			}
 		}
@@ -220,7 +221,7 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 			fmt.Println("\t=== Testing", testUsernames(o), "usernames ===")
 
 			synct := SyncTimestamps{}
-			errorChannel := make(chan error)
+			errorChannel := make(chan ErrorInfo)
 			for i := 0; i < 5; i++ {
 				go cfg.AddToDoseTable(db, ctx, errorChannel, &synct, temp_users[useUser(i, o)], test_drug,
 					test_route, temp_doses[i], test_units, 0, 0, "", true)
@@ -228,10 +229,10 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 
 			count := 0
 			for count < 5 {
-				gotErr := <-errorChannel
-				if gotErr != nil {
+				gotErrInfo := <-errorChannel
+				if gotErrInfo.Err != nil {
 					fmt.Println("\tFailed adding to database.")
-					t.Log(gotErr)
+					t.Log(gotErrInfo.Err)
 					t.Fail()
 					break
 				}
@@ -259,27 +260,27 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 
 			for i := 0; i < count; i++ {
 				go cfg.RemoveLogs(db, ctx, errorChannel, temp_users[useUser(i, o)], 1, true, 0, "")
-				gotErr := <-errorChannel
-				if gotErr != nil {
-					fmt.Println(gotErr)
+				gotErrInfo := <-errorChannel
+				if gotErrInfo.Err != nil {
+					fmt.Println(gotErrInfo.Err)
 				}
 			}
 		}
 
 		// Test invalid logs
 		synct := SyncTimestamps{}
-		errorChannel := make(chan error)
+		errorChannel := make(chan ErrorInfo)
 		for i := 0; i < 5; i++ {
 			go cfg.AddToDoseTable(db, ctx, errorChannel, &synct, "test_user", "W2IK&m9)abN\"8*(x9Ms90mMm",
 				"W2IK&m9)abN\"8*(x9Ms90mMm", 123.12, "W2IK&m9)abN\"8*(x9Ms90mMm", 0, 0, "", true)
 		}
 
 		for i := 0; i < 5; i++ {
-			gotErr := <-errorChannel
-			if gotErr != nil {
-				fmt.Println("Testing invalid input:", gotErr)
-			} else if gotErr == nil {
-				t.Log("getErr is nil, when it should've returned an error")
+			gotErrInfo := <-errorChannel
+			if gotErrInfo.Err != nil {
+				fmt.Println("Testing invalid input:", gotErrInfo.Err)
+			} else if gotErrInfo.Err == nil {
+				t.Log("getErrInfo is nil, when it should've returned an error")
 				t.Fail()
 			}
 		}
@@ -346,26 +347,32 @@ func TestForcedRollback(t *testing.T) {
 		stmtStr := returnSetUserSetStmt(set)
 
 		err = errors.New("Test error.")
-		errChannel := make(chan error)
-		printN := "testName"
+		errChannel := make(chan ErrorInfo)
+		printN := "testNamed"
+
+		tempErrInfo := ErrorInfo{
+			Err:      nil,
+			Action:   "testing",
+			Username: "testing",
+		}
 
 		fmt.Println("\tConcurrent rollback")
 		stmt, _ := tx.Prepare(stmtStr)
 		defer stmt.Close()
 		var testConcurrentRollback = func(err error, tx *sql.Tx,
-			errChannel chan error, printN string,
+			errChannel chan ErrorInfo, errInfo ErrorInfo, printN string,
 			xtra string, t *testing.T) {
-			if handleErrRollback(err, tx, errChannel, printN, xtra) {
+			if handleErrRollback(err, tx, errChannel, errInfo, printN, xtra) {
 				fmt.Println("handleErrRollback():", err)
 			} else {
 				t.Log("handleErrRollback():", err)
 				t.Fail()
 			}
 		}
-		go testConcurrentRollback(err, tx, errChannel,
+		go testConcurrentRollback(err, tx, errChannel, tempErrInfo,
 			printN, "tx.Prepare(): ", t)
-		err = <-errChannel
-		fmt.Println("errChannel:", err)
+		gotErrInfo := <-errChannel
+		fmt.Println("errChannel:", gotErrInfo.Err)
 		err = tx.Commit()
 		if err != nil {
 			fmt.Println("tx.Commit():", err)

@@ -3,6 +3,7 @@ package drugdose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -92,7 +93,7 @@ func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 	if cfg.ProxyURL != "" && cfg.ProxyURL != "none" {
 		goturl, err := url.Parse(cfg.ProxyURL)
 		if err != nil {
-			err = errors.New(sprintName(printN, err))
+			err = fmt.Errorf("%s%w", sprintName(printN), err)
 			return err, client
 		}
 		proxy = http.ProxyURL(goturl)
@@ -135,13 +136,22 @@ func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 //
 // client - the initialised structure for the graphql client,
 // best done using InitGraphqlClient(), but can be done manually if needed
+//
+// username - the user that requested the fetch request
 func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
-	errChannel chan<- error, drugname string, client graphql.Client) {
+	errChannel chan<- ErrorInfo, drugname string, client graphql.Client,
+	username string) {
 	const printN string = "FetchPsyWiki()"
+
+	tempErrInfo := ErrorInfo{
+		Err:      nil,
+		Action:   ActionFetchFromPsychonautWiki,
+		Username: username,
+	}
 
 	if !cfg.AutoFetch {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Automatic fetching is disabled, returning.")
-		errChannel <- nil
+		errChannel <- tempErrInfo
 		return
 	}
 
@@ -156,7 +166,7 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 		drugname)
 	if ret {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Drug already in DB, returning. No need to fetch anything from Psychonautwiki.")
-		errChannel <- nil
+		errChannel <- tempErrInfo
 		return
 	}
 
@@ -181,7 +191,8 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 
 	err := client.Query(ctx, &query, variables)
 	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "Error from Psychonautwiki API: ", err))
+		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "client.Query(): "), err)
+		errChannel <- tempErrInfo
 		return
 	}
 
@@ -226,27 +237,40 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 					InfoDrug = append(InfoDrug, tempInfoDrug)
 				}
 			} else {
-				printName(printN, "No roas for:", subs[i])
+				tempErrInfo.Err = fmt.Errorf("%s%w: %+v", sprintName(printN), NoROAForSubs, subs[i])
+				errChannel <- tempErrInfo
+				return
 			}
 		}
 
 		if len(InfoDrug) != 0 {
-			errChannel2 := make(chan error)
-			go cfg.AddToInfoTable(db, ctx, errChannel2, InfoDrug)
-			err := <-errChannel2
+			errChannel2 := make(chan ErrorInfo)
+			go cfg.AddToInfoTable(db, ctx, errChannel2, InfoDrug, username)
+			errInfo := <-errChannel2
+			err := errInfo.Err
 			if err != nil {
-				errChannel <- errors.New(sprintName(printN, "Data couldn't be added to info DB, because of an error: ", err))
+				tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
+				errChannel <- tempErrInfo
 				return
 			}
-			printName(printN, "Data added to info DB successfully.")
 		} else {
-			errChannel <- errors.New(sprintName(printN, "Struct array is empty, nothing added to DB."))
+			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), StructSliceEmpty)
+			errChannel <- tempErrInfo
 			return
 		}
 	} else {
-		errChannel <- errors.New(sprintName(printN, "The Psychonautwiki API returned nothing."))
+		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), PsychonautwikiAPIEmpty)
+		errChannel <- tempErrInfo
 		return
 	}
 
-	errChannel <- nil
+	errChannel <- tempErrInfo
 }
+
+// NoROAForSubs is the error returned when no routes of administration is
+// returned for a substance could be retrieved from a source.
+var NoROAForSubs error = errors.New("no route of administration for substance")
+
+var StructSliceEmpty error = errors.New("struct slice is empty, nothing added to DB")
+
+var PsychonautwikiAPIEmpty error = errors.New("the Psychonautwiki API returned nothing")

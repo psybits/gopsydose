@@ -3,6 +3,7 @@ package drugdose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -59,12 +60,12 @@ func GetNamesConfig(nameType string, source string) (error, *SubstanceName) {
 
 	err, setdir := InitSettingsDir()
 	if err != nil {
-		return errors.New(sprintName(printN, err)), nil
+		return fmt.Errorf("%s%w", sprintName(printN), err), nil
 	}
 
 	err, gotFile := namesFiles(nameType)
 	if err != nil {
-		return errors.New(sprintName(printN, err)), nil
+		return fmt.Errorf("%s%w", sprintName(printN), err), nil
 	}
 
 	if source != "" {
@@ -79,12 +80,12 @@ func GetNamesConfig(nameType string, source string) (error, *SubstanceName) {
 
 	file, err := os.ReadFile(path)
 	if err != nil {
-		return errors.New(sprintName(printN, err)), nil
+		return fmt.Errorf("%s%w", sprintName(printN), err), nil
 	}
 
 	err = toml.Unmarshal(file, &subName)
 	if err != nil {
-		return errors.New(sprintName(printN, "Unmarshal error:", err)), nil
+		return fmt.Errorf("%s%w", sprintName(printN, "toml.Unmarshal(): "), err), nil
 	}
 
 	return nil, &subName
@@ -103,7 +104,7 @@ func namesTables(nameType string) (error, string) {
 	} else if nameType == nameTypeConvertUnits {
 		table = altNamesConvUnitsTableName
 	} else {
-		return errors.New(sprintName(printN, "No nameType:", nameType)), ""
+		return fmt.Errorf("%s%w: %s", sprintName(printN), NoNametypeError, nameType), ""
 	}
 
 	return nil, table
@@ -122,7 +123,7 @@ func namesFiles(nameType string) (error, string) {
 	} else if nameType == nameTypeConvertUnits {
 		file = namesConvUnitsFilename
 	} else {
-		return errors.New(sprintName(printN, "No nameType:", nameType)), ""
+		return fmt.Errorf("%s%w: %s", sprintName(printN), NoNametypeError, nameType), ""
 	}
 
 	return nil, file
@@ -148,7 +149,7 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 
 	err, setdir := InitSettingsDir()
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	var CopyToPath string = setdir + "/" + allNamesConfigsDir
@@ -156,19 +157,17 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 	if overwrite == true {
 		err := cfg.CleanNamesTables(db, ctx, false)
 		if err != nil {
-			return errors.New(sprintName(printN,
-				"Couldn't clean names from database for overwrite: ", err))
+			return fmt.Errorf("%s%w", sprintName(printN), err)
 		}
 
 		err = cfg.InitAllDBTables(db, ctx)
 		if err != nil {
-			return errors.New(sprintName(printN,
-				"Database didn't get initialised, because of an error: ", err))
+			return fmt.Errorf("%s%w", sprintName(printN), err)
 		}
 
 		err = os.RemoveAll(CopyToPath)
 		if err != nil {
-			return errors.New(sprintName(printN, err))
+			return fmt.Errorf("%s%w", sprintName(printN), err)
 		} else {
 			printName(printN, "Deleted directory:", CopyToPath)
 		}
@@ -176,7 +175,7 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 
 	err, table := namesTables(nameType)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	tableSuffix := ""
@@ -215,15 +214,15 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 				}
 				err = cp.Copy(allNamesConfigsDir, CopyToPath, cpOpt)
 				if err != nil {
-					return errors.New(sprintName(printN, "Couldn't move file:", err))
+					return fmt.Errorf("%s%w", sprintName(printN), err)
 				} else if err == nil {
 					printName(printN, "Done copying to:", CopyToPath)
 				}
 			} else {
-				return errors.New(sprintName(printN, err))
+				return fmt.Errorf("%s%w", sprintName(printN), err)
 			}
 		} else {
-			return errors.New(sprintName(printN, err))
+			return fmt.Errorf("%s%w", sprintName(printN), err)
 		}
 	} else if err == nil {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Name config already exists:", CopyToPath,
@@ -237,12 +236,12 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 
 	err, namesCfg := GetNamesConfig(nameType, getCfgSrc)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	subsStmt, err := tx.Prepare("insert into " + table +
@@ -420,7 +419,7 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 
 	err, table := namesTables(nameType)
 	if err != nil {
-		tempDrugNamesErr.Err = errors.New(sprintName(printN, err))
+		tempDrugNamesErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 		namesErrChan <- tempDrugNamesErr
 		return
 	}
@@ -445,7 +444,7 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	rows, err := db.QueryContext(ctx, "select alternativeName from "+table+
 		" where localName = ?", repName)
 	if err != nil {
-		err = errors.New(sprintName(printN, "Error: ", err))
+		err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempDrugNamesErr.Err = err
 		namesErrChan <- tempDrugNamesErr
 		return
@@ -454,7 +453,7 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	for rows.Next() {
 		err = rows.Scan(&tempName)
 		if err != nil {
-			err = errors.New(sprintName(printN, "Scan: Error:", err))
+			err = fmt.Errorf("%s%w", sprintName(printN), err)
 			tempDrugNamesErr.Err = err
 			namesErrChan <- tempDrugNamesErr
 			return
@@ -463,8 +462,8 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	}
 
 	if len(allNames) == 0 {
-		tempDrugNamesErr.Err = errors.New(sprintName(printN,
-			"No names returned for "+nameType+": "+inputName))
+		tempDrugNamesErr.Err = fmt.Errorf("%s%w: %s", sprintName(printN),
+			NoNamesReturnedError, " for "+nameType+": "+inputName)
 	}
 
 	tempDrugNamesErr.DrugNames = allNames
@@ -502,7 +501,7 @@ func convMl2Grams(substance string, unitInputs ...float32) (error, float32) {
 	multiplier = substancesDensities[substance]
 
 	if multiplier == 0 {
-		err := errors.New(sprintName(printN, "No density for substance:", substance))
+		err := fmt.Errorf("%s%w: %s", sprintName(printN), NoDensitySubstanceError, substance)
 		return err, 0
 	}
 	_, finalRes := convPerc2Pure(substance, unitInputs...)
@@ -526,8 +525,8 @@ func addConversion(cF convF, output float32, name string, inputName string, inpu
 		if gotLenOfUnitInputs == inputsAmount {
 			err, output = cF(substance, unitInputs...)
 		} else {
-			err = errors.New(sprintName(printN, "Wrong amount of unitInputs:",
-				gotLenOfUnitInputs, "; needed", inputsAmount))
+			err = fmt.Errorf("%s%w: %q ; needed: %q", sprintName(printN), WrongAmountUnitInputsError,
+				gotLenOfUnitInputs, inputsAmount)
 		}
 	}
 
@@ -571,13 +570,13 @@ func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string
 	allNames := gotDrugNamesErr.DrugNames
 	err := gotDrugNamesErr.Err
 	if err != nil {
-		err = errors.New(sprintName(printN, err))
+		err = fmt.Errorf("%s%w", sprintName(printN), err)
 		return err, 0, ""
 	}
 	gotAllNamesLen := len(allNames)
 	if gotAllNamesLen != 2 {
-		err := errors.New(sprintName(printN, "Wrong amount of names:", gotAllNamesLen,
-			"; should be 2:", allNames))
+		err := fmt.Errorf("%s%w: %q ; needed: %q", sprintName(printN), WrongAmountNamesError,
+			gotAllNamesLen, allNames)
 		return err, 0, ""
 	}
 
@@ -587,10 +586,16 @@ func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string
 	err, output := unitsFunctionsOutput(convertFunc, substance, unitInputs...)
 
 	if output == 0 || convertUnit == "" || err != nil {
-		err = errors.New(sprintfName(printN, "Error converting units for drug: %q"+
-			" ; dose: %g ; units: %q ; error: %q", substance,
-			output, convertUnit, err))
+		err = fmt.Errorf("%sError converting units for drug: %q"+
+			" ; dose: %g ; units: %q ; error: %w",
+			sprintName(printN), substance, output, convertUnit, err)
 	}
 
 	return err, output, convertUnit
 }
+
+var NoNametypeError error = errors.New("no nameType")
+var NoNamesReturnedError error = errors.New("no names returned")
+var NoDensitySubstanceError error = errors.New("got no density for substance")
+var WrongAmountUnitInputsError error = errors.New("wrong amount of unitInputs")
+var WrongAmountNamesError error = errors.New("wrong amount of names")

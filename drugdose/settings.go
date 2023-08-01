@@ -196,7 +196,7 @@ func InitSettingsDir() (error, string) {
 
 	configdir, err := os.UserConfigDir()
 	if err != nil {
-		return errors.New(sprintName(printN, err)), ""
+		return fmt.Errorf("%s%w", sprintName(printN), err), ""
 	}
 	configdir = configdir + "/GPD"
 	_, err = os.Stat(configdir)
@@ -204,10 +204,10 @@ func InitSettingsDir() (error, string) {
 		if errors.Is(err, os.ErrNotExist) {
 			err = os.Mkdir(configdir, 0700)
 			if err != nil {
-				return errors.New(sprintName(printN, err)), ""
+				return fmt.Errorf("%s%w", sprintName(printN), err), ""
 			}
 		} else {
-			return errors.New(sprintName(printN, err)), ""
+			return fmt.Errorf("%s%w", sprintName(printN), err), ""
 		}
 	}
 	return nil, configdir
@@ -226,12 +226,12 @@ func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bo
 
 	mcfg, err := toml.Marshal(newcfg)
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	err, setdir := InitSettingsDir()
 	if err != nil {
-		return errors.New(sprintName(printN, err))
+		return fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 
 	path := setdir + "/" + sourceSetFilename
@@ -315,7 +315,7 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			err = errors.New(sprintName(printN, err))
+			err = fmt.Errorf("%s%w", sprintName(printN), err)
 			return err, initcfg
 		}
 
@@ -326,7 +326,7 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 			home = path
 		} else if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
-				err = errors.New(sprintName(printN, err))
+				err = fmt.Errorf("%s%w", sprintName(printN), err)
 				return err, initcfg
 			}
 		}

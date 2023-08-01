@@ -130,7 +130,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, getid, username, true, "none", "")
 	gotLogs := <-userLogsErrChan
 	if gotLogs.Err != nil {
-		tempTimeTillErr.Err = errors.New(sprintName(printN, gotLogs.Err))
+		tempTimeTillErr.Err = fmt.Errorf("%s%w", sprintName(printN), gotLogs.Err)
 		timeTillErrChan <- tempTimeTillErr
 		return
 	}
@@ -143,7 +143,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	gotInfo := gotDrugInfoErr.DrugI
 	err := gotDrugInfoErr.Err
 	if err != nil {
-		err = errors.New(sprintName(printN, err))
+		err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempTimeTillErr.Err = err
 		timeTillErrChan <- tempTimeTillErr
 		return
@@ -158,8 +158,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	}
 
 	if gotInfoNum == -1 {
-		tempTimeTillErr.Err = errors.New(sprintName(printN,
-			"Logged drug route doesn't match anything in info database."))
+		tempTimeTillErr.Err = fmt.Errorf("%s%w", sprintName(printN), LoggedRouteInfoError)
 		timeTillErrChan <- tempTimeTillErr
 		return
 	}
@@ -167,8 +166,9 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	gotInfoProper := gotInfo[gotInfoNum]
 
 	if gotInfoProper.DoseUnits != useLog.DoseUnits {
-		tempTimeTillErr.Err = errors.New(sprintName(printN, "The logged dose units:", useLog.DoseUnits,
-			"; don't match the local info database dose units:", gotInfoProper.DoseUnits))
+		tempTimeTillErr.Err = fmt.Errorf("%s%w: %s ; info table units: %s",
+			sprintName(printN), LoggedUnitsInfoError,
+			useLog.DoseUnits, gotInfoProper.DoseUnits)
 		timeTillErrChan <- tempTimeTillErr
 		return
 	}
@@ -176,8 +176,8 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	// No need to do further calculation, because if the source is correct,
 	// in theory almost no effect should be accomplished with this dosage.
 	if gotInfoProper.Threshold != 0 && useLog.Dose < gotInfoProper.Threshold {
-		tempTimeTillErr.Err = errors.New(sprintName(printN,
-			"The dosage is below the source threshold, will not calculate times."))
+		tempTimeTillErr.Err = fmt.Errorf("%s%w: %s", sprintName(printN),
+			DoseBelowThresholdError, "will not calculate times")
 		timeTillErrChan <- tempTimeTillErr
 		return
 	}
@@ -324,7 +324,7 @@ func (cfg Config) PrintTimeTill(timeTillErr TimeTillError, prefix bool) error {
 
 	location, err := time.LoadLocation(cfg.Timezone)
 	if err != nil {
-		err = errors.New(sprintName(printN, "LoadLocation:", err))
+		err = fmt.Errorf("%s%w", sprintName(printN, "LoadLocation: "), err)
 		return err
 	}
 
@@ -410,3 +410,7 @@ func (cfg Config) PrintTimeTill(timeTillErr TimeTillError, prefix bool) error {
 
 	return nil
 }
+
+var LoggedRouteInfoError error = errors.New("dose route doesn't match anything in info table")
+var LoggedUnitsInfoError error = errors.New("dose units don't match anything in info table")
+var DoseBelowThresholdError error = errors.New("the dosage is below the source threshold")

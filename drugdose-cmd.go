@@ -359,7 +359,7 @@ func main() {
 	defer db.Close()
 	///////////////////////////////////////////////////////////////////////
 
-	errChannel := make(chan error)
+	errInfoChannel := make(chan drugdose.ErrorInfo)
 
 	if *getDirs {
 		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
@@ -376,10 +376,10 @@ func main() {
 	}
 
 	if *forget {
-		go gotsetcfg.ForgetDosing(db, ctx, errChannel, *forUser)
-		err := <-errChannel
-		if err != nil {
-			printCLI("Couldn't 'forget' the remember config, because of an error:", err)
+		go gotsetcfg.ForgetDosing(db, ctx, errInfoChannel, *forUser)
+		gotErrInfo := <-errInfoChannel
+		if gotErrInfo.Err != nil {
+			printCLI("Couldn't 'forget' the remember config, because of an error:", gotErrInfo.Err)
 			os.Exit(1)
 		}
 	}
@@ -436,10 +436,10 @@ func main() {
 	}
 
 	if *removeInfoDrug != "none" {
-		go gotsetcfg.RemoveSingleDrugInfo(db, ctx, errChannel, *removeInfoDrug)
-		err := <-errChannel
-		if err != nil {
-			printCLI(err)
+		go gotsetcfg.RemoveSingleDrugInfo(db, ctx, errInfoChannel, *removeInfoDrug, *forUser)
+		gotErrInfo := <-errInfoChannel
+		if gotErrInfo.Err != nil {
+			printCLI(gotErrInfo.Err)
 			os.Exit(1)
 		}
 	}
@@ -456,10 +456,10 @@ func main() {
 	}
 
 	if *cleanLogs || remAmount != 0 {
-		go gotsetcfg.RemoveLogs(db, ctx, errChannel, *forUser, remAmount, revRem, *forID, *searchStr)
-		gotErr := <-errChannel
-		if gotErr != nil {
-			printCLI(gotErr)
+		go gotsetcfg.RemoveLogs(db, ctx, errInfoChannel, *forUser, remAmount, revRem, *forID, *searchStr)
+		gotInfoErr := <-errInfoChannel
+		if gotInfoErr.Err != nil {
+			printCLI(gotInfoErr.Err)
 		}
 	}
 
@@ -682,8 +682,9 @@ func main() {
 	if inputDose == true || *dontLog == true && *drugname != "none" {
 		err, cli := gotsetcfg.InitGraphqlClient()
 		if err == nil {
-			go gotsetcfg.FetchFromSource(db, ctx, errChannel, *drugname, cli)
-			err = <-errChannel
+			go gotsetcfg.FetchFromSource(db, ctx, errInfoChannel, *drugname, cli, *forUser)
+			gotErrInfo := <-errInfoChannel
+			err = gotErrInfo.Err
 			if err != nil {
 				printCLI(err)
 				os.Exit(1)
@@ -694,12 +695,12 @@ func main() {
 
 		synct := drugdose.SyncTimestamps{}
 		if *dontLog == false {
-			go gotsetcfg.AddToDoseTable(db, ctx, errChannel, &synct, *forUser, *drugname, *drugroute,
+			go gotsetcfg.AddToDoseTable(db, ctx, errInfoChannel, &synct, *forUser, *drugname, *drugroute,
 				float32(*drugargdose), *drugunits, float32(*drugperc), float32(*drugcost), *costCur,
 				true)
-			gotErr := <-errChannel
-			if gotErr != nil {
-				printCLI(gotErr)
+			gotErrInfo := <-errInfoChannel
+			if gotErrInfo.Err != nil {
+				printCLI(gotErrInfo.Err)
 			}
 		} else {
 			err, convOutput, convUnit := gotsetcfg.ConvertUnits(db, ctx, *drugname,
@@ -717,10 +718,10 @@ func main() {
 	}
 
 	if *dontLog == false && *remember == true {
-		go gotsetcfg.RememberDosing(db, ctx, errChannel, *forUser, *forID)
-		err = <-errChannel
-		if err != nil {
-			printCLI(err)
+		go gotsetcfg.RememberDosing(db, ctx, errInfoChannel, *forUser, *forID)
+		gotErrInfo := <-errInfoChannel
+		if gotErrInfo.Err != nil {
+			printCLI(gotErrInfo.Err)
 			os.Exit(1)
 		}
 	}
@@ -754,10 +755,10 @@ func main() {
 			setValue = *costCur
 		}
 
-		go gotsetcfg.ChangeUserLog(db, ctx, errChannel, setType, *forID, *forUser, setValue)
-		err = <-errChannel
-		if err != nil {
-			printCLI(err)
+		go gotsetcfg.ChangeUserLog(db, ctx, errInfoChannel, setType, *forID, *forUser, setValue)
+		gotErrInfo := <-errInfoChannel
+		if gotErrInfo.Err != nil {
+			printCLI(gotErrInfo.Err)
 			os.Exit(1)
 		}
 	}

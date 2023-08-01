@@ -2,7 +2,6 @@ package drugdose
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -24,7 +23,7 @@ func settingsTables(settingType string) (error, string) {
 	if settingType == settingTypeID {
 		table = rememberIDTableName
 	} else {
-		return errors.New(sprintName(printN, "No nameType:", settingType)), ""
+		return fmt.Errorf("%s%w: %s", sprintName(printN), NoNametypeError, settingType), ""
 	}
 
 	return nil, table
@@ -44,7 +43,7 @@ func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context, username str
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		err = errors.New(sprintName(printN, err))
+		err = fmt.Errorf("%s%w", sprintName(printN), err)
 		return err
 	}
 
@@ -93,9 +92,15 @@ func returnSetUserSetStmt(set string) string {
 //
 // setValue - the value the setting is changed to
 func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
-	errChannel chan<- error, set string, username string, setValue string) {
+	errChannel chan<- ErrorInfo, set string, username string, setValue string) {
 
 	const printN string = "SetUserSettings()"
+
+	tempErrInfo := ErrorInfo{
+		Err:      nil,
+		Username: username,
+		Action:   ActionSetUserSettings,
+	}
 
 	ret := checkIfExistsDB(db, ctx,
 		"username", "userSettings",
@@ -104,29 +109,16 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 	if ret == false {
 		err := cfg.InitUserSettings(db, ctx, username)
 		if err != nil {
-			errChannel <- errors.New(sprintName(printN, err))
+			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
+			errChannel <- tempErrInfo
 			return
 		}
 	}
 
-	if username == "none" {
-		errChannel <- errors.New(sprintName(printN, "Please specify an username!"))
-		return
-	}
-
-	if set == "none" {
-		errChannel <- errors.New(sprintName(printN, "Please specify a set type!"))
-		return
-	}
-
-	if setValue == "none" {
-		errChannel <- errors.New(sprintName(printN, "Please specify a value to set!"))
-		return
-	}
-
 	err, set := settingsTables(set)
 	if err != nil {
-		errChannel <- errors.New(sprintName(printN, err))
+		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
+		errChannel <- tempErrInfo
 		return
 	}
 
@@ -134,30 +126,31 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		errChannel <- errors.New(sprintName(printN, "db.Begin():", err))
+		tempErrInfo.Err = fmt.Errorf("%s%s: %w", sprintName(printN), "db.BeginTx()", err)
+		errChannel <- tempErrInfo
 		return
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, errChannel, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(setValue, username)
 
-	if handleErrRollback(err, tx, errChannel, printN, "stmt.Exec():") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec():") {
 		return
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
 		return
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, set+": setting changed to:", setValue)
 
-	errChannel <- nil
+	errChannel <- tempErrInfo
 }
 
 // GetUserSettings return the value of a setting for a given user from the database.
@@ -182,14 +175,14 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 
 	tempUserSetErr := UserSettingError{
 		UserSetting: "",
-		Username:    "",
+		Username:    username,
 		Err:         nil,
 	}
 
 	fmtStmt := fmt.Sprintf("select %s from userSettings where username = ?", set)
 	stmt, err := db.PrepareContext(ctx, fmtStmt)
 	if err != nil {
-		tempUserSetErr.Err = errors.New(sprintName(printN, "SQL error in prepare:", err))
+		tempUserSetErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempUserSetErr.UserSetting = ""
 		userSetErrChannel <- tempUserSetErr
 		return
@@ -199,7 +192,7 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 	var got string
 	err = stmt.QueryRowContext(ctx, username).Scan(&got)
 	if err != nil {
-		tempUserSetErr.Err = errors.New(sprintName(printN, err))
+		tempUserSetErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempUserSetErr.UserSetting = ""
 		userSetErrChannel <- tempUserSetErr
 		return
@@ -207,7 +200,6 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 
 	tempUserSetErr.Err = nil
 	tempUserSetErr.UserSetting = got
-	tempUserSetErr.Username = username
 
 	userSetErrChannel <- tempUserSetErr
 }
@@ -228,8 +220,14 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 //
 // forID - the ID to use for remembering a dosing
 func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
-	errChannel chan<- error, username string, forID int64) {
+	errChannel chan<- ErrorInfo, username string, forID int64) {
 	const printN string = "RememberDosing()"
+
+	tempErrInfo := ErrorInfo{
+		Err:      nil,
+		Username: username,
+		Action:   ActionRememberDosing,
+	}
 
 	forIDStr := strconv.FormatInt(forID, 10)
 	if forIDStr == "0" {
@@ -237,22 +235,23 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 		go cfg.GetLogs(db, ctx, userLogsErrChan, 1, 0, username, true, "none", "")
 		gotLogs := <-userLogsErrChan
 		if gotLogs.Err != nil {
-			errChannel <- errors.New(sprintName(printN, gotLogs.Err))
+			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotLogs.Err)
+			errChannel <- tempErrInfo
 			return
 		}
 		forIDStr = strconv.FormatInt(gotLogs.UserLogs[0].StartTime, 10)
 	}
 
-	errChannel2 := make(chan error)
+	errChannel2 := make(chan ErrorInfo)
 	go cfg.SetUserSettings(db, ctx, errChannel2, settingTypeID, username, forIDStr)
-	err := <-errChannel2
-	if err != nil {
-		err := errors.New(sprintName(printN, err))
-		errChannel <- err
+	gotErrInfo := <-errChannel2
+	if gotErrInfo.Err != nil {
+		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErrInfo.Err)
+		errChannel <- tempErrInfo
 		return
 	}
 
-	errChannel <- nil
+	errChannel <- tempErrInfo
 }
 
 // RecallDosing gives the data for the last configured dosing using the ID.
@@ -278,7 +277,7 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 	gotUserSetErr := <-userSetErr
 	err := gotUserSetErr.Err
 	if err != nil {
-		err = errors.New(sprintName(printN, "Couldn't get setting value: useIDForRemember: ", err))
+		err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempUserLogsError.Err = err
 		userLogsErrorChannel <- tempUserLogsError
 		return
@@ -292,7 +291,7 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 	}
 	gotInt, err := strconv.ParseInt(gotID, 10, 64)
 	if err != nil {
-		err := errors.New(sprintName(printN, "Couldn't convert:", gotID, "; to integer: ", err))
+		err := fmt.Errorf("%s%s: %w", sprintName(printN), "strconv.ParseInt()", err)
 		tempUserLogsError.Err = err
 		userLogsErrorChannel <- tempUserLogsError
 		return
@@ -303,7 +302,7 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 	tempUserLogsError = <-userLogsErrChan2
 	err = tempUserLogsError.Err
 	if err != nil {
-		err = errors.New(sprintName(printN, err))
+		err = fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 	tempUserLogsError.Err = err
 	userLogsErrorChannel <- tempUserLogsError
@@ -323,17 +322,23 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 //
 // username - the user for which to forget the dosing
 func (cfg Config) ForgetDosing(db *sql.DB, ctx context.Context,
-	errChannel chan<- error, username string) {
+	errChannel chan<- ErrorInfo, username string) {
 	const printN string = "ForgetConfig()"
 
-	errChannel2 := make(chan error)
+	tempErrInfo := ErrorInfo{
+		Err:      nil,
+		Username: username,
+		Action:   ActionForgetDosing,
+	}
+
+	errChannel2 := make(chan ErrorInfo)
 	go cfg.SetUserSettings(db, ctx, errChannel2, settingTypeID, username, ForgetInputConfigMagicNumber)
-	err := <-errChannel2
-	if err != nil {
-		err = errors.New(sprintName(printN, "Couldn't reset setting: useIDForRemember: ", err))
-		errChannel <- err
+	gotErrInfo := <-errChannel2
+	if gotErrInfo.Err != nil {
+		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErrInfo.Err)
+		errChannel <- tempErrInfo
 		return
 	}
 
-	errChannel <- nil
+	errChannel <- tempErrInfo
 }
