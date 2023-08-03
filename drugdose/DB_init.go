@@ -413,8 +413,6 @@ func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
 // InitAllDB initializes the DB file structure if needed and all tables.
 // It will stop the program if it encounters an error.
 //
-// db - open database connection
-//
 // ctx - context to be passed to sql queries
 func (cfg Config) InitAllDB(ctx context.Context) {
 	const printN string = "InitAllDB()"

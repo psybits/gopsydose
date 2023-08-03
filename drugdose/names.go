@@ -511,7 +511,10 @@ func convMl2Grams(substance string, unitInputs ...float32) (error, float32) {
 
 type convF func(string, ...float32) (error, float32)
 
-func addConversion(cF convF, output float32, name string, inputName string, inputsAmount int, substance string, unitInputs ...float32) (error, float32) {
+func addConversion(cF convF, output float32, name string,
+	inputName string, inputsAmount int, substance string,
+	unitInputs ...float32) (error, float32) {
+
 	if output != 0 {
 		return nil, output
 	}
@@ -534,12 +537,14 @@ func addConversion(cF convF, output float32, name string, inputName string, inpu
 }
 
 func unitsFunctionsOutput(inputName string, substance string, unitInputs ...float32) (error, float32) {
-	err, output := addConversion(convPerc2Pure, 0, "Convert-Percent-To-Pure", inputName, 2, substance, unitInputs...)
+	err, output := addConversion(convPerc2Pure, 0,
+		"Convert-Percent-To-Pure", inputName, 2, substance, unitInputs...)
 	if err != nil {
 		return err, output
 	}
 
-	err, output = addConversion(convMl2Grams, output, "Convert-Milliliters-To-Grams", inputName, 2, substance, unitInputs...)
+	err, output = addConversion(convMl2Grams, output,
+		"Convert-Milliliters-To-Grams", inputName, 2, substance, unitInputs...)
 	if err != nil {
 		return err, output
 	}
@@ -559,7 +564,9 @@ func unitsFunctionsOutput(inputName string, substance string, unitInputs ...floa
 //
 // unitInputs - the inputs to use for the conversions, for example
 // milliliters and percentage
-func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string, unitInputs ...float32) (error, float32, string) {
+func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context,
+	substance string, unitInputs ...float32) (error, float32, string) {
+
 	const printN string = "ConvertUnits()"
 
 	substance = cfg.MatchAndReplace(db, ctx, substance, "substance")
@@ -586,6 +593,11 @@ func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context, substance string
 	err, output := unitsFunctionsOutput(convertFunc, substance, unitInputs...)
 
 	if output == 0 || convertUnit == "" || err != nil {
+		if err == nil && output == 0 {
+			err = ConvResultIsZeroError
+		} else if err == nil && convertFunc == "" {
+			err = RetConvertUnitEmptyError
+		}
 		err = fmt.Errorf("%sError converting units for drug: %q"+
 			" ; dose: %g ; units: %q ; error: %w",
 			sprintName(printN), substance, output, convertUnit, err)
@@ -599,3 +611,5 @@ var NoNamesReturnedError error = errors.New("no names returned")
 var NoDensitySubstanceError error = errors.New("got no density for substance")
 var WrongAmountUnitInputsError error = errors.New("wrong amount of unitInputs")
 var WrongAmountNamesError error = errors.New("wrong amount of names")
+var ConvResultIsZeroError error = errors.New("conversion result is zero")
+var RetConvertUnitEmptyError error = errors.New("returned convertUnit is empty")

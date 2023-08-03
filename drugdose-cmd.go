@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/psybits/gopsydose/drugdose"
 )
@@ -333,6 +334,34 @@ func printCLIVerbose(verbose bool, str ...any) {
 	}
 }
 
+func countExec(execCount *uint8) bool {
+	if *execCount > 0 {
+		*execCount -= 1
+	}
+	if *execCount <= 0 {
+		return false
+	}
+	return true
+}
+
+// Count how many times a goroutine that uses the struct ErrorInfo has started
+// and remove 1 from the total count every time data has been sent from the
+// goroutine. When it reaches 0, stop the handler so that wg.Wait()
+// at the end can stop. The reason for this counting is so that we know how
+// many flags have been used and if we need to wait for them.
+// It wasn't needed to use a handler for this program, but it's a good way
+// of testing if it works properly and as a demo. Other programs don't have
+// to count if they don't need to, every project has unique requirements and
+// should take care of them in their own way.
+func handleErrInfo(errInfo drugdose.ErrorInfo, a ...any) bool {
+	if errInfo.Err != nil {
+		printCLI(errInfo.Err)
+	} else if errInfo.Err == nil && errInfo.Action != "" {
+		printCLI(errInfo.Action)
+	}
+	return countExec(a[0].(*uint8))
+}
+
 func main() {
 	// Initialisation /////////////////////////////////////////////////////
 	flag.Parse()
@@ -346,6 +375,11 @@ func main() {
 		drugdose.DefaultMySQLAccess, *recreateSettings, *recreateSources,
 		*verbose, *apiAddress)
 
+	if *stopOnCfgInit {
+		printCLI("Stopping after config file initialization.")
+		os.Exit(0)
+	}
+
 	ctx, ctx_cancel, err := gotsetcfg.UseConfigTimeout()
 	if err != nil {
 		printCLI(err)
@@ -355,11 +389,18 @@ func main() {
 
 	gotsetcfg.InitAllDB(ctx)
 
+	if *stopOnDbInit {
+		printCLI("Stopping after database initialization.")
+		os.Exit(0)
+	}
+
 	db := gotsetcfg.OpenDBConnection(ctx)
 	defer db.Close()
-	///////////////////////////////////////////////////////////////////////
 
-	errInfoChannel := make(chan drugdose.ErrorInfo)
+	var execCount uint8 = 1
+	var wg sync.WaitGroup
+	errInfoChanHandled := drugdose.AddChannelHandler(&wg, handleErrInfo, &execCount)
+	///////////////////////////////////////////////////////////////////////
 
 	if *getDirs {
 		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
@@ -371,15 +412,45 @@ func main() {
 		printCLI("Settings Dir:", gotsetdir)
 	}
 
+	if *dbDriverInfo {
+		printCLI("Using database driver:", gotsetcfg.DBDriver)
+		printCLI("Database path:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
+	}
+
+	if *cleanDB {
+		err := gotsetcfg.CleanDB(db, ctx)
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
+		}
+	}
+
+	if *cleanInfo {
+		err := gotsetcfg.CleanInfoTable(db, ctx)
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
+		}
+	}
+
+	if *cleanNames {
+		err := gotsetcfg.CleanNamesTables(db, ctx, false)
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
+		}
+	}
+
 	if *overwriteNames {
 		gotsetcfg.MatchName(db, ctx, "asd", "substance", false, true)
 	}
 
 	if *forget {
-		go gotsetcfg.ForgetDosing(db, ctx, errInfoChannel, *forUser)
-		gotErrInfo := <-errInfoChannel
+		errInfoChan := make(chan drugdose.ErrorInfo)
+		go gotsetcfg.ForgetDosing(db, ctx, errInfoChan, *forUser)
+		gotErrInfo := <-errInfoChan
 		if gotErrInfo.Err != nil {
-			printCLI("Couldn't 'forget' the remember config, because of an error:", gotErrInfo.Err)
+			printCLI(gotErrInfo.Err)
 			os.Exit(1)
 		}
 	}
@@ -404,44 +475,9 @@ func main() {
 		}
 	}
 
-	if *stopOnCfgInit {
-		printCLI("Stopping after config file initialization.")
-		os.Exit(0)
-	}
-
-	if *dbDriverInfo {
-		printCLI("Using database driver:", gotsetcfg.DBDriver)
-		printCLI("Database path:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
-	}
-
-	if *cleanInfo {
-		err := gotsetcfg.CleanInfoTable(db, ctx)
-		if err != nil {
-			printCLI(err)
-			os.Exit(1)
-		}
-	}
-
-	if *cleanDB {
-		err := gotsetcfg.CleanDB(db, ctx)
-		if err != nil {
-			printCLI(err)
-			os.Exit(1)
-		}
-	}
-
-	if *stopOnDbInit {
-		printCLI("Stopping after database initialization.")
-		os.Exit(0)
-	}
-
 	if *removeInfoDrug != "none" {
-		go gotsetcfg.RemoveSingleDrugInfo(db, ctx, errInfoChannel, *removeInfoDrug, *forUser)
-		gotErrInfo := <-errInfoChannel
-		if gotErrInfo.Err != nil {
-			printCLI(gotErrInfo.Err)
-			os.Exit(1)
-		}
+		execCount++
+		go gotsetcfg.RemoveSingleDrugInfo(db, ctx, errInfoChanHandled, *removeInfoDrug, *forUser)
 	}
 
 	remAmount := 0
@@ -456,56 +492,123 @@ func main() {
 	}
 
 	if *cleanLogs || remAmount != 0 {
-		go gotsetcfg.RemoveLogs(db, ctx, errInfoChannel, *forUser, remAmount, revRem, *forID, *searchStr)
-		gotInfoErr := <-errInfoChannel
-		if gotInfoErr.Err != nil {
-			printCLI(gotInfoErr.Err)
-		}
+		execCount++
+		go gotsetcfg.RemoveLogs(db, ctx, errInfoChanHandled, *forUser, remAmount, revRem, *forID, *searchStr)
 	}
 
-	if *cleanNames {
-		err := gotsetcfg.CleanNamesTables(db, ctx, false)
-		if err != nil {
-			printCLI(err)
-			os.Exit(1)
-		}
-	}
+	inputDose := false
+	if *changeLog == false && remembering == false && *getLogs == false && *dontLog == false {
+		if *drugname != "none" ||
+			*drugroute != "none" ||
+			*drugargdose != 0 ||
+			*drugunits != "none" {
 
-	if *getDBSize {
-		ret := gotsetcfg.GetDBSize()
-		retMiB := (ret / 1024) / 1024
-		printCLI("Total DB size returned:", retMiB, "MiB ;", ret, "bytes")
-	}
-
-	if *getUsers {
-		allUsersErrChan := make(chan drugdose.AllUsersError)
-		go gotsetcfg.GetUsers(db, ctx, allUsersErrChan, *forUser)
-		gotAllUsersErr := <-allUsersErrChan
-		err = gotAllUsersErr.Err
-		ret := gotAllUsersErr.AllUsers
-		if err != nil {
-			printCLI("Couldn't get users because of an error:", err)
-			os.Exit(1)
-		} else if err == nil {
-			str := fmt.Sprint("All users: ")
-			for i := 0; i < len(ret); i++ {
-				str += fmt.Sprintf("%q ; ", ret[i])
+			if *drugname == "none" {
+				printCLI("No drug name specified, checkout: gopsydose -help")
 			}
-			printCLI(str)
+
+			if *drugroute == "none" {
+				printCLI("No route specified, checkout: gopsydose -help")
+			}
+
+			if *drugargdose == 0 {
+				printCLI("No dose specified, checkout: gopsydose -help")
+			}
+
+			if *drugunits == "none" {
+				printCLI("No units specified, checkout: gopsydose -help")
+			}
+
+			if *drugname != "none" && *drugroute != "none" &&
+				*drugargdose != 0 && *drugunits != "none" {
+
+				inputDose = true
+			}
 		}
 	}
 
-	if *getLogsCount {
-		logCountErrChan := make(chan drugdose.LogCountError)
-		go gotsetcfg.GetLogsCount(db, ctx, *forUser, logCountErrChan)
-		gotLogCountErr := <-logCountErrChan
-		err := gotLogCountErr.Err
-		if err != nil {
-			printCLI(err)
-			os.Exit(1)
-		}
-		printCLI("Total number of logs:", gotLogCountErr.LogCount, "; for user:", gotLogCountErr.Username)
+	if remembering == true {
+		inputDose = true
 	}
+
+	if inputDose == true || *dontLog == true && *drugname != "none" {
+		err, cli := gotsetcfg.InitGraphqlClient()
+		fetchErr := false
+		if err == nil {
+			errInfoChan := make(chan drugdose.ErrorInfo)
+			go gotsetcfg.FetchFromSource(db, ctx, errInfoChan, *drugname, cli, *forUser)
+			gotErrInfo := <-errInfoChan
+			if gotErrInfo.Err != nil {
+				fetchErr = true
+				printCLI(gotErrInfo.Err)
+			}
+
+		} else {
+			printCLI(err)
+		}
+
+		if *dontLog == false && fetchErr == false {
+			synct := drugdose.SyncTimestamps{}
+			execCount++
+			go gotsetcfg.AddToDoseTable(db, ctx, errInfoChanHandled, &synct, *forUser, *drugname, *drugroute,
+				float32(*drugargdose), *drugunits, float32(*drugperc), float32(*drugcost), *costCur,
+				true)
+		} else if *dontLog == true {
+			err, convOutput, convUnit := gotsetcfg.ConvertUnits(db, ctx, *drugname,
+				float32(*drugargdose), float32(*drugperc))
+			if err != nil {
+				printCLI(err)
+				os.Exit(1)
+			} else {
+				convSubs := gotsetcfg.MatchAndReplace(db, ctx, *drugname, "substance")
+				printCLI(fmt.Sprintf("Didn't log, converted dose: "+
+					"%g ; units: %q ; substance: %q ; username: %q",
+					convOutput, convUnit, convSubs, *forUser))
+			}
+		}
+	}
+
+	if *dontLog == false && *remember == true {
+		execCount++
+		go gotsetcfg.RememberDosing(db, ctx, errInfoChanHandled, *forUser, *forID)
+	}
+
+	if *changeLog {
+		setType := ""
+		setValue := ""
+		if *startTime != "none" {
+			setType = "start-time"
+			setValue = *startTime
+		} else if *endTime != "none" {
+			setType = "end-time"
+			setValue = *endTime
+		} else if *drugname != "none" {
+			setType = "drug"
+			setValue = *drugname
+		} else if *drugargdose != 0 {
+			setType = "dose"
+			setValue = strconv.FormatFloat(*drugargdose, 'f', -1, 64)
+		} else if *drugunits != "none" {
+			setType = "units"
+			setValue = *drugunits
+		} else if *drugroute != "none" {
+			setType = "route"
+			setValue = *drugroute
+		} else if *drugcost != 0 {
+			setType = "cost"
+			setValue = strconv.FormatFloat(*drugcost, 'f', -1, 64)
+		} else if *costCur != "" {
+			setType = "cost-cur"
+			setValue = *costCur
+		}
+
+		execCount++
+		go gotsetcfg.ChangeUserLog(db, ctx, errInfoChanHandled, setType, *forID, *forUser, setValue)
+	}
+
+	errInfoChanHandled <- drugdose.ErrorInfo{}
+	wg.Wait()
+	// All functions which modify data have finished.
 
 	userLogsErrChan := make(chan drugdose.UserLogsError)
 	var gettingLogs bool = false
@@ -560,6 +663,97 @@ func main() {
 		}
 	}
 
+	if *getLogsCount {
+		logCountErrChan := make(chan drugdose.LogCountError)
+		go gotsetcfg.GetLogsCount(db, ctx, *forUser, logCountErrChan)
+		gotLogCountErr := <-logCountErrChan
+		err := gotLogCountErr.Err
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
+		}
+		printCLI("Total number of logs:", gotLogCountErr.LogCount, "; for user:", gotLogCountErr.Username)
+	}
+
+	if *getTotalCosts {
+		costsErrChan := make(chan drugdose.CostsError)
+		go gotsetcfg.GetTotalCosts(db, ctx, costsErrChan, *forUser)
+		gotCostsErr := <-costsErrChan
+		err := gotCostsErr.Err
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
+		}
+		drugdose.PrintTotalCosts(gotCostsErr.Costs, false)
+	}
+
+	if *getTimes {
+		timeTillErrChan := make(chan drugdose.TimeTillError)
+		go gotsetcfg.GetTimes(db, ctx, timeTillErrChan, *forUser, *forID)
+		gotTimeTillErr := <-timeTillErrChan
+		err := gotTimeTillErr.Err
+		if err != nil {
+			printCLI("Times couldn't be retrieved because of an error:", err)
+			os.Exit(1)
+		} else {
+			err = gotsetcfg.PrintTimeTill(gotTimeTillErr, false)
+			if err != nil {
+				printCLI("Couldn't print times because of an error:", err)
+				os.Exit(1)
+			}
+		}
+	}
+
+	if *getUsers {
+		allUsersErrChan := make(chan drugdose.AllUsersError)
+		go gotsetcfg.GetUsers(db, ctx, allUsersErrChan, *forUser)
+		gotAllUsersErr := <-allUsersErrChan
+		err = gotAllUsersErr.Err
+		ret := gotAllUsersErr.AllUsers
+		if err != nil {
+			printCLI("Couldn't get users because of an error:", err)
+			os.Exit(1)
+		} else if err == nil {
+			str := fmt.Sprint("All users: ")
+			for i := 0; i < len(ret); i++ {
+				str += fmt.Sprintf("%q ; ", ret[i])
+			}
+			printCLI(str)
+		}
+	}
+
+	getNamesWhich := "none"
+	getNamesValue := ""
+	if *getSubNames != "" {
+		getNamesWhich = "substance"
+		getNamesValue = *getSubNames
+	} else if *getRouteNames != "" {
+		getNamesWhich = "route"
+		getNamesValue = *getRouteNames
+	} else if *getUnitsNames != "" {
+		getNamesWhich = "units"
+		getNamesValue = *getUnitsNames
+	}
+
+	if getNamesWhich != "none" {
+		drugNamesErrChan := make(chan drugdose.DrugNamesError)
+		go gotsetcfg.GetAllAltNames(db, ctx, drugNamesErrChan,
+			getNamesValue, getNamesWhich, false, *forUser)
+		gotDrugNamesErr := <-drugNamesErrChan
+		subsNames := gotDrugNamesErr.DrugNames
+		err = gotDrugNamesErr.Err
+		if err != nil {
+			printCLI("Couldn't get substance names, because of error:", err)
+			os.Exit(1)
+		} else {
+			fmt.Print("For " + getNamesWhich + ": " + getNamesValue + " ; Alternative names: ")
+			for i := 0; i < len(subsNames); i++ {
+				fmt.Print(subsNames[i] + ", ")
+			}
+			fmt.Println()
+		}
+	}
+
 	getUniqueNames := false
 	getInfoNames := false
 	useCol := ""
@@ -598,38 +792,6 @@ func main() {
 		}
 	}
 
-	getNamesWhich := "none"
-	getNamesValue := ""
-	if *getSubNames != "" {
-		getNamesWhich = "substance"
-		getNamesValue = *getSubNames
-	} else if *getRouteNames != "" {
-		getNamesWhich = "route"
-		getNamesValue = *getRouteNames
-	} else if *getUnitsNames != "" {
-		getNamesWhich = "units"
-		getNamesValue = *getUnitsNames
-	}
-
-	if getNamesWhich != "none" {
-		drugNamesErrChan := make(chan drugdose.DrugNamesError)
-		go gotsetcfg.GetAllAltNames(db, ctx, drugNamesErrChan,
-			getNamesValue, getNamesWhich, false, *forUser)
-		gotDrugNamesErr := <-drugNamesErrChan
-		subsNames := gotDrugNamesErr.DrugNames
-		err = gotDrugNamesErr.Err
-		if err != nil {
-			printCLI("Couldn't get substance names, because of error:", err)
-			os.Exit(1)
-		} else {
-			fmt.Print("For " + getNamesWhich + ": " + getNamesValue + " ; Alternative names: ")
-			for i := 0; i < len(subsNames); i++ {
-				fmt.Print(subsNames[i] + ", ")
-			}
-			fmt.Println()
-		}
-	}
-
 	if *getLocalInfoDrug != "none" {
 		drugInfoErrChan := make(chan drugdose.DrugInfoError)
 		go gotsetcfg.GetLocalInfo(db, ctx, drugInfoErrChan, *getLocalInfoDrug, *forUser)
@@ -644,151 +806,9 @@ func main() {
 		}
 	}
 
-	inputDose := false
-	if *changeLog == false && remembering == false && *dontLog == false && *getLogs == false {
-		if *drugname != "none" ||
-			*drugroute != "none" ||
-			*drugargdose != 0 ||
-			*drugunits != "none" {
-
-			if *drugname == "none" {
-				printCLI("No drug name specified, checkout: gopsydose -help")
-			}
-
-			if *drugroute == "none" {
-				printCLI("No route specified, checkout: gopsydose -help")
-			}
-
-			if *drugargdose == 0 {
-				printCLI("No dose specified, checkout: gopsydose -help")
-			}
-
-			if *drugunits == "none" {
-				printCLI("No units specified, checkout: gopsydose -help")
-			}
-
-			if *drugname != "none" && *drugroute != "none" &&
-				*drugargdose != 0 && *drugunits != "none" {
-
-				inputDose = true
-			}
-		}
-	}
-
-	if remembering == true {
-		inputDose = true
-	}
-
-	if inputDose == true || *dontLog == true && *drugname != "none" {
-		err, cli := gotsetcfg.InitGraphqlClient()
-		if err == nil {
-			go gotsetcfg.FetchFromSource(db, ctx, errInfoChannel, *drugname, cli, *forUser)
-			gotErrInfo := <-errInfoChannel
-			err = gotErrInfo.Err
-			if err != nil {
-				printCLI(err)
-				os.Exit(1)
-			}
-		} else {
-			printCLI(err)
-		}
-
-		synct := drugdose.SyncTimestamps{}
-		if *dontLog == false {
-			go gotsetcfg.AddToDoseTable(db, ctx, errInfoChannel, &synct, *forUser, *drugname, *drugroute,
-				float32(*drugargdose), *drugunits, float32(*drugperc), float32(*drugcost), *costCur,
-				true)
-			gotErrInfo := <-errInfoChannel
-			if gotErrInfo.Err != nil {
-				printCLI(gotErrInfo.Err)
-			}
-		} else {
-			err, convOutput, convUnit := gotsetcfg.ConvertUnits(db, ctx, *drugname,
-				float32(*drugargdose), float32(*drugperc))
-			if err != nil {
-				printCLI(err)
-				os.Exit(1)
-			} else {
-				convSubs := gotsetcfg.MatchAndReplace(db, ctx, *drugname, "substance")
-				printCLI(fmt.Sprintf("Didn't log, converted dose: "+
-					"%g ; units: %q ; substance: %q ; username: %q",
-					convOutput, convUnit, convSubs, *forUser))
-			}
-		}
-	}
-
-	if *dontLog == false && *remember == true {
-		go gotsetcfg.RememberDosing(db, ctx, errInfoChannel, *forUser, *forID)
-		gotErrInfo := <-errInfoChannel
-		if gotErrInfo.Err != nil {
-			printCLI(gotErrInfo.Err)
-			os.Exit(1)
-		}
-	}
-
-	if *changeLog {
-		setType := ""
-		setValue := ""
-		if *startTime != "none" {
-			setType = "start-time"
-			setValue = *startTime
-		} else if *endTime != "none" {
-			setType = "end-time"
-			setValue = *endTime
-		} else if *drugname != "none" {
-			setType = "drug"
-			setValue = *drugname
-		} else if *drugargdose != 0 {
-			setType = "dose"
-			setValue = strconv.FormatFloat(*drugargdose, 'f', -1, 64)
-		} else if *drugunits != "none" {
-			setType = "units"
-			setValue = *drugunits
-		} else if *drugroute != "none" {
-			setType = "route"
-			setValue = *drugroute
-		} else if *drugcost != 0 {
-			setType = "cost"
-			setValue = strconv.FormatFloat(*drugcost, 'f', -1, 64)
-		} else if *costCur != "" {
-			setType = "cost-cur"
-			setValue = *costCur
-		}
-
-		go gotsetcfg.ChangeUserLog(db, ctx, errInfoChannel, setType, *forID, *forUser, setValue)
-		gotErrInfo := <-errInfoChannel
-		if gotErrInfo.Err != nil {
-			printCLI(gotErrInfo.Err)
-			os.Exit(1)
-		}
-	}
-
-	if *getTimes {
-		timeTillErrChan := make(chan drugdose.TimeTillError)
-		go gotsetcfg.GetTimes(db, ctx, timeTillErrChan, *forUser, *forID)
-		gotTimeTillErr := <-timeTillErrChan
-		err := gotTimeTillErr.Err
-		if err != nil {
-			printCLI("Times couldn't be retrieved because of an error:", err)
-			os.Exit(1)
-		} else {
-			err = gotsetcfg.PrintTimeTill(gotTimeTillErr, false)
-			if err != nil {
-				printCLI("Couldn't print times because of an error:", err)
-				os.Exit(1)
-			}
-		}
-	}
-
-	if *getTotalCosts {
-		costsErrChan := make(chan drugdose.CostsError)
-		go gotsetcfg.GetTotalCosts(db, ctx, costsErrChan, *forUser)
-		gotCostsErr := <-costsErrChan
-		err := gotCostsErr.Err
-		if err != nil {
-			printCLI(err)
-			os.Exit(1)
-		}
-		drugdose.PrintTotalCosts(gotCostsErr.Costs, false)
+	if *getDBSize {
+		ret := gotsetcfg.GetDBSize()
+		retMiB := (ret / 1024) / 1024
+		printCLI("Total DB size returned:", retMiB, "MiB ;", ret, "bytes")
 	}
 }
