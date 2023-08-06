@@ -258,12 +258,13 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 				LogCostCol,
 				LogCostCurrencyCol}
 			searchArr = append(searchArr, user)
-			searchStmt += "and " + searchColumns[0] + " like ? "
+			searchStmt += "and (" + searchColumns[0] + " like ? "
 			searchArr = append(searchArr, "%"+search+"%")
 			for i := 1; i < len(searchColumns); i++ {
 				searchStmt += "or " + searchColumns[i] + " like ? "
 				searchArr = append(searchArr, "%"+search+"%")
 			}
+			searchStmt += ") "
 		} else {
 			searchArr = append(searchArr, user)
 			searchArr = append(searchArr, search)
