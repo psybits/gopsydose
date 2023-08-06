@@ -49,7 +49,7 @@ const ActionSetUserSettings string = "user settings change completed"
 const ActionRememberDosing string = "dosing remember completed"
 const ActionForgetDosing string = "dosing forgetting completed"
 
-var NoValidAPISel error = errors.New("no valid API selected")
+var NoValidSourceSel error = errors.New("no valid source selected")
 var TimeoutValueEmptyError error = errors.New("timeout value is empty")
 
 func exitProgram(printN string) {
@@ -114,6 +114,8 @@ func checkColIsInvalid(validCols []string, gotCol string, printN string) error {
 		if validCol == false {
 			return fmt.Errorf("%s%w", sprintName(printN), InvalidColInput)
 		}
+	} else if gotCol == "" || gotCol == "none" {
+		return errors.New(sprintName(printN, "Empty column given."))
 	} else if len(validCols) == 0 {
 		return errors.New(sprintName(printN, "Invalid parameters when checking if column is invalid."))
 	}
@@ -407,7 +409,7 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 			return
 		}
 	} else {
-		tempErrInfo.Err = fmt.Errorf("%s%w: %s", sprintName(printN), NoValidAPISel, cfg.UseSource)
+		tempErrInfo.Err = fmt.Errorf("%s%w: %s", sprintName(printN), NoValidSourceSel, cfg.UseSource)
 		errChannel <- tempErrInfo
 		return
 	}
@@ -425,8 +427,8 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 //
 // errChannel - the gorouting channel which returns the errors
 //
-// set - what log data to change, the options are: start-time, end-time, drug,
-// dose, units, route, cost, cost-cur
+// set - what log data to change, if name is invalid, InvalidColInput
+// error will be send through userLogsErrorChannel
 //
 // id - if 0 will change the newest log, else it will change the log with
 // the given id
@@ -444,11 +446,18 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 		Username: username,
 	}
 
-	if setValue == "now" && set == "start-time" || setValue == "now" && set == "end-time" {
+	err := checkColIsInvalid(validLogCols(), set, printN)
+	if err != nil {
+		tempErrInfo.Err = err
+		errChannel <- tempErrInfo
+		return
+	}
+
+	if setValue == "now" && set == LogStartTimeCol || setValue == "now" && set == LogEndTimeCol {
 		setValue = strconv.FormatInt(time.Now().Unix(), 10)
 	}
 
-	if set == "start-time" || set == "end-time" {
+	if set == LogStartTimeCol || set == LogEndTimeCol {
 		if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "strconv.ParseInt(): "), err)
 			errChannel <- tempErrInfo
@@ -464,17 +473,6 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 		}
 	}
 
-	setName := map[string]string{
-		"start-time": "timeOfDoseStart",
-		"end-time":   "timeOfDoseEnd",
-		"drug":       "drugName",
-		"dose":       "dose",
-		"units":      "doseUnits",
-		"route":      "drugRoute",
-		"cost":       "cost",
-		"cost-cur":   "costCurrency",
-	}
-
 	userLogsErrChan := make(chan UserLogsError)
 	var gotLogs []UserLog
 	var gotErr error
@@ -483,7 +481,7 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	gotUserLogsErr := <-userLogsErrChan
 	gotErr = gotUserLogsErr.Err
 	if gotErr != nil {
-		tempErrInfo.Err = fmt.Errorf(sprintName(printN), gotErr)
+		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErr)
 		errChannel <- tempErrInfo
 		return
 	}
@@ -491,9 +489,7 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	gotLogs = gotUserLogsErr.UserLogs
 	id = gotLogs[0].StartTime
 
-	stmtStr := fmt.Sprintf("update "+loggingTableName+" set %s = ? where timeOfDoseStart = ?",
-		setName[set])
-
+	stmtStr := fmt.Sprintf("update "+loggingTableName+" set %s = ? where timeOfDoseStart = ?", set)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "db.Begin(): "), err)

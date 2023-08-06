@@ -32,10 +32,10 @@ type DBSettings struct {
 	Path string
 }
 
-const PsychonautwikiAPI string = "api.psychonautwiki.org"
+const PsychonautwikiAddress string = "api.psychonautwiki.org"
 
 const DefaultMaxLogsPerUser MaxLogsPerUserSize = 100
-const DefaultAPI string = PsychonautwikiAPI
+const DefaultSourceAddress string = PsychonautwikiAddress
 const DefaultAutoFetch bool = true
 const DefaultDBDir string = "GPD"
 const DefaultDBName string = "gpd.db"

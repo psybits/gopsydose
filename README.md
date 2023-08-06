@@ -174,7 +174,7 @@ This will change the dose for the last log, to change for a specific log do:
 
 To see where your config files and database file are:
 
-`gopsydose -get-dirs`
+`gopsydose -get-paths`
 
 Checkout the [Configs Explained](#configs-explained) section for explanations
 on configuration options!
@@ -182,9 +182,13 @@ on configuration options!
 If you're paranoid, to clean the whole database: `gopsydose -clean-db`
 
 Also don't forget, if you're using sqlite, which is the default, you can always
-do: `gopsydose -get-dirs`
+do: `gopsydose -get-paths`
 
 Then you can delete the database (db) file itself manually.
+
+### Even more options
+
+Every single option is described quickly from the -help flag.
 
 ## Security/Privacy
 
@@ -273,7 +277,7 @@ To view or edit the sqlite database manually,
 
 For MariaDB/MySQL, [DBeaver](https://dbeaver.io/) can be used.
 
-To get the database directory, run in terminal: `gopsydose -get-dirs`
+To get the database directory, run in terminal: `gopsydose -get-paths`
 
 ## Configs explained
 

@@ -347,7 +347,7 @@ func (cfg Config) PrintTimeTill(timeTillErr TimeTillError, prefix bool) error {
 	}
 
 	if useLog.EndTime != 0 {
-		printNameF(printN, "Finish Dose:\t%q (%d)\n",
+		printNameF(printN, "\nFinish Dose:\t%q (%d)\n",
 			time.Unix(useLog.EndTime, 0).In(location),
 			useLog.EndTime)
 
@@ -355,14 +355,15 @@ func (cfg Config) PrintTimeTill(timeTillErr TimeTillError, prefix bool) error {
 			time.Unix(useLoggedTime, 0).In(location), useLoggedTime)
 	}
 	curTime := time.Now().Unix()
-	printNameF(printN, "Current Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
+	printNameF(printN, "\nCurrent Time:\t%q (%d)\n", time.Unix(curTime, 0).In(location), curTime)
 
 	getDiffSinceLastLog := curTime - useLoggedTime
 	printNameF(printN, "Time passed:\t%d minutes\n", int(getDiffSinceLastLog/60))
 	fmt.Println()
 	printNameF(printN, "Drug:\t%q\n", useLog.DrugName)
 	printNameF(printN, "Dose:\t%f\n", useLog.Dose)
-	printNameF(printN, "Units:\t%q\n\n", useLog.DoseUnits)
+	printNameF(printN, "Units:\t%q\n", useLog.DoseUnits)
+	printNameF(printN, "Route:\t%q\n\n", useLog.DrugRoute)
 
 	printName(printN, "=== Time left in minutes until ===")
 

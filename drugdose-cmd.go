@@ -14,308 +14,311 @@ var (
 	drugname = flag.String(
 		"drug",
 		"none",
-		"The name of the drug.\nTry to be as accurate as possible!")
+		"The name of the drug.\nTry to be as accurate as possible!\n"+
+			"This has to match the source information.")
 
 	drugroute = flag.String(
 		"route",
 		"none",
-		"oral, smoked, sublingual, insufflation, inhalation,\n"+
-			"intravenous, etc.")
+		"oral, smoked, sublingual, insufflation, inhalation, intravenous, etc.\n"+
+			"This has to match the source information.")
 
 	drugargdose = flag.Float64(
 		"dose",
 		0,
-		"just a number, without any units such as ml around it")
+		"Just a number, without any units such as ml around it.")
 
 	drugunits = flag.String(
 		"units",
 		"none",
-		"the units themselves: ml, L, mg etc.")
+		"the units themselves: ml, L, mg etc.\n"+
+			"This has to match the source information.")
 
 	drugperc = flag.Float64(
 		"perc",
 		0,
-		"this is only used for alcohol currently,\n"+
-			"again just a number, no % around it")
+		"This is used for certain drugs which support unit conversion.\n"+
+			"It depends on the source. Again just a number, no % around it.")
 
 	drugcost = flag.Float64(
 		"cost",
 		0,
-		"the cost in money for the logged dose,\n"+
-			"you have to calculate using the total you paid")
+		"The cost in money for the logged dose.\n"+
+			"This is just a number, the currency is set by -cost-cur\n"+
+			"and in the settings file. Currently the cost must be\n"+
+			"calculated manually for every dose.")
 
 	costCur = flag.String(
 		"cost-cur",
 		"",
-		"the currency to be used for the cost")
+		"The currency to be used for when logging a cost.\n"+
+			"This takes priority over the value set in the settings file.")
 
 	changeLog = flag.Bool(
 		"change-log",
 		false,
-		"make changes to an entry/log/dosage,\n"+
-			"if -for-id is not specified, it's to the last entry\n"+
-			"must be used in combination with:\n"+
-			"-end-time ; -start-time ; -drug\n"+
-			"in order to clarify what you want to change in the entry")
+		"Make changes to an entry/log/dosage.\n"+
+			"If -for-id is not specified, it's to the newest entry.\n"+
+			"Must be used in combination with:\n"+
+			"-end-time ; -start-time ; -drug and etc.\n"+
+			"in order to clarify what you want to change in the entry.")
 
 	endTime = flag.String(
 		"end-time",
 		"none",
-		"change the end time of the last log\n"+
-			"it accepts unix timestamps as input\n"+
-			"if input is the string \"now\"\n"+
-			"it will use the current time\n\n"+
-			"must be used in combination with -change-log\n"+
-			"if combined with -for-id as well\n"+
-			"it will change for a specific ID")
+		"Change the end time of the last log.\n"+
+			"It accepts unix timestamps as input.\n"+
+			"If input is the string \"now\", it will use the current time\n"+
+			"\n"+
+			"Must be used in combination with -change-log.\n"+
+			"If it's also combined with -for-id, it will change for a specific ID.")
 
 	startTime = flag.String(
 		"start-time",
 		"none",
-		"change the start time of the last log\n"+
-			"it accepts unix timestamps as input\n"+
-			"if input is the string \"now\"\n"+
-			"it will use the current time\n\n"+
-			"must be used in combination with -change-log\n"+
-			"if combined with -for-id as well\n"+
-			"it will change for a specific ID")
+		"Change the start time of the last log.\n"+
+			"It accepts unix timestamps as input.\n"+
+			"If input is the string \"now\", it will use the current time\n"+
+			"\n"+
+			"Must be used in combination with -change-log.\n"+
+			"If it's also combined with -for-id, it will change for a specific ID.")
 
 	forUser = flag.String(
 		"user",
 		drugdose.DefaultUsername,
-		"log for a specific user, for example if you're looking\n"+
-			"after a friend")
+		"Log for a specific user.\n"+
+			"This takes priority over the value set in the settings file.")
 
 	getNewLogs = flag.Int(
 		"get-new-logs",
 		0,
-		"print the N number of the newest logs for the current user")
+		"Print a given number of the newest logs for the set user.")
 
 	getOldLogs = flag.Int(
 		"get-old-logs",
 		0,
-		"print the N number of the oldest logs for the current user")
+		"Print a given number of the oldest logs for the set user.")
 
 	getLogs = flag.Bool(
 		"get-logs",
 		false,
-		"print all logs for the current user")
+		"Print all logs for the set user.")
 
 	getLogsCount = flag.Bool(
 		"get-logs-count",
 		false,
-		"print the total number of logs for the current user")
+		"Print the total number of logs for the set user.")
 
 	removeNew = flag.Int(
 		"clean-new-logs",
 		0,
-		"cleans the N number of newest logs")
+		"Clean a given number of the newest logs.")
 
 	removeOld = flag.Int(
 		"clean-old-logs",
 		0,
-		"cleans the N number of oldest logs")
+		"Clean a given number of oldest logs.")
 
 	cleanDB = flag.Bool(
 		"clean-db",
 		false,
-		"remove all tables from the DB")
+		"Remove all tables from the database.\n"+
+			"Remember that it's for the currently set database path and driver.")
 
 	cleanLogs = flag.Bool(
 		"clean-logs",
 		false,
-		"cleans the logs\noptionally using the -user option for\n"+
-			"clearing logs for a specific user")
+		"Clean all of the logs for the currently set user.")
 
 	cleanNames = flag.Bool(
 		"clean-names",
 		false,
-		"cleans the alternative names from the DB\n"+
-			"this includes the replace names for the\n"+
-			"currently configured source\n"+
-			"when you reuse the name matching, it will\n"+
-			"recreate the tables with the present config files")
+		"Clean the alternative names from the database.\n"+
+			"This includes the replace names for the\n"+
+			"currently configured source.\n"+
+			"When you reuse the name matching, it will\n"+
+			"recreate the tables with the present config files.")
 
 	overwriteNames = flag.Bool(
 		"overwrite-names",
 		false,
-		"overwrite the alternative names in the DB,\n"+
-			"it will delete the old directory and tables\n"+
-			"and replace them with the currently present ones")
+		"Overwrite the alternative names in the database.\n"+
+			"It will delete the old directory and tables\n"+
+			"and replace them with the currently present ones.")
 
 	cleanInfo = flag.Bool(
 		"clean-info",
 		false,
-		"cleans the currently configured info table,\n"+
-			"meaning all remotely fetched dosage ranges and routes\n"+
-			"for all drugs, keep in mind that if you have configured a\n"+
+		"Clean the currently configured information (source) table.\n"+
+			"Meaning all remotely fetched dosage ranges and routes\n"+
+			"for all drugs. Keep in mind that if you have configured a\n"+
 			"different source earlier, it will not be cleaned, unless\n"+
-			"you change the configuration back and use this flag again")
+			"you change the configuration back and use this flag again.")
 
 	forID = flag.Int64(
 		"for-id",
 		0,
-		"perform and action for a particular id")
+		"Perform an action for a particular ID (start of dose timestamp).")
 
 	sourcecfg = flag.String(
 		"sourcecfg",
 		drugdose.DefaultSource,
-		"the name of the API that you want to initialise for\n"+
-			"settings and sources config files")
+		"The name of the source that you want to initialise\n"+
+			"settings and sources config files for.")
 
-	apiAddress = flag.String(
-		"api-address",
-		drugdose.DefaultAPI,
-		"the address of the API that you want to initialise for\n"+
-			"sources config file combined with -source")
+	sourceAddress = flag.String(
+		"source-address",
+		drugdose.DefaultSourceAddress,
+		"The address of the source that you want to initialise\n"+
+			"sources config file for, combined with -sourcecfg.")
 
 	recreateSettings = flag.Bool(
 		"recreate-settings",
 		false,
-		"recreate the settings.toml file")
+		"Recreate the global settings config file.")
 
 	recreateSources = flag.Bool(
 		"recreate-sources",
 		false,
-		"recreate the sources.toml file")
+		"Recreate the global sources config file.")
 
 	dbDir = flag.String(
 		"db-dir",
 		drugdose.DefaultDBDir,
-		"full path of the DB directory, this will work only on\n"+
-			"the initial run, you can change it later in the\n"+
-			"settings config file, don't forget to delete\n"+
-			"the old DB directory")
+		"Full path of the database directory.\n"+
+			"This will work only on the initial run.\n"+
+			"It can be changed later in the settings config file.\n"+
+			"If changed after initial run, the old database directory must be removed.")
 
-	getDirs = flag.Bool(
-		"get-dirs",
+	getPaths = flag.Bool(
+		"get-paths",
 		false,
-		"prints the settings and DB directories path")
+		"Prints the settings and the database paths.")
 
 	getLocalInfoDrug = flag.String(
 		"get-local-info-drug",
 		"none",
-		"print info about drug from local DB,\n"+
-			"for example if you've forgotten routes and units")
+		"Print all of the information about a given drug name from,\n"+
+			"the locally stored information table in the database.\n"+
+			"For example if you've forgotten dose ranges, times and etc.")
 
 	getLocalInfoDrugs = flag.Bool(
 		"get-local-info-drugs",
 		false,
-		"get all unique drug names (from info tables, not logs)\n"+
-			"according to set source")
+		"Print all unique drug names from the locally stored information table.\n"+
+			"The used table is according to the set source.")
 
 	getLoggedDrugs = flag.Bool(
 		"get-logged-drugs",
 		false,
-		"get all unique drug names (from log tables, not info)\n"+
+		"Print all unique drug names from the user logs table,\n"+
 			"using the provided username")
 
 	getTotalCosts = flag.Bool(
 		"get-total-costs",
 		false,
-		"print all costs for all drugs in all currencies")
+		"Print all costs for all drugs in all currencies from the user logs table.\n"+
+			"The information is only for the currently set user.")
 
 	getSubNames = flag.String(
 		"get-subst-alt-names",
 		"",
-		"get all alternative names for a substance")
+		"Get all alternative names for a substance.")
 
 	getRouteNames = flag.String(
 		"get-route-alt-names",
 		"",
-		"get all alternative names for a route")
+		"Get all alternative names for a route.")
 
 	getUnitsNames = flag.String(
 		"get-units-alt-names",
 		"",
-		"get all alternative names for a unit")
+		"Get all alternative names for a unit.")
 
 	dontLog = flag.Bool(
 		"dont-log",
 		false,
-		"only fetch info about drug to local DB,\n"+
-			"but don't log anything")
+		"Only fetch info about drug to the local information table,\n"+
+			"but don't add in user logs table.")
 
 	removeInfoDrug = flag.String(
 		"remove-info-drug",
 		"none",
-		"remove all entries of a single drug from the info DB")
+		"Remove all entries of a single drug from the local information table.")
 
 	getTimes = flag.Bool(
 		"get-times",
 		false,
-		"get the times till onset, comeup, etc.\n"+
-			"according to the current time\n"+
-			"can be combined with -for-id to\n"+
-			"get times for a specific ID\n"+
-			"use -get-logs, to see the IDs")
+		"Get the times till onset, comeup, etc. according to the current time.\n"+
+			"Can be combined with -for-id to get times for a specific ID,\n"+
+			"relative to the current time.")
 
 	getUsers = flag.Bool(
 		"get-users",
 		false,
-		"get all usernames logged")
+		"Get all usernames logged.")
 
 	getDBSize = flag.Bool(
 		"get-db-size",
 		false,
-		"get total size in MiB and bytes for the\n"+
-			"one database used for logging and drugs info")
+		"Get total size in MiB and bytes for the currently configured database.")
 
 	stopOnCfgInit = flag.Bool(
 		"stop-on-config-init",
 		false,
-		"stops the program once the config\n"+
-			"files have been initialised")
+		"Stops the program once the config files have been initialised.")
 
 	stopOnDbInit = flag.Bool(
 		"stop-on-db-init",
 		false,
-		"stops the program once the DB file has been created\n"+
-			"and initialised, if it doesn't exists already")
+		"Stops the program once the database file has been created\n"+
+			"and initialised, if it doesn't exists already.")
 
 	verbose = flag.Bool(
 		"verbose",
 		drugdose.DefaultVerbose,
-		"print extra information")
+		"Print extra information.")
 
 	remember = flag.Bool(
 		"remember",
 		false,
-		"remember last dose config")
+		"Remember the -drug -units and -route.\n"+
+			"On the next run, only -dose can be used and it will\n"+
+			"reuse the information from the previous run.")
 
 	forget = flag.Bool(
 		"forget",
 		false,
-		"forget the last set remember config")
+		"Forget the remembered -drug -units and -route.")
 
 	dbDriverInfo = flag.Bool(
-		"DBDriverInfo",
+		"get-db-driver",
 		false,
-		"show info about the current configured database driver")
+		"Show info about the currently configured database driver.")
 
 	noGetLimit = flag.Bool(
 		"no-get-limit",
 		false,
-		"there is a default limit of getting\n"+
-			"a maximum of 100 entries, you can bypass it\n"+
-			"using this option, this does not\n"+
-			"affect logging new entries for that do -get-dirs\n"+
-			"and checkout the settings file")
+		"There is a default limit of getting\n"+
+			"a maximum of 100 entries. You can bypass it\n"+
+			"using this option. This does not\n"+
+			"affect logging new entries, for that do -get-dirs\n"+
+			"and checkout the settings file.")
 
 	searchStr = flag.String(
 		"search",
 		"none",
-		"search all columns for specific string")
+		"Search all columns for a specific string.")
 
 	searchExact = flag.Bool(
 		"search-exact",
 		false,
-		"search for a specific column\n"+
-			"the column you search for is dependent on\n"+
-			"the -drug -route -units flags, you don't need\n"+
-			"to use the -search flag,\n"+
-			"compared to -search, this doesn't look if the\n"+
-			"string is contained, but if it's exactly the same")
+		"Search a specific column.\n"+
+			"The column you search is dependent on\n"+
+			"the -drug -route -units flags. You don't need\n"+
+			"to use the -search flag.\n"+
+			"Compared to -search, this doesn't look if the\n"+
+			"string is contained, but if it's exactly the same.")
 )
 
 // Print strings properly formatted for the Command Line Interface (CLI) program.
@@ -373,7 +376,7 @@ func main() {
 
 	gotsetcfg := drugdose.InitAllSettings(*sourcecfg, *dbDir, drugdose.DefaultDBName,
 		drugdose.DefaultMySQLAccess, *recreateSettings, *recreateSources,
-		*verbose, *apiAddress)
+		*verbose, *sourceAddress)
 
 	if *stopOnCfgInit {
 		printCLI("Stopping after config file initialization.")
@@ -397,6 +400,8 @@ func main() {
 	db := gotsetcfg.OpenDBConnection(ctx)
 	defer db.Close()
 
+	errInfoChan := make(chan drugdose.ErrorInfo)
+
 	var execCount uint8 = 1
 	var wg sync.WaitGroup
 	errInfoChanHandled := drugdose.AddChannelHandler(&wg, handleErrInfo, &execCount)
@@ -406,10 +411,10 @@ func main() {
 	setValue := ""
 	getExact := ""
 	if *startTime != "none" {
-		setType = "start-time"
+		setType = drugdose.LogStartTimeCol
 		setValue = *startTime
 	} else if *endTime != "none" {
-		setType = "end-time"
+		setType = drugdose.LogEndTimeCol
 		setValue = *endTime
 	} else if *drugname != "none" {
 		setType = drugdose.LogDrugNameCol
@@ -436,7 +441,7 @@ func main() {
 		*searchStr = setValue
 	}
 
-	if *getDirs {
+	if *getPaths {
 		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 		err, gotsetdir := drugdose.InitSettingsDir()
 		if err != nil {
@@ -480,12 +485,12 @@ func main() {
 	}
 
 	if *forget {
-		errInfoChan := make(chan drugdose.ErrorInfo)
 		go gotsetcfg.ForgetDosing(db, ctx, errInfoChan, *forUser)
 		gotErrInfo := <-errInfoChan
 		if gotErrInfo.Err != nil {
 			printCLI(gotErrInfo.Err)
-			os.Exit(1)
+		} else if gotErrInfo.Err == nil && gotErrInfo.Action != "" {
+			printCLI(gotErrInfo.Action)
 		}
 	}
 
@@ -572,7 +577,6 @@ func main() {
 		err, cli := gotsetcfg.InitGraphqlClient()
 		fetchErr := false
 		if err == nil {
-			errInfoChan := make(chan drugdose.ErrorInfo)
 			go gotsetcfg.FetchFromSource(db, ctx, errInfoChan, *drugname, cli, *forUser)
 			gotErrInfo := <-errInfoChan
 			if gotErrInfo.Err != nil {
@@ -605,11 +609,6 @@ func main() {
 		}
 	}
 
-	if *dontLog == false && *remember == true {
-		execCount++
-		go gotsetcfg.RememberDosing(db, ctx, errInfoChanHandled, *forUser, *forID)
-	}
-
 	if *changeLog {
 		execCount++
 		go gotsetcfg.ChangeUserLog(db, ctx, errInfoChanHandled, setType, *forID, *forUser, setValue)
@@ -617,6 +616,17 @@ func main() {
 
 	errInfoChanHandled <- drugdose.ErrorInfo{}
 	wg.Wait()
+
+	if *dontLog == false && *remember == true {
+		go gotsetcfg.RememberDosing(db, ctx, errInfoChan, *forUser, *forID)
+		gotErrInfo := <-errInfoChan
+		if gotErrInfo.Err != nil {
+			printCLI(err)
+		} else if gotErrInfo.Err == nil && gotErrInfo.Action != "" {
+			printCLI(gotErrInfo.Action)
+		}
+	}
+
 	// All functions which modify data have finished.
 
 	userLogsErrChan := make(chan drugdose.UserLogsError)

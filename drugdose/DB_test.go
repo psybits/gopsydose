@@ -377,7 +377,7 @@ func TestForcedRollback(t *testing.T) {
 		if err != nil {
 			fmt.Println("tx.Commit():", err)
 		} else {
-			t.Log("tx.Commit():", err)
+			t.Log("forced rollback err shouldn't have been nil: tx.Commit():", err)
 			t.Fail()
 		}
 		// End of concurrent rollback

@@ -132,6 +132,8 @@ func (cfg Config) InitInfoTable(db *sql.DB, ctx context.Context) error {
 	return nil
 }
 
+const LogStartTimeCol string = "timeOfDoseStart"
+const LogEndTimeCol string = "timeOfDoseEnd"
 const LogDrugNameCol string = "drugName"
 const LogDoseCol string = "dose"
 const LogDoseUnitsCol string = "doseUnits"
@@ -140,7 +142,7 @@ const LogCostCol string = "cost"
 const LogCostCurrencyCol string = "costCurrency"
 
 func validLogCols() []string {
-	return []string{LogDrugNameCol, LogDoseCol, LogDoseUnitsCol,
+	return []string{LogStartTimeCol, LogEndTimeCol, LogDrugNameCol, LogDoseCol, LogDoseUnitsCol,
 		LogDrugRouteCol, LogCostCol, LogCostCurrencyCol}
 }
 

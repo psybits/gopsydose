@@ -239,11 +239,13 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 		orientation = "desc"
 	}
 
-	err := checkColIsInvalid(validLogCols(), getExact, printN)
-	if err != nil {
-		tempUserLogsError.Err = err
-		userLogsErrorChannel <- tempUserLogsError
-		return
+	if getExact != "" && getExact != "none" {
+		err := checkColIsInvalid(validLogCols(), getExact, printN)
+		if err != nil {
+			tempUserLogsError.Err = err
+			userLogsErrorChannel <- tempUserLogsError
+			return
+		}
 	}
 
 	searchStmt := ""
