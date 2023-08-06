@@ -186,7 +186,7 @@ func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly 
 // search - remove logs only matching this string
 func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, username string, amount int, reverse bool,
-	remID int64, search string) {
+	remID int64, search string, getExact string) {
 
 	const printN string = "RemoveLogs()"
 
@@ -203,7 +203,8 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 		}
 
 		userLogsErrChan := make(chan UserLogsError)
-		go cfg.GetLogs(db, ctx, userLogsErrChan, amount, 0, username, reverse, search, "")
+		go cfg.GetLogs(db, ctx, userLogsErrChan, amount, 0, username,
+			reverse, search, getExact)
 		gotLogs := <-userLogsErrChan
 		if gotLogs.Err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotLogs.Err)

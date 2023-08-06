@@ -176,7 +176,7 @@ func TestConcurrentGetLogs(t *testing.T) {
 			}
 
 			for i := 0; i < count; i++ {
-				go cfg.RemoveLogs(db, ctx, errorChannel, temp_users[useUser(i, o)], 1, true, 0, "")
+				go cfg.RemoveLogs(db, ctx, errorChannel, temp_users[useUser(i, o)], 1, true, 0, "", "")
 				gotErrInfo := <-errorChannel
 				if gotErrInfo.Err != nil {
 					fmt.Println(gotErrInfo.Err)
@@ -259,7 +259,7 @@ func TestConcurrentAddToDoseDB(t *testing.T) {
 			}
 
 			for i := 0; i < count; i++ {
-				go cfg.RemoveLogs(db, ctx, errorChannel, temp_users[useUser(i, o)], 1, true, 0, "")
+				go cfg.RemoveLogs(db, ctx, errorChannel, temp_users[useUser(i, o)], 1, true, 0, "", "")
 				gotErrInfo := <-errorChannel
 				if gotErrInfo.Err != nil {
 					fmt.Println(gotErrInfo.Err)

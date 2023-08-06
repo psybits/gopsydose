@@ -214,8 +214,7 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
 // error will be send through userLogsErrorChannel
 func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	userLogsErrorChannel chan<- UserLogsError, num int, id int64,
-	user string, desc bool,
-	search string, getExact string) {
+	user string, desc bool, search string, getExact string) {
 
 	printN := "GetLogs()"
 
@@ -253,9 +252,11 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 		search = cfg.MatchAndReplaceAll(db, ctx, search)
 		if getExact == "none" || getExact == "" {
 			searchColumns := []string{"drugName",
-				"dose",
-				"doseUnits",
-				"drugRoute"}
+				LogDoseCol,
+				LogDoseUnitsCol,
+				LogDrugRouteCol,
+				LogCostCol,
+				LogCostCurrencyCol}
 			searchArr = append(searchArr, user)
 			searchStmt += "and " + searchColumns[0] + " like ? "
 			searchArr = append(searchArr, "%"+search+"%")

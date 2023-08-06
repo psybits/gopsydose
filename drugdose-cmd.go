@@ -402,6 +402,40 @@ func main() {
 	errInfoChanHandled := drugdose.AddChannelHandler(&wg, handleErrInfo, &execCount)
 	///////////////////////////////////////////////////////////////////////
 
+	setType := ""
+	setValue := ""
+	getExact := ""
+	if *startTime != "none" {
+		setType = "start-time"
+		setValue = *startTime
+	} else if *endTime != "none" {
+		setType = "end-time"
+		setValue = *endTime
+	} else if *drugname != "none" {
+		setType = drugdose.LogDrugNameCol
+		setValue = *drugname
+	} else if *drugargdose != 0 {
+		setType = drugdose.LogDoseCol
+		setValue = strconv.FormatFloat(*drugargdose, 'f', -1, 64)
+	} else if *drugunits != "none" {
+		setType = drugdose.LogDoseUnitsCol
+		setValue = *drugunits
+	} else if *drugroute != "none" {
+		setType = drugdose.LogDrugRouteCol
+		setValue = *drugroute
+	} else if *drugcost != 0 {
+		setType = drugdose.LogCostCol
+		setValue = strconv.FormatFloat(*drugcost, 'f', -1, 64)
+	} else if *costCur != "" {
+		setType = drugdose.LogCostCurrencyCol
+		setValue = *costCur
+	}
+
+	if *searchExact {
+		getExact = setType
+		*searchStr = setValue
+	}
+
 	if *getDirs {
 		printCLI("DB Dir:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
 		err, gotsetdir := drugdose.InitSettingsDir()
@@ -493,11 +527,14 @@ func main() {
 
 	if *cleanLogs || remAmount != 0 {
 		execCount++
-		go gotsetcfg.RemoveLogs(db, ctx, errInfoChanHandled, *forUser, remAmount, revRem, *forID, *searchStr)
+		go gotsetcfg.RemoveLogs(db, ctx, errInfoChanHandled, *forUser,
+			remAmount, revRem, *forID, *searchStr, getExact)
 	}
 
 	inputDose := false
-	if *changeLog == false && remembering == false && *getLogs == false && *dontLog == false {
+	if *changeLog == false && remembering == false && *getLogs == false &&
+		*dontLog == false && *searchExact == false {
+
 		if *drugname != "none" ||
 			*drugroute != "none" ||
 			*drugargdose != 0 ||
@@ -574,34 +611,6 @@ func main() {
 	}
 
 	if *changeLog {
-		setType := ""
-		setValue := ""
-		if *startTime != "none" {
-			setType = "start-time"
-			setValue = *startTime
-		} else if *endTime != "none" {
-			setType = "end-time"
-			setValue = *endTime
-		} else if *drugname != "none" {
-			setType = "drug"
-			setValue = *drugname
-		} else if *drugargdose != 0 {
-			setType = "dose"
-			setValue = strconv.FormatFloat(*drugargdose, 'f', -1, 64)
-		} else if *drugunits != "none" {
-			setType = "units"
-			setValue = *drugunits
-		} else if *drugroute != "none" {
-			setType = "route"
-			setValue = *drugroute
-		} else if *drugcost != 0 {
-			setType = "cost"
-			setValue = strconv.FormatFloat(*drugcost, 'f', -1, 64)
-		} else if *costCur != "" {
-			setType = "cost-cur"
-			setValue = *costCur
-		}
-
 		execCount++
 		go gotsetcfg.ChangeUserLog(db, ctx, errInfoChanHandled, setType, *forID, *forUser, setValue)
 	}
@@ -614,33 +623,23 @@ func main() {
 	var gettingLogs bool = false
 	var logsLimit bool = false
 
-	getExact := ""
-	if *searchExact {
-		if *drugname != "none" {
-			getExact = drugdose.LogDrugNameCol
-			*searchStr = *drugname
-		} else if *drugroute != "none" {
-			getExact = drugdose.LogDrugRouteCol
-			*searchStr = *drugroute
-		} else if *drugunits != "none" {
-			getExact = drugdose.LogDoseUnitsCol
-			*searchStr = *drugunits
-		}
-	}
-
 	if *getLogs {
 		if *noGetLimit {
-			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 0, *forID, *forUser, false, *searchStr, getExact)
+			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 0, *forID,
+				*forUser, false, *searchStr, getExact)
 		} else {
-			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 100, *forID, *forUser, false, *searchStr, getExact)
+			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 100, *forID,
+				*forUser, false, *searchStr, getExact)
 			logsLimit = true
 		}
 		gettingLogs = true
 	} else if *getNewLogs != 0 {
-		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getNewLogs, 0, *forUser, true, *searchStr, getExact)
+		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getNewLogs, 0,
+			*forUser, true, *searchStr, getExact)
 		gettingLogs = true
 	} else if *getOldLogs != 0 {
-		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getOldLogs, 0, *forUser, false, *searchStr, getExact)
+		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getOldLogs, 0,
+			*forUser, false, *searchStr, getExact)
 		gettingLogs = true
 	}
 
