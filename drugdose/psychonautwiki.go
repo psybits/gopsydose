@@ -259,7 +259,7 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 			return
 		}
 	} else {
-		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), PsychonautwikiAPIEmpty)
+		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), PsychonautwikiEmptyResp)
 		errChannel <- tempErrInfo
 		return
 	}
@@ -273,4 +273,4 @@ var NoROAForSubs error = errors.New("no route of administration for substance")
 
 var StructSliceEmpty error = errors.New("struct slice is empty, nothing added to DB")
 
-var PsychonautwikiAPIEmpty error = errors.New("the Psychonautwiki API returned nothing")
+var PsychonautwikiEmptyResp error = errors.New("Psychonautwiki returned nothing")
