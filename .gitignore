@@ -2,3 +2,4 @@ gpd.db
 gpd-sources.toml
 gpd-settings.toml
 dist/
+cmd/cmd

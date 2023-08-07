@@ -3,7 +3,7 @@ release:
 
 builds:
   -
-    main: .
+    main: ./cmd/
     id: "gopsydose-cli"
     binary: dose
     env:

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/psybits/gopsydose/drugdose"
+	"github.com/psybits/gopsydose"
 )
 
 var (

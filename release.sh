@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cd drugdose && go test && cd .. && goreleaser release --snapshot
+go test && goreleaser release --snapshot
