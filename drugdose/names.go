@@ -300,7 +300,7 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 //
 // Returns the local name for a given alternative name.
 func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
-	nameType string, sourceNames bool, overwrite bool) string {
+	nameType string, sourceNames bool) string {
 	const printN string = "MatchName()"
 
 	_, table := namesTables(nameType)
@@ -315,7 +315,7 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 
 	table = table + tableSuffix
 
-	err := cfg.AddToNamesTable(db, ctx, nameType, sourceNames, overwrite)
+	err := cfg.AddToNamesTable(db, ctx, nameType, sourceNames, false)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) == false {
 			printName(printN, err)
@@ -359,8 +359,8 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 // convUnits (conversion units)
 func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 	inputName string, nameType string) string {
-	ret := cfg.MatchName(db, ctx, inputName, nameType, false, false)
-	ret = cfg.MatchName(db, ctx, ret, nameType, true, false)
+	ret := cfg.MatchName(db, ctx, inputName, nameType, false)
+	ret = cfg.MatchName(db, ctx, ret, nameType, true)
 	return ret
 }
 
@@ -437,7 +437,7 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 
 	cfg.AddToNamesTable(db, ctx, nameType, sourceNames, false)
 
-	repName := cfg.MatchName(db, ctx, inputName, nameType, true, false)
+	repName := cfg.MatchName(db, ctx, inputName, nameType, true)
 	if repName != inputName {
 		printNameVerbose(cfg.VerbosePrinting, printN, "For source:", cfg.UseSource,
 			"; Local name:", inputName, "; Is sourceNamesd with:", repName)

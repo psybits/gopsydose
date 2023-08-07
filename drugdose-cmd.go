@@ -481,7 +481,11 @@ func main() {
 	}
 
 	if *overwriteNames {
-		gotsetcfg.MatchName(db, ctx, "asd", "substance", false, true)
+		err := gotsetcfg.AddToNamesTable(db, ctx, "substance", false, true)
+		if err != nil {
+			printCLI(err)
+			os.Exit(1)
+		}
 	}
 
 	if *forget {
