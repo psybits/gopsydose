@@ -248,8 +248,10 @@ Every single option is described quickly from the -help flag.
 ## Security/Privacy
 
 The issue is currently no files are encrypted and can't be 
-until a proper implementation is done. Also since
-by default drug information is fetched using the psychonautwiki API,
+until a proper implementation is done.
+See for more info: https://gitlab.com/cznic/sqlite/-/issues/105#note_1088508097
+
+Also since by default drug information is fetched using the psychonautwiki API,
 it would be wise not to spam their servers too much.
 The information is stored locally on first fetch and reused later for
 everything. This way even if the Internet goes down, the logger
