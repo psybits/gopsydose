@@ -19,9 +19,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// TODO: Encryption should be done by default unless specified not to by the user from the settings
-// But first the official implementation for encryption has to be done in the sqlite module
-
 const SqliteDriver string = "sqlite"
 const MysqlDriver string = "mysql"
 
