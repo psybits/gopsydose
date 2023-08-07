@@ -69,11 +69,12 @@ func handleErrRollback(err error, tx *sql.Tx, errChannel chan<- ErrorInfo,
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
-			errInfo.Err = fmt.Errorf("%s%w", sprintName(printN, xtraMsg), err2)
+			errInfo.Err = fmt.Errorf("error when attempting to roll back: %s%w",
+				sprintName(printN, xtraMsg), err2)
 			errChannel <- errInfo
 			return true
 		}
-		errInfo.Err = fmt.Errorf("%s%w", sprintName(printN, xtraMsg), err)
+		errInfo.Err = fmt.Errorf("rolling back: %s%w", sprintName(printN, xtraMsg), err)
 		errChannel <- errInfo
 		return true
 	}
@@ -89,9 +90,10 @@ func handleErrRollbackSeq(err error, tx *sql.Tx, printN string, xtraMsg string) 
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
-			return fmt.Errorf("%s%w", sprintName(printN, xtraMsg), err2)
+			return fmt.Errorf("error when attempting to roll back: %s%w",
+				sprintName(printN, xtraMsg), err2)
 		}
-		return fmt.Errorf("%s%w", sprintName(printN, xtraMsg), err)
+		return fmt.Errorf("rolling back: %s%w", sprintName(printN, xtraMsg), err)
 	}
 	return nil
 }

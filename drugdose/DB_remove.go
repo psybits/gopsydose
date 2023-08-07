@@ -146,6 +146,7 @@ func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly 
 		_, err = tx.Exec("drop table " + tableNames[i])
 		err = handleErrRollbackSeq(err, tx, printN, "tx.Exec(): ")
 		if err != nil {
+			fmt.Println()
 			return err
 		}
 	}

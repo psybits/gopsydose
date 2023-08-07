@@ -317,6 +317,9 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 
 	err := cfg.AddToNamesTable(db, ctx, nameType, sourceNames, overwrite)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) == false {
+			printName(printN, err)
+		}
 		return inputName
 	}
 
