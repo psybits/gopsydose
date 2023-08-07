@@ -581,7 +581,7 @@ func main() {
 		err, cli := gotsetcfg.InitGraphqlClient()
 		fetchErr := false
 		if err == nil {
-			go gotsetcfg.FetchFromSource(db, ctx, errInfoChan, *drugname, cli, *forUser)
+			go gotsetcfg.FetchFromSource(db, ctx, errInfoChan, *drugname, *forUser, cli)
 			gotErrInfo := <-errInfoChan
 			if gotErrInfo.Err != nil {
 				fetchErr = true

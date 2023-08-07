@@ -24,7 +24,7 @@ var NoUsersReturned error = errors.New("no usernames have been returned")
 
 // EmptyListDrugNamesError is the error returned when no unique drug names could
 // be retrieved from the database.
-var EmptyListDrugNamesError error = errors.New("empty list of drug names from info table")
+var EmptyListDrugNamesError error = errors.New("empty list of drug names from table")
 
 var NoDrugInfoTable error = errors.New("no such drug in info table")
 

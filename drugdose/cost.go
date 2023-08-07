@@ -2,6 +2,7 @@ package drugdose
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"database/sql"
@@ -96,6 +97,7 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 			}
 		}
 	}
+
 	costsErrChan <- tempCostsErr
 }
 
@@ -123,3 +125,5 @@ func PrintTotalCosts(costs []Cost, prefix bool) {
 		printName(printN, "====================")
 	}
 }
+
+var TotalCostsEmptyError error = errors.New("there are no costs to return")

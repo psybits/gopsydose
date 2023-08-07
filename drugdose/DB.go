@@ -373,13 +373,17 @@ func (cfg Config) CheckTables(db *sql.DB, ctx context.Context, tableName string)
 //
 // drugname - the name of the substance to fetch information for
 //
-// client - the initialised structure for the graphql client,
-// best done using InitGraphqlClient(), but can be done manually if needed
-//
 // username - the user requesting the fetch
+//
+// xtraNeeded - these are values dependent on the configured source, the order
+// in which they're given also matters, the order in which every source is
+// described, is the one in which the values should be given
+//
+// for psychonautwiki: the initialised structure for the graphql client,
+// best done using InitGraphqlClient(), but can be done manually if needed
 func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
-	errChannel chan<- ErrorInfo, drugname string, client graphql.Client,
-	username string) {
+	errChannel chan<- ErrorInfo, drugname string, username string,
+	xtraNeeded ...any) {
 
 	const printN string = "FetchFromSource()"
 
@@ -397,7 +401,7 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 
 	if cfg.UseSource == "psychonautwiki" {
 		errChannel2 := make(chan ErrorInfo)
-		go cfg.FetchPsyWiki(db, ctx, errChannel2, drugname, client, username)
+		go cfg.FetchPsyWiki(db, ctx, errChannel2, drugname, xtraNeeded[0].(graphql.Client), username)
 		gotErrInfo := <-errChannel2
 		if gotErrInfo.Err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w",
