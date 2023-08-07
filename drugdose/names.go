@@ -40,10 +40,10 @@ const allNamesConfigsDir string = "gpd-names-configs"
 const namesMagicWord string = "!TheTableIsNotEmpty!"
 
 // Constants used for matching names
-const nameTypeSubstance = "substance"
-const nameTypeRoute = "route"
-const nameTypeUnits = "units"
-const nameTypeConvertUnits = "convUnits"
+const NameTypeSubstance = "substance"
+const NameTypeRoute = "route"
+const NameTypeUnits = "units"
+const NameTypeConvertUnits = "convUnits"
 const altNamesSubsTableName string = "substanceNames"
 const altNamesRouteTableName string = "routeNames"
 const altNamesUnitsTableName string = "unitsNames"
@@ -95,13 +95,13 @@ func namesTables(nameType string) (error, string) {
 	const printN string = "namesTables()"
 
 	table := ""
-	if nameType == nameTypeSubstance {
+	if nameType == NameTypeSubstance {
 		table = altNamesSubsTableName
-	} else if nameType == nameTypeRoute {
+	} else if nameType == NameTypeRoute {
 		table = altNamesRouteTableName
-	} else if nameType == nameTypeUnits {
+	} else if nameType == NameTypeUnits {
 		table = altNamesUnitsTableName
-	} else if nameType == nameTypeConvertUnits {
+	} else if nameType == NameTypeConvertUnits {
 		table = altNamesConvUnitsTableName
 	} else {
 		return fmt.Errorf("%s%w: %s", sprintName(printN), NoNametypeError, nameType), ""
@@ -114,13 +114,13 @@ func namesFiles(nameType string) (error, string) {
 	const printN string = "namesFiles()"
 
 	file := ""
-	if nameType == nameTypeSubstance {
+	if nameType == NameTypeSubstance {
 		file = namesSubstanceFilename
-	} else if nameType == nameTypeRoute {
+	} else if nameType == NameTypeRoute {
 		file = namesRouteFilename
-	} else if nameType == nameTypeUnits {
+	} else if nameType == NameTypeUnits {
 		file = namesUnitsFilename
-	} else if nameType == nameTypeConvertUnits {
+	} else if nameType == NameTypeConvertUnits {
 		file = namesConvUnitsFilename
 	} else {
 		return fmt.Errorf("%s%w: %s", sprintName(printN), NoNametypeError, nameType), ""
@@ -137,8 +137,8 @@ func namesFiles(nameType string) (error, string) {
 //
 // ctx - context to be passed to sql queries
 //
-// nameType - which table type to create: substance, route, units or
-// convUnits (conversion units)
+// nameType - choose type for table to create, between exported constants:
+// NameTypeSubstance, NameTypeRoute, NameTypeUnits or NameTypeConvertUnits
 //
 // sourceNames - if true, will add data to the source specific config tables
 //
@@ -288,15 +288,11 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 //
 // inputName - the alternative name
 //
-// nameType - checkout namesTables()
+// nameType - choose type to replace, between exported constants: NameTypeSubstance,
+// NameTypeRoute, NameTypeUnits or NameTypeConvertUnits
 //
 // sourceNames - if true, it will use the config for the source,
 // meaning the names specific for the source
-//
-// overwrite - if true will overwrite the names config directory
-// and tables with the currently present ones,
-// checkout AddToNamesTable() for more info since this is the function
-// that is being called
 //
 // Returns the local name for a given alternative name.
 func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
@@ -355,8 +351,8 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 //
 // inputName - the alternative name
 //
-// nameType - choose type to replace between: substance, route, units or
-// convUnits (conversion units)
+// nameType - choose type to replace, between exported constants: NameTypeSubstance,
+// NameTypeRoute, NameTypeUnits or NameTypeConvertUnits
 func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 	inputName string, nameType string) string {
 	ret := cfg.MatchName(db, ctx, inputName, nameType, false)
@@ -377,8 +373,8 @@ func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context,
 	inputName string) string {
 
-	allNameTypes := []string{nameTypeSubstance, nameTypeRoute,
-		nameTypeUnits, nameTypeConvertUnits}
+	allNameTypes := []string{NameTypeSubstance, NameTypeRoute,
+		NameTypeUnits, NameTypeConvertUnits}
 	for _, elem := range allNameTypes {
 		retName := cfg.MatchAndReplace(db, ctx, inputName, elem)
 		if retName != inputName {
@@ -404,8 +400,8 @@ func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context,
 //
 // inputName - local name to get alt names for
 //
-// nameType - choose between getting alt names for: substance, route, units or
-// convUnits (conversion units)
+// nameType - choose type to get alt names for, between exported constants:
+// NameTypeSubstance, NameTypeRoute, NameTypeUnits or NameTypeConvertUnits
 //
 // sourceNames - use source specific names instead of global ones
 //
@@ -573,7 +569,7 @@ func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context,
 
 	const printN string = "ConvertUnits()"
 
-	substance = cfg.MatchAndReplace(db, ctx, substance, "substance")
+	substance = cfg.MatchAndReplace(db, ctx, substance, NameTypeSubstance)
 
 	drugNamesErrChan := make(chan DrugNamesError)
 	go cfg.GetAllAltNames(db, ctx, drugNamesErrChan, substance, "convUnits", true, "")

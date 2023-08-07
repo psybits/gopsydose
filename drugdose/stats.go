@@ -67,7 +67,7 @@ func (cfg Config) convertToSeconds(db *sql.DB, ctx context.Context,
 	units string, values ...*float32) {
 	const printN string = "convertToSeconds()"
 
-	units = cfg.MatchAndReplace(db, ctx, units, "units")
+	units = cfg.MatchAndReplace(db, ctx, units, NameTypeUnits)
 	if units == "hours" {
 		for _, value := range values {
 			*value *= 60 * 60

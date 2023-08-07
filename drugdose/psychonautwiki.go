@@ -155,7 +155,7 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 		return
 	}
 
-	drugname = cfg.MatchAndReplace(db, ctx, drugname, "substance")
+	drugname = cfg.MatchAndReplace(db, ctx, drugname, NameTypeSubstance)
 
 	ret := checkIfExistsDB(db, ctx,
 		"drugName",

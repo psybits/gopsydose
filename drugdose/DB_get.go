@@ -395,7 +395,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 	drugInfoErrChan chan<- DrugInfoError, drug string, username string) {
 	printN := "GerLocalInfo()"
 
-	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
+	drug = cfg.MatchAndReplace(db, ctx, drug, NameTypeSubstance)
 
 	tempDrugInfoErr := DrugInfoError{
 		DrugI:    nil,

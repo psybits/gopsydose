@@ -65,7 +65,7 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 
 	defer stmt.Close()
 	for i := 0; i < len(subs); i++ {
-		subs[i].DoseUnits = cfg.MatchAndReplace(db, ctx, subs[i].DoseUnits, "units")
+		subs[i].DoseUnits = cfg.MatchAndReplace(db, ctx, subs[i].DoseUnits, NameTypeUnits)
 		_, err = stmt.Exec(subs[i].DrugName,
 			subs[i].DrugRoute,
 			subs[i].Threshold,
@@ -146,9 +146,9 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 
 	const printN string = "AddToDoseTable()"
 
-	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
-	route = cfg.MatchAndReplace(db, ctx, route, "route")
-	units = cfg.MatchAndReplace(db, ctx, units, "units")
+	drug = cfg.MatchAndReplace(db, ctx, drug, NameTypeSubstance)
+	route = cfg.MatchAndReplace(db, ctx, route, NameTypeRoute)
+	units = cfg.MatchAndReplace(db, ctx, units, NameTypeUnits)
 
 	tempErrInfo := ErrorInfo{
 		Err:      nil,

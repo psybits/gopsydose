@@ -296,7 +296,7 @@ func (cfg Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, drug string, username string) {
 	const printN string = "RemoveSingleDrugInfo()"
 
-	drug = cfg.MatchAndReplace(db, ctx, drug, "substance")
+	drug = cfg.MatchAndReplace(db, ctx, drug, NameTypeSubstance)
 
 	tempErrInfo := ErrorInfo{
 		Err:      nil,

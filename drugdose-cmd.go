@@ -481,7 +481,7 @@ func main() {
 	}
 
 	if *overwriteNames {
-		err := gotsetcfg.AddToNamesTable(db, ctx, "substance", false, true)
+		err := gotsetcfg.AddToNamesTable(db, ctx, drugdose.NameTypeSubstance, false, true)
 		if err != nil {
 			printCLI(err)
 			os.Exit(1)
@@ -605,7 +605,7 @@ func main() {
 				printCLI(err)
 				os.Exit(1)
 			} else {
-				convSubs := gotsetcfg.MatchAndReplace(db, ctx, *drugname, "substance")
+				convSubs := gotsetcfg.MatchAndReplace(db, ctx, *drugname, drugdose.NameTypeSubstance)
 				printCLI(fmt.Sprintf("Didn't log, converted dose: "+
 					"%g ; units: %q ; substance: %q ; username: %q",
 					convOutput, convUnit, convSubs, *forUser))
