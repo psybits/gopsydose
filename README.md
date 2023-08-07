@@ -67,6 +67,61 @@ you might lose data, which you might need in case you don't have an Internet
 connection. It's also a lot slower to get data using the API compared to
 the local database.
 
+## gpd-names-configs
+
+This directory and it's use might be a bit confusing. This is an attempt at
+making a simple explanation.
+
+These files are all written manually, the program does not generate them.
+
+When the program is first ran, it looks for a directory "gpd-names-configs" in
+the current working directory. If it finds it, it copies the whole directory
+over to the config directory of the operating system user, which depends on
+the OS where it's located. If a copy is started, it will print where it wants
+to copy to and afterwards the path can be found again by running
+`gopsydose -get-paths`.
+
+When initializing the database properly, the contents of all the files in
+the now copied over "gpd-names-configs" directory are added to their own tables
+in the database. This is done once. The data is not modified, it's only read.
+In order to modify the data, the tables must be removed and recreated using the
+config files. The gopsydose API contains functions that do this. The CLI tool
+has a flag -overwrite-names.
+
+These stored names are used so that different inputs from the users can be
+considered valid, even if they're not present in the source.
+
+These names might change when something in the sources change. The config files
+can be manually modified to match those changes. The gopsydose source repository
+might also reflect those changes and the modifications can be fetched from
+there, but should be checked if they're not ahead or behind reality.
+
+After modification, the flag -overwrite-names can be used to reflect the
+changes in the database.
+
+### Global alternative names
+
+When adding a new log, the code first checks the global substance
+names, which is the "gpd-substance-names.toml" file. Remember, it doesn't check
+the file itself, but the data from the file added to the database. It compares
+the user input to the "AltNames" in the config file or more accurately,
+the "alternativeName" column in the database. If the user input matches one of
+the "altenative" names, it replaces the user input with the name set as
+"LocalName" in the config file or more accurately the "localName" column
+is the database. It then continues to the "source specific names".
+
+### Source specific names
+
+After the code has checked the global names, it checks the
+"source-names-local-configs" directory a.k.a. the "source specific names".
+The directory contains other directories which correspond to a source.
+So the "psychonautwiki" directory has names specific to the
+PsychonautWiki source. The config files in this subdirectories have the same
+layout as the global configs. They are also stored in the database.
+If a match is found, it will replace the replaced "global name" and that's
+the final valid output. This is the name used when further processing or
+storage is done.
+
 ## Terminal tool examples
 
 ### Basic options

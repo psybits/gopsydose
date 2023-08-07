@@ -182,9 +182,9 @@ func (cfg Config) InitLogsTable(db *sql.DB, ctx context.Context) error {
 		LogDrugNameCol + " text" + caseInsensitive + "not null," +
 		LogDoseCol + " real not null," +
 		LogDoseUnitsCol + " text" + caseInsensitive + "not null," +
-		LogDrugRouteCol + "drugRoute text" + caseInsensitive + "not null," +
-		LogCostCol + "cost real default 0 not null," +
-		LogCostCurrencyCol + "costCurrency text" + caseInsensitive + "default \"\" not null," +
+		LogDrugRouteCol + " text" + caseInsensitive + "not null," +
+		LogCostCol + " real default 0 not null," +
+		LogCostCurrencyCol + " text" + caseInsensitive + "default \"\" not null," +
 		"primary key (timeOfDoseStart, username));"
 
 	_, err = tx.Exec(initDBsql)

@@ -142,7 +142,9 @@ func namesFiles(nameType string) (error, string) {
 //
 // sourceNames - if true, will add data to the source specific config tables
 //
-// overwrite - force overwrite of directory and tables
+// overwrite - force overwrite of tables, it will not remove
+// the old config files, that must be done manually, if they're not removed
+// it will use their data for the database
 func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 	nameType string, sourceNames bool, overwrite bool) error {
 	const printN string = "AddToNamesTable()"
@@ -163,13 +165,6 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 		err = cfg.InitAllDBTables(db, ctx)
 		if err != nil {
 			return fmt.Errorf("%s%w", sprintName(printN), err)
-		}
-
-		err = os.RemoveAll(CopyToPath)
-		if err != nil {
-			return fmt.Errorf("%s%w", sprintName(printN), err)
-		} else {
-			printName(printN, "Deleted directory:", CopyToPath)
 		}
 	}
 
@@ -300,7 +295,8 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 //
 // overwrite - if true will overwrite the names config directory
 // and tables with the currently present ones,
-// checkout AddToSubstanceNamesTable() for more info
+// checkout AddToNamesTable() for more info since this is the function
+// that is being called
 //
 // Returns the local name for a given alternative name.
 func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
@@ -324,6 +320,8 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 		return inputName
 	}
 
+	// Check localName first, in case the inputName matches it, to avoid
+	// unnecessary work looking for it at the alternativeName column.
 	checkCol := []string{"localName", "alternativeName"}
 	var gotDBName string
 	for i := 0; i < len(checkCol); i++ {
@@ -345,8 +343,8 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 	return inputName
 }
 
-// Returns the local name, using both the global config and the source specific config.
-// Checkout MatchName()
+// Returns the local name, using both the global config and the
+// source specific config. Checkout MatchName()
 //
 // db - open database connection
 //
@@ -373,8 +371,11 @@ func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 // ctx - context to passed to sql query function
 //
 // inputName - single string to match all alt names for
-func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context, inputName string) string {
-	allNameTypes := []string{nameTypeSubstance, nameTypeRoute, nameTypeUnits, nameTypeConvertUnits}
+func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context,
+	inputName string) string {
+
+	allNameTypes := []string{nameTypeSubstance, nameTypeRoute,
+		nameTypeUnits, nameTypeConvertUnits}
 	for _, elem := range allNameTypes {
 		retName := cfg.MatchAndReplace(db, ctx, inputName, elem)
 		if retName != inputName {

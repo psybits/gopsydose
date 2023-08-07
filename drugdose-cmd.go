@@ -143,8 +143,8 @@ var (
 		"overwrite-names",
 		false,
 		"Overwrite the alternative names in the database.\n"+
-			"It will delete the old directory and tables\n"+
-			"and replace them with the currently present ones.")
+			"It will delete the old tables and replace them\n"+
+			"with the currently present ones in the config directory.")
 
 	cleanInfo = flag.Bool(
 		"clean-info",
