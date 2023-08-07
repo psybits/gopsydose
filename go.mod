@@ -1,6 +1,6 @@
 module github.com/psybits/gopsydose
 
-go 1.19
+go 1.20
 
 require (
 	github.com/glebarez/go-sqlite v1.21.2
@@ -17,10 +17,10 @@ require (
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
 	modernc.org/libc v1.24.1 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.6.0 // indirect
-	modernc.org/sqlite v1.24.0 // indirect
+	modernc.org/sqlite v1.25.0 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 )
