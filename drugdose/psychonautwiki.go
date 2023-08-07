@@ -172,9 +172,9 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 
 	xtraTxt := ""
 	if cfg.ProxyURL != "" && cfg.ProxyURL != "none" {
-		xtraTxt += " ; configured proxy: " + cfg.ProxyURL
+		xtraTxt += " ; configured proxy: " + fmt.Sprintf("%q", cfg.ProxyURL)
 	}
-	printName(printN, "Fetching from source:", cfg.UseSource+xtraTxt)
+	printNameF(printN, "Fetching from source: %q ; substance: %q%s\n", cfg.UseSource, drugname, xtraTxt)
 
 	// This is the graphql query for Psychonautwiki.
 	// The way it works is, the full query is generated
