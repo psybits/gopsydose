@@ -54,6 +54,12 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 
 	db := gotsetcfg.OpenDBConnection(ctx)
 
+	err := gotsetcfg.AddToAllNamesTables(db, ctx, false)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	var testsub []DrugInfo
 	tempsub := DrugInfo{
 		DrugName:  test_drug,
@@ -65,7 +71,7 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	errChannel := make(chan ErrorInfo)
 	go gotsetcfg.AddToInfoTable(db, ctx, errChannel, testsub, "")
 	errInfo := <-errChannel
-	err := errInfo.Err
+	err = errInfo.Err
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -207,8 +213,8 @@ func TestConcurrentGetLogs(t *testing.T) {
 	}
 }
 
-func TestConcurrentAddToDoseDB(t *testing.T) {
-	fmt.Println("\t---Starting TestConcurrentAddToDoseDB()")
+func TestConcurrentAddToDoseTable(t *testing.T) {
+	fmt.Println("\t---Starting TestConcurrentAddToDoseTable()")
 	for _, v := range testWithDrivers() {
 		db, ctx, cfg := initForTests(v)
 		defer db.Close()

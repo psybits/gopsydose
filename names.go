@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -16,8 +17,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	// SQLite driver needed for sql module
 	_ "modernc.org/sqlite"
-
-	cp "github.com/otiai10/copy"
 )
 
 type AlternativeNames struct {
@@ -129,8 +128,7 @@ func namesFiles(nameType string) (error, string) {
 	return nil, file
 }
 
-// Copy the config files to the proper directory and read them to
-// create the proper tables in the database, which will later be used
+// Create the proper tables in the database, which will later be used
 // to match alternative names to local names.
 //
 // db - open database connection
@@ -141,32 +139,9 @@ func namesFiles(nameType string) (error, string) {
 // NameTypeSubstance, NameTypeRoute, NameTypeUnits or NameTypeConvertUnits
 //
 // sourceNames - if true, will add data to the source specific config tables
-//
-// overwrite - force overwrite of tables, it will not remove
-// the old config files, that must be done manually, if they're not removed
-// it will use their data for the database
 func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
-	nameType string, sourceNames bool, overwrite bool) error {
+	nameType string, sourceNames bool) error {
 	const printN string = "AddToNamesTable()"
-
-	err, setdir := InitSettingsDir()
-	if err != nil {
-		return fmt.Errorf("%s%w", sprintName(printN), err)
-	}
-
-	var CopyToPath string = setdir + "/" + allNamesConfigsDir
-
-	if overwrite == true {
-		err := cfg.CleanNamesTables(db, ctx, false)
-		if err != nil {
-			return fmt.Errorf("%s%w", sprintName(printN), err)
-		}
-
-		err = cfg.InitAllDBTables(db, ctx)
-		if err != nil {
-			return fmt.Errorf("%s%w", sprintName(printN), err)
-		}
-	}
 
 	err, table := namesTables(nameType)
 	if err != nil {
@@ -189,39 +164,6 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 		namesMagicWord)
 	if ret {
 		return nil
-	}
-
-	// Check if names directory exists in config directory.
-	// If it doen't, continue.
-	_, err = os.Stat(CopyToPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// Check if names directory exists in working directory.
-			// If it does, copy it to config directory.
-			_, err := os.Stat(allNamesConfigsDir)
-			if err == nil {
-				printName(printN, "Found the config directory in the working directory:",
-					allNamesConfigsDir, "; attempt at making a copy to:", CopyToPath)
-
-				// Sync (true) - flush everything to disk, to make sure everything is immediately copied
-				cpOpt := cp.Options{
-					Sync: true,
-				}
-				err = cp.Copy(allNamesConfigsDir, CopyToPath, cpOpt)
-				if err != nil {
-					return fmt.Errorf("%s%w", sprintName(printN), err)
-				} else if err == nil {
-					printName(printN, "Done copying to:", CopyToPath)
-				}
-			} else {
-				return fmt.Errorf("%s%w", sprintName(printN), err)
-			}
-		} else {
-			return fmt.Errorf("%s%w", sprintName(printN), err)
-		}
-	} else if err == nil {
-		printNameVerbose(cfg.VerbosePrinting, printN, "Name config already exists:", CopyToPath,
-			"; will not copy the config directory from the working directory:", allNamesConfigsDir)
 	}
 
 	getCfgSrc := ""
@@ -277,6 +219,50 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 	return nil
 }
 
+// Calls AddToNamesTable() for all nameType.
+//
+// overwrite - force overwrite of tables, it will not remove
+// the old config files, that must be done manually, if they're not removed
+// it will use their data for the database
+func (cfg Config) AddToAllNamesTables(db *sql.DB, ctx context.Context,
+	overwrite bool) error {
+
+	const printN string = "AddToAllNamesTables()"
+
+	if overwrite == true {
+		err := cfg.CleanNamesTables(db, ctx, false)
+		if err != nil {
+			return fmt.Errorf("%s%w", sprintName(printN), err)
+		}
+
+		err = cfg.InitAllDBTables(db, ctx)
+		if err != nil {
+			return fmt.Errorf("%s%w", sprintName(printN), err)
+		}
+	}
+
+	nameTypes := [4]string{NameTypeSubstance, NameTypeRoute,
+		NameTypeUnits, NameTypeConvertUnits}
+
+	// Add to global names tables
+	for i := 0; i < 4; i++ {
+		err := cfg.AddToNamesTable(db, ctx, nameTypes[i], false)
+		if err != nil && errors.Is(err, fs.ErrNotExist) == false {
+			return fmt.Errorf("%s%w", sprintName(printN), err)
+		}
+	}
+
+	// Add to source names tables
+	for i := 0; i < 4; i++ {
+		err := cfg.AddToNamesTable(db, ctx, nameTypes[i], true)
+		if err != nil && errors.Is(err, fs.ErrNotExist) == false {
+			return fmt.Errorf("%s%w", sprintName(printN), err)
+		}
+	}
+
+	return nil
+}
+
 // MatchName replaces an input name with a configured output name present in
 // the database. For example if there's a need to translate
 // "weed" to "cannabis". Checkout AddToSubstanceNamesTable() for information
@@ -295,8 +281,8 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 // meaning the names specific for the source
 //
 // Returns the local name for a given alternative name.
-func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
-	nameType string, sourceNames bool) string {
+func (cfg Config) MatchName(db *sql.DB, ctx context.Context,
+	inputName string, nameType string, sourceNames bool) string {
 	const printN string = "MatchName()"
 
 	_, table := namesTables(nameType)
@@ -310,14 +296,6 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context, inputName string,
 	}
 
 	table = table + tableSuffix
-
-	err := cfg.AddToNamesTable(db, ctx, nameType, sourceNames, false)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) == false {
-			printName(printN, err)
-		}
-		return inputName
-	}
 
 	// Check localName first, in case the inputName matches it, to avoid
 	// unnecessary work looking for it at the alternativeName column.
@@ -430,8 +408,6 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	}
 
 	table = table + tableSuffix
-
-	cfg.AddToNamesTable(db, ctx, nameType, sourceNames, false)
 
 	repName := cfg.MatchName(db, ctx, inputName, nameType, true)
 	if repName != inputName {

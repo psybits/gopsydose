@@ -217,6 +217,8 @@ func checkIfExistsDB(db *sql.DB, ctx context.Context,
 
 	const printN string = "checkIfExistsDB()"
 
+	// NOTE: this doesn't cause an SQL injection, because we're not taking
+	// 'col' and 'table' from an user input.
 	stmtstr := "select " + col + " from " + table + " where " + col + " = ?"
 	if xtrastmt != nil {
 		for i := 0; i < len(xtrastmt); i++ {
@@ -224,8 +226,6 @@ func checkIfExistsDB(db *sql.DB, ctx context.Context,
 		}
 	}
 
-	// NOTE: this doesn't cause an SQL injection, because we're not taking
-	// 'col' and 'table' from an user input.
 	stmt, err := db.PrepareContext(ctx, stmtstr)
 	if err != nil {
 		printName(printN, "SQL error in prepare for check if exists:", err)

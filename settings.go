@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	cp "github.com/otiai10/copy"
+
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -403,6 +405,57 @@ func (initconf Config) InitSettingsFile(recreate bool, verbose bool) {
 	}
 }
 
+// InitNamesFiles copies to the OS config directory, the directory containing
+// the toml files for configuring alternative names. If it doesn't exists in
+// the config directory, the code checks if it's present in the current working
+// directory. If it is, it's copied over to the OS config directory and used
+// later to fill in the database.
+func (cfg Config) InitNamesFiles() error {
+	const printN string = "InitNamesFiles()"
+
+	err, setdir := InitSettingsDir()
+	if err != nil {
+		return fmt.Errorf("%s%w", sprintName(printN), err)
+	}
+
+	var CopyToPath string = setdir + "/" + allNamesConfigsDir
+
+	// Check if names directory exists in config directory.
+	// If it doen't, continue.
+	_, err = os.Stat(CopyToPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// Check if names directory exists in working directory.
+			// If it does, copy it to config directory.
+			_, err := os.Stat(allNamesConfigsDir)
+			if err == nil {
+				printName(printN, "Found the config directory in the working directory:",
+					allNamesConfigsDir, "; attempt at making a copy to:", CopyToPath)
+
+				// Sync (true) - flush everything to disk, to make sure everything is immediately copied
+				cpOpt := cp.Options{
+					Sync: true,
+				}
+				err = cp.Copy(allNamesConfigsDir, CopyToPath, cpOpt)
+				if err != nil {
+					return fmt.Errorf("%s%w", sprintName(printN), err)
+				} else if err == nil {
+					printName(printN, "Done copying to:", CopyToPath)
+				}
+			} else {
+				return fmt.Errorf("%s%w", sprintName(printN), err)
+			}
+		} else {
+			return fmt.Errorf("%s%w", sprintName(printN), err)
+		}
+	} else if err == nil {
+		printNameVerbose(cfg.VerbosePrinting, printN, "Name config already exists:", CopyToPath,
+			"; will not copy the config directory from the working directory:", allNamesConfigsDir)
+	}
+
+	return nil
+}
+
 // Get the Config structure data marshaled from the global config file.
 // Returns the Config structure. Stops the program if an error is not nil.
 func GetSettings() Config {
@@ -436,7 +489,8 @@ func GetSettings() Config {
 // created config and stores the struct in a new variable, initializes the
 // source map using the set source in the Config struct and the given API
 // address, uses the map to create the source config file and returns the
-// Config struct.
+// Config struct. It then copies the directory containing the toml files for
+// filling alternative names to the database.
 //
 // Basically all you probably would want to do anyway, but in a single function.
 //
@@ -483,6 +537,12 @@ func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess 
 	err = gotsetcfg.InitSourceSettings(gotsrc, recreateSources)
 	if err != nil {
 		printName(printN, "The sources file wasn't initialised: ", err)
+		exitProgram(printN)
+	}
+
+	err = gotsetcfg.InitNamesFiles()
+	if err != nil {
+		printName(printN, "The names files were not copied: ", err)
 		exitProgram(printN)
 	}
 

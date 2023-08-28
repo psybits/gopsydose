@@ -400,6 +400,12 @@ func main() {
 	db := gotsetcfg.OpenDBConnection(ctx)
 	defer db.Close()
 
+	err = gotsetcfg.AddToAllNamesTables(db, ctx, false)
+	if err != nil {
+		printCLI(err)
+		os.Exit(1)
+	}
+
 	errInfoChan := make(chan drugdose.ErrorInfo)
 
 	var execCount uint8 = 1
@@ -481,7 +487,7 @@ func main() {
 	}
 
 	if *overwriteNames {
-		err := gotsetcfg.AddToNamesTable(db, ctx, drugdose.NameTypeSubstance, false, true)
+		err := gotsetcfg.AddToAllNamesTables(db, ctx, true)
 		if err != nil {
 			printCLI(err)
 			os.Exit(1)
