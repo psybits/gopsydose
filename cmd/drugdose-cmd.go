@@ -291,7 +291,7 @@ var (
 		false,
 		"Forget the remembered -drug -units and -route.")
 
-	dbDriverInfo = flag.Bool(
+	getDBDriver = flag.Bool(
 		"get-db-driver",
 		false,
 		"Show info about the currently configured database driver.")
@@ -457,9 +457,10 @@ func main() {
 		printCLI("Settings Dir:", gotsetdir)
 	}
 
-	if *dbDriverInfo {
-		printCLI("Using database driver:", gotsetcfg.DBDriver)
-		printCLI("Database path:", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
+	if *getDBDriver {
+		printCLI("Driver:\t", gotsetcfg.DBDriver)
+		printCLI("Path:\t", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Path)
+		printCLI("Param:\t", gotsetcfg.DBSettings[gotsetcfg.DBDriver].Parameters)
 	}
 
 	if *cleanDB {
