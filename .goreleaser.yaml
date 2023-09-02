@@ -44,7 +44,8 @@ archives:
       - LICENSE.txt
       - README.md
       - example.alias
-      - gpd-names-configs/*
+      - src: "cmd/gpd-names-configs/*"
+        dst: gpd-names-configs
 checksum:
   name_template: 'checksums.txt'
 
