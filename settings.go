@@ -31,7 +31,8 @@ type Config struct {
 }
 
 type DBSettings struct {
-	Path string
+	Path       string
+	Parameters string
 }
 
 const PsychonautwikiAddress string = "api.psychonautwiki.org"
@@ -338,10 +339,12 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 
 	var dbSettings = map[string]DBSettings{
 		SqliteDriver: {
-			Path: dbdir + "/" + dbname,
+			Path:       dbdir + "/" + dbname,
+			Parameters: "?_pragma=busy_timeout=1000",
 		},
 		MysqlDriver: {
-			Path: mysqlaccess,
+			Path:       mysqlaccess,
+			Parameters: "",
 		},
 	}
 

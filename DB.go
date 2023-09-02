@@ -275,9 +275,14 @@ func (cfg Config) UseConfigTimeout() (context.Context, context.CancelFunc, error
 func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
 	const printN string = "OpenDBConnection()"
 
-	db, err := sql.Open(cfg.DBDriver, cfg.DBSettings[cfg.DBDriver].Path)
+	finalPath := cfg.DBSettings[cfg.DBDriver].Path
+	if cfg.DBDriver == SqliteDriver {
+		finalPath = finalPath + cfg.DBSettings[cfg.DBDriver].Parameters
+	}
+
+	db, err := sql.Open(cfg.DBDriver, finalPath)
 	if err != nil {
-		errorCantOpenDB(cfg.DBSettings[cfg.DBDriver].Path, err, printN)
+		errorCantOpenDB(finalPath, err, printN)
 	}
 
 	cfg.PingDB(db, ctx)

@@ -410,14 +410,18 @@ The database needs to be created in advance.
 
 Example: user:password@tcp(127.0.0.1:3306)/database
 
+Parameters - For MariaDB/MySQL, currently it doesn't change anything.
+
 ##### DBSettings.sqlite
 
-Path - Disk location to access the sqlite db file.
+Path - Disk location to access the SQLite database file.
 
 The database file will be automatically created, no need
 to do it in advance.
 
 Example: /home/user/.local/share/GPD/gpd.db
+
+Parameters - For SQLite, these are the URI parameters added after the Path.
 
 ### gpd-sources.toml
 
