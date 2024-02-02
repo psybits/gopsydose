@@ -41,7 +41,7 @@ func (cfg Config) InitDBFileStructure() {
 	dirOnly := path.Dir(cfg.DBSettings[cfg.DBDriver].Path)
 
 	err = os.Mkdir(dirOnly, 0700)
-	if err != nil {
+	if err != nil && errors.Is(err, os.ErrExist) == false {
 		printName(printN, "os.Mkdir(): Error creating directory for DB:", dirOnly, ":", err)
 		exitProgram(printN)
 	}
