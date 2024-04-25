@@ -367,14 +367,13 @@ func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context,
 // etc. The alt names themselves can't be used to find the other alt names,
 // it requires the "main" name in the local info table.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to passed to sql query function
 //
 // namesErrChan - the goroutine channel used to return the alternative names for
 // a given "global" name and the error
+// (set to nil if function doesn't need to be concurrent)
 //
 // inputName - local name to get alt names for
 //
@@ -386,7 +385,7 @@ func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context,
 // username - the user requesting the alt names
 func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	namesErrChan chan<- DrugNamesError, inputName string,
-	nameType string, sourceNames bool, username string) {
+	nameType string, sourceNames bool, username string) DrugNamesError {
 	const printN string = "GetAllAltNames()"
 
 	tempDrugNamesErr := DrugNamesError{
@@ -398,8 +397,10 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	err, table := namesTables(nameType)
 	if err != nil {
 		tempDrugNamesErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		namesErrChan <- tempDrugNamesErr
-		return
+		if namesErrChan != nil {
+			namesErrChan <- tempDrugNamesErr
+		}
+		return tempDrugNamesErr
 	}
 
 	tableSuffix := ""
@@ -422,8 +423,10 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	if err != nil {
 		err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempDrugNamesErr.Err = err
-		namesErrChan <- tempDrugNamesErr
-		return
+		if namesErrChan != nil {
+			namesErrChan <- tempDrugNamesErr
+		}
+		return tempDrugNamesErr
 	}
 
 	for rows.Next() {
@@ -431,8 +434,10 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 		if err != nil {
 			err = fmt.Errorf("%s%w", sprintName(printN), err)
 			tempDrugNamesErr.Err = err
-			namesErrChan <- tempDrugNamesErr
-			return
+			if namesErrChan != nil {
+				namesErrChan <- tempDrugNamesErr
+			}
+			return tempDrugNamesErr
 		}
 		allNames = append(allNames, tempName)
 	}
@@ -444,8 +449,10 @@ func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 
 	tempDrugNamesErr.DrugNames = allNames
 	tempDrugNamesErr.Username = username
-	namesErrChan <- tempDrugNamesErr
-	return
+	if namesErrChan != nil {
+		namesErrChan <- tempDrugNamesErr
+	}
+	return tempDrugNamesErr
 }
 
 // Converts percentage to pure substance.
@@ -547,9 +554,7 @@ func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context,
 
 	substance = cfg.MatchAndReplace(db, ctx, substance, NameTypeSubstance)
 
-	drugNamesErrChan := make(chan DrugNamesError)
-	go cfg.GetAllAltNames(db, ctx, drugNamesErrChan, substance, "convUnits", true, "")
-	gotDrugNamesErr := <-drugNamesErrChan
+	gotDrugNamesErr := cfg.GetAllAltNames(db, ctx, nil, substance, "convUnits", true, "")
 	allNames := gotDrugNamesErr.DrugNames
 	err := gotDrugNamesErr.Err
 	if err != nil {

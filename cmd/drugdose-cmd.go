@@ -733,7 +733,7 @@ func main() {
 		if err != nil {
 			printCLI("Couldn't get users because of an error:", err)
 			os.Exit(1)
-		} else if err == nil {
+		} else {
 			str := fmt.Sprint("All users: ")
 			for i := 0; i < len(ret); i++ {
 				str += fmt.Sprintf("%q ; ", ret[i])
@@ -756,10 +756,8 @@ func main() {
 	}
 
 	if getNamesWhich != "none" {
-		drugNamesErrChan := make(chan drugdose.DrugNamesError)
-		go gotsetcfg.GetAllAltNames(db, ctx, drugNamesErrChan,
+		gotDrugNamesErr := gotsetcfg.GetAllAltNames(db, ctx, nil,
 			getNamesValue, getNamesWhich, false, *forUser)
-		gotDrugNamesErr := <-drugNamesErrChan
 		subsNames := gotDrugNamesErr.DrugNames
 		err = gotDrugNamesErr.Err
 		if err != nil {
