@@ -496,8 +496,7 @@ func main() {
 	}
 
 	if *forget {
-		go gotsetcfg.ForgetDosing(db, ctx, errInfoChan, *forUser)
-		gotErrInfo := <-errInfoChan
+		gotErrInfo := gotsetcfg.ForgetDosing(db, ctx, nil, *forUser)
 		if gotErrInfo.Err != nil {
 			printCLI(gotErrInfo.Err)
 		} else if gotErrInfo.Err == nil && gotErrInfo.Action != "" {
@@ -514,7 +513,7 @@ func main() {
 		if err != nil {
 			printCLI("Couldn't recall dosing configuration: ", err)
 			os.Exit(1)
-		} else if err == nil && gotUserLogsErr.UserLogs != nil {
+		} else if gotUserLogsErr.UserLogs != nil {
 			remCfg := gotUserLogsErr.UserLogs[0]
 			printCLI("Remembering from config using ID:", remCfg.StartTime)
 			*forUser = remCfg.Username

@@ -68,11 +68,15 @@ func handleErrRollback(err error, tx *sql.Tx, errChannel chan<- ErrorInfo,
 		if err2 != nil {
 			errInfo.Err = fmt.Errorf("error when attempting to roll back: %s%w",
 				sprintName(printN, xtraMsg), err2)
-			errChannel <- errInfo
+			if errChannel != nil {
+				errChannel <- errInfo
+			}
 			return true
 		}
 		errInfo.Err = fmt.Errorf("rolling back: %s%w", sprintName(printN, xtraMsg), err)
-		errChannel <- errInfo
+		if errChannel != nil {
+			errChannel <- errInfo
+		}
 		return true
 	}
 	return false

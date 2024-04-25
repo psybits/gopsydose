@@ -78,13 +78,12 @@ func returnSetUserSetStmt(set string) string {
 
 // SetUserSettings changes the user settings in the database.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // set - the name of the setting to change, available names are: remember-id
 //
@@ -92,7 +91,7 @@ func returnSetUserSetStmt(set string) string {
 //
 // setValue - the value the setting is changed to
 func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
-	errChannel chan<- ErrorInfo, set string, username string, setValue string) {
+	errChannel chan<- ErrorInfo, set string, username string, setValue string) ErrorInfo {
 
 	const printN string = "SetUserSettings()"
 
@@ -110,16 +109,20 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 		err := cfg.InitUserSettings(db, ctx, username)
 		if err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 	}
 
 	err, set := settingsTables(set)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	stmtStr := returnSetUserSetStmt(set)
@@ -127,30 +130,35 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%s: %w", sprintName(printN), "db.BeginTx()", err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
 	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
-		return
+		return tempErrInfo
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(setValue, username)
 
 	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec():") {
-		return
+		return tempErrInfo
 	}
 
 	err = tx.Commit()
 	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
-		return
+		return tempErrInfo
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, set+": setting changed to:", setValue)
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
 
 // GetUserSettings return the value of a setting for a given user from the database.
@@ -242,9 +250,7 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 		forIDStr = strconv.FormatInt(gotLogs.UserLogs[0].StartTime, 10)
 	}
 
-	errChannel2 := make(chan ErrorInfo)
-	go cfg.SetUserSettings(db, ctx, errChannel2, settingTypeID, username, forIDStr)
-	gotErrInfo := <-errChannel2
+	gotErrInfo := cfg.SetUserSettings(db, ctx, nil, settingTypeID, username, forIDStr)
 	if gotErrInfo.Err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErrInfo.Err)
 		errChannel <- tempErrInfo
@@ -312,17 +318,16 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 // ForgetInputConfigMagicNumber is a constant containing the value meant to
 // be ignored. Checkout RememberDosing()!
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // username - the user for which to forget the dosing
 func (cfg Config) ForgetDosing(db *sql.DB, ctx context.Context,
-	errChannel chan<- ErrorInfo, username string) {
+	errChannel chan<- ErrorInfo, username string) ErrorInfo {
 	const printN string = "ForgetConfig()"
 
 	tempErrInfo := ErrorInfo{
@@ -331,14 +336,17 @@ func (cfg Config) ForgetDosing(db *sql.DB, ctx context.Context,
 		Action:   ActionForgetDosing,
 	}
 
-	errChannel2 := make(chan ErrorInfo)
-	go cfg.SetUserSettings(db, ctx, errChannel2, settingTypeID, username, ForgetInputConfigMagicNumber)
-	gotErrInfo := <-errChannel2
+	gotErrInfo := cfg.SetUserSettings(db, ctx, nil, settingTypeID, username, ForgetInputConfigMagicNumber)
 	if gotErrInfo.Err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErrInfo.Err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
