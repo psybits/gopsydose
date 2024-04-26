@@ -506,9 +506,7 @@ func main() {
 
 	remembering := false
 	if *drugargdose != 0 && *drugname == "none" && *changeLog == false {
-		userLogsErrChan := make(chan drugdose.UserLogsError)
-		go gotsetcfg.RecallDosing(db, ctx, userLogsErrChan, *forUser)
-		gotUserLogsErr := <-userLogsErrChan
+		gotUserLogsErr := gotsetcfg.RecallDosing(db, ctx, nil, *forUser)
 		err := gotUserLogsErr.Err
 		if err != nil {
 			printCLI("Couldn't recall dosing configuration: ", err)

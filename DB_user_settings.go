@@ -163,8 +163,6 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 
 // GetUserSettings return the value of a setting for a given user from the database.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
@@ -172,12 +170,13 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 // userSetErrChannel - a gorouting channel which is of type UserSettingError,
 // holding an error variable and a string of the value for a given setting,
 // make sure to always check the error first
+// (set to nil if function doesn't need to be concurrent)
 //
 // set - the name of the setting to get the value of
 //
 // username - the user for which to get the setting
 func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
-	userSetErrChannel chan<- UserSettingError, set string, username string) {
+	userSetErrChannel chan<- UserSettingError, set string, username string) UserSettingError {
 
 	const printN string = "GetUserSettings()"
 
@@ -192,8 +191,10 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 	if err != nil {
 		tempUserSetErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempUserSetErr.UserSetting = ""
-		userSetErrChannel <- tempUserSetErr
-		return
+		if userSetErrChannel != nil {
+			userSetErrChannel <- tempUserSetErr
+		}
+		return tempUserSetErr
 	}
 	defer stmt.Close()
 
@@ -202,14 +203,19 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 	if err != nil {
 		tempUserSetErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempUserSetErr.UserSetting = ""
-		userSetErrChannel <- tempUserSetErr
-		return
+		if userSetErrChannel != nil {
+			userSetErrChannel <- tempUserSetErr
+		}
+		return tempUserSetErr
 	}
 
 	tempUserSetErr.Err = nil
 	tempUserSetErr.UserSetting = got
 
-	userSetErrChannel <- tempUserSetErr
+	if userSetErrChannel != nil {
+		userSetErrChannel <- tempUserSetErr
+	}
+	return tempUserSetErr
 }
 
 // RememberDosing stores an ID of a log to reuse later via RecallDosing().
@@ -263,44 +269,51 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 // RecallDosing gives the data for the last configured dosing using the ID.
 // Checkout RememberDosing() for more info!
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // userLogsErrorChannel - the goroutine channel used to return the logs and
 // the error
+// (set to nil if function doesn't need to be concurrent)
 //
 // username - the user to recall the logs for
 func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
-	userLogsErrorChannel chan<- UserLogsError, username string) {
+	userLogsErrorChannel chan<- UserLogsError, username string) UserLogsError {
 	const printN string = "RememberConfig()"
 
-	tempUserLogsError := UserLogsError{}
-	userSetErr := make(chan UserSettingError)
-	go cfg.GetUserSettings(db, ctx, userSetErr, "useIDForRemember", username)
-	gotUserSetErr := <-userSetErr
+	tempUserLogsError := UserLogsError{
+		UserLogs: nil,
+		Username: username,
+		Err: nil,
+	}
+	gotUserSetErr := cfg.GetUserSettings(db, ctx, nil, "useIDForRemember", username)
 	err := gotUserSetErr.Err
 	if err != nil {
 		err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempUserLogsError.Err = err
-		userLogsErrorChannel <- tempUserLogsError
-		return
+		if userLogsErrorChannel != nil {
+			userLogsErrorChannel <- tempUserLogsError
+		}
+		return tempUserLogsError
 	}
 	gotID := gotUserSetErr.UserSetting
 	if gotID == ForgetInputConfigMagicNumber {
 		tempUserLogsError.Err = nil
 		tempUserLogsError.UserLogs = nil
-		userLogsErrorChannel <- tempUserLogsError
-		return
+		if userLogsErrorChannel != nil {
+			userLogsErrorChannel <- tempUserLogsError
+		}
+		return tempUserLogsError
 	}
 	gotInt, err := strconv.ParseInt(gotID, 10, 64)
 	if err != nil {
 		err := fmt.Errorf("%s%s: %w", sprintName(printN), "strconv.ParseInt()", err)
 		tempUserLogsError.Err = err
-		userLogsErrorChannel <- tempUserLogsError
-		return
+		if userLogsErrorChannel != nil {
+			userLogsErrorChannel <- tempUserLogsError
+		}
+		return tempUserLogsError
 	}
 
 	userLogsErrChan2 := make(chan UserLogsError)
@@ -311,7 +324,10 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 		err = fmt.Errorf("%s%w", sprintName(printN), err)
 	}
 	tempUserLogsError.Err = err
-	userLogsErrorChannel <- tempUserLogsError
+	if userLogsErrorChannel != nil {
+		userLogsErrorChannel <- tempUserLogsError
+	}
+	return tempUserLogsError
 }
 
 // ForgetDosing is meant to reset the setting for remembering dosings.
