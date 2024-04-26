@@ -369,13 +369,12 @@ func (cfg Config) CheckTables(db *sql.DB, ctx context.Context, tableName string)
 // function for fetching drug information. The information is automatically
 // added to the proper info table depending on the Config struct.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // drugname - the name of the substance to fetch information for
 //
@@ -389,7 +388,7 @@ func (cfg Config) CheckTables(db *sql.DB, ctx context.Context, tableName string)
 // best done using InitGraphqlClient(), but can be done manually if needed
 func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, drugname string, username string,
-	xtraNeeded ...any) {
+	xtraNeeded ...any) ErrorInfo {
 
 	const printN string = "FetchFromSource()"
 
@@ -413,16 +412,23 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 			tempErrInfo.Err = fmt.Errorf("%s%w",
 				sprintName(printN, "While fetching from: ", cfg.UseSource, " ; error: "),
 				gotErrInfo.Err)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 	} else {
 		tempErrInfo.Err = fmt.Errorf("%s%w: %s", sprintName(printN), NoValidSourceSel, cfg.UseSource)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
 
 // ChangeUserLog can be used to modify log data of a single log.
