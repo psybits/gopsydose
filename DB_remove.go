@@ -281,19 +281,18 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 // clear all information about dosage and timing for a specific drug if it's
 // old or incorrect.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - go routine channel which returns any errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // drug - name of drug to be removed from source table
 //
 // username - the user which requested the drug removal
 func (cfg Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
-	errChannel chan<- ErrorInfo, drug string, username string) {
+	errChannel chan<- ErrorInfo, drug string, username string) ErrorInfo {
 	const printN string = "RemoveSingleDrugInfo()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, NameTypeSubstance)
@@ -313,34 +312,41 @@ func (cfg Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
 		drug)
 	if !ret {
 		tempErrInfo.Err = fmt.Errorf("%s%w: %q", sprintName(printN), NoDrugInfoTableError, drug)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%s: %w", sprintName(printN), "db.BeginTx()", err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	stmt, err := tx.Prepare("delete from " + cfg.UseSource +
 		" where drugName = ?")
 	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
-		return
+		return tempErrInfo
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(drug)
 	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
-		return
+		return tempErrInfo
 	}
 
 	err = tx.Commit()
 	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
-		return
+		return tempErrInfo
 	}
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
 
 var LogDoesntExistError error = errors.New("log doesn't exist")

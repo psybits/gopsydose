@@ -347,6 +347,14 @@ func countExec(execCount *uint8) bool {
 	return true
 }
 
+func printErrAction(errInfo drugdose.ErrorInfo) {
+	if errInfo.Err != nil {
+		printCLI(errInfo.Err)
+	} else if errInfo.Action != "" {
+		printCLI(errInfo.Action)
+	}
+}
+
 // Count how many times a goroutine that uses the struct ErrorInfo has started
 // and remove 1 from the total count every time data has been sent from the
 // goroutine. When it reaches 0, stop the handler so that wg.Wait()
@@ -357,11 +365,7 @@ func countExec(execCount *uint8) bool {
 // to count if they don't need to, every project has unique requirements and
 // should take care of them in their own way.
 func handleErrInfo(errInfo drugdose.ErrorInfo, a ...any) bool {
-	if errInfo.Err != nil {
-		printCLI(errInfo.Err)
-	} else if errInfo.Err == nil && errInfo.Action != "" {
-		printCLI(errInfo.Action)
-	}
+	printErrAction(errInfo);
 	return countExec(a[0].(*uint8))
 }
 
@@ -523,8 +527,8 @@ func main() {
 	}
 
 	if *removeInfoDrug != "none" {
-		execCount++
-		go gotsetcfg.RemoveSingleDrugInfo(db, ctx, errInfoChanHandled, *removeInfoDrug, *forUser)
+		tempErrAction := gotsetcfg.RemoveSingleDrugInfo(db, ctx, nil, *removeInfoDrug, *forUser)
+		printErrAction(tempErrAction)
 	}
 
 	remAmount := 0
