@@ -165,13 +165,12 @@ func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly 
 
 // RemoveLogs removes logs from the dose log table.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // username - the user's logs that will be removed, no other user's logs will
 // be touched
@@ -187,7 +186,7 @@ func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly 
 // search - remove logs only matching this string
 func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, username string, amount int, reverse bool,
-	remID int64, search string, getExact string) {
+	remID int64, search string, getExact string) ErrorInfo {
 
 	const printN string = "RemoveLogs()"
 
@@ -209,8 +208,10 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 		gotLogs := <-userLogsErrChan
 		if gotLogs.Err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotLogs.Err)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 
 		var gotTimeOfDose []int64
@@ -236,8 +237,10 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 			xtrs[:], remID, username)
 		if !ret {
 			tempErrInfo.Err = fmt.Errorf("%s%w: %s%q", sprintName(printN), LogDoesntExistError, "with ID: ", remID)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 
 		stmtStr = "delete from " + loggingTableName + " where timeOfDoseStart = ? AND username = ?"
@@ -246,13 +249,15 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%s: %w", sprintName(printN), "db.BeginTx()", err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
-		return
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
+		return tempErrInfo
 	}
 	defer stmt.Close()
 	if remID != 0 {
@@ -260,20 +265,23 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 	} else {
 		_, err = stmt.Exec(username)
 	}
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
-		return
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec(): ") {
+		return tempErrInfo
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
-		return
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
+		return tempErrInfo
 	}
 
 	printNameVerbose(cfg.VerbosePrinting, printN, "Data removed from log table in DB successfully: user:",
 		username, "; amount:", amount, "; reverse:", reverse, "; remID:", remID,
 		"; search:", search)
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
 
 // RemoveSingleDrugInfo removes all entries of a single drug from the local

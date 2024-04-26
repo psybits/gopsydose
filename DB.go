@@ -62,20 +62,20 @@ func errorCantOpenDB(path string, err error, printN string) {
 //
 // Returns true if there's an error, false otherwise.
 func handleErrRollback(err error, tx *sql.Tx, errChannel chan<- ErrorInfo,
-	errInfo ErrorInfo, printN string, xtraMsg string) bool {
+	errInfo *ErrorInfo, printN string, xtraMsg string) bool {
 	if err != nil {
 		err2 := tx.Rollback()
 		if err2 != nil {
 			errInfo.Err = fmt.Errorf("error when attempting to roll back: %s%w",
 				sprintName(printN, xtraMsg), err2)
 			if errChannel != nil {
-				errChannel <- errInfo
+				errChannel <- *errInfo
 			}
 			return true
 		}
 		errInfo.Err = fmt.Errorf("rolling back: %s%w", sprintName(printN, xtraMsg), err)
 		if errChannel != nil {
-			errChannel <- errInfo
+			errChannel <- *errInfo
 		}
 		return true
 	}

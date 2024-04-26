@@ -347,7 +347,7 @@ func countExec(execCount *uint8) bool {
 	return true
 }
 
-func printErrAction(errInfo drugdose.ErrorInfo) {
+func printErrInfo(errInfo drugdose.ErrorInfo) {
 	if errInfo.Err != nil {
 		printCLI(errInfo.Err)
 	} else if errInfo.Action != "" {
@@ -365,7 +365,7 @@ func printErrAction(errInfo drugdose.ErrorInfo) {
 // to count if they don't need to, every project has unique requirements and
 // should take care of them in their own way.
 func handleErrInfo(errInfo drugdose.ErrorInfo, a ...any) bool {
-	printErrAction(errInfo);
+	printErrInfo(errInfo);
 	return countExec(a[0].(*uint8))
 }
 
@@ -527,8 +527,8 @@ func main() {
 	}
 
 	if *removeInfoDrug != "none" {
-		tempErrAction := gotsetcfg.RemoveSingleDrugInfo(db, ctx, nil, *removeInfoDrug, *forUser)
-		printErrAction(tempErrAction)
+		tempErrInfo := gotsetcfg.RemoveSingleDrugInfo(db, ctx, nil, *removeInfoDrug, *forUser)
+		printErrInfo(tempErrInfo)
 	}
 
 	remAmount := 0
@@ -543,9 +543,9 @@ func main() {
 	}
 
 	if *cleanLogs || remAmount != 0 {
-		execCount++
-		go gotsetcfg.RemoveLogs(db, ctx, errInfoChanHandled, *forUser,
+		tempErrInfo := gotsetcfg.RemoveLogs(db, ctx, nil, *forUser,
 			remAmount, revRem, *forID, *searchStr, getExact)
+		printErrInfo(tempErrInfo)
 	}
 
 	inputDose := false

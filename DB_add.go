@@ -199,9 +199,7 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	if MaxLogsPerUserSize(count) >= cfg.MaxLogsPerUser {
 		diff := count - uint32(cfg.MaxLogsPerUser)
 		if cfg.AutoRemove {
-			errChannel2 := make(chan ErrorInfo)
-			go cfg.RemoveLogs(db, ctx, errChannel2, user, int(diff+1), true, 0, "none", "")
-			gotErrInfo := <-errChannel2
+			gotErrInfo := cfg.RemoveLogs(db, ctx, nil, user, int(diff+1), true, 0, "none", "")
 			if gotErrInfo.Err != nil {
 				tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErrInfo.Err)
 				errChannel <- tempErrInfo
