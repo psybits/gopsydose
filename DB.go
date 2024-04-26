@@ -506,18 +506,18 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(setValue, id)
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec(): ") {
 		return
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
 		return
 	}
 

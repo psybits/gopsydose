@@ -137,19 +137,19 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
 		return tempErrInfo
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(setValue, username)
 
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec():") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec():") {
 		return tempErrInfo
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
 		return tempErrInfo
 	}
 

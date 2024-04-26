@@ -368,7 +368,7 @@ func TestForcedRollback(t *testing.T) {
 		var testConcurrentRollback = func(err error, tx *sql.Tx,
 			errChannel chan ErrorInfo, errInfo ErrorInfo, printN string,
 			xtra string, t *testing.T) {
-			if handleErrRollback(err, tx, errChannel, errInfo, printN, xtra) {
+			if handleErrRollback(err, tx, errChannel, &errInfo, printN, xtra) {
 				fmt.Println("handleErrRollback():", err)
 			} else {
 				t.Log("handleErrRollback():", err)

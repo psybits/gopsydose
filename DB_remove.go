@@ -337,17 +337,17 @@ func (cfg Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
 
 	stmt, err := tx.Prepare("delete from " + cfg.UseSource +
 		" where drugName = ?")
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
 		return tempErrInfo
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(drug)
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec(): ") {
 		return tempErrInfo
 	}
 
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
 		return tempErrInfo
 	}
 

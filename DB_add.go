@@ -59,7 +59,7 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 		"totalDurMin, totalDurMax, totalDurUnits, " +
 		"timeOfFetch) " +
 		"values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
 		return
 	}
 
@@ -92,12 +92,12 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 			subs[i].TotalDurMax,
 			subs[i].TotalDurUnits,
 			time.Now().Unix())
-		if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
+		if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec(): ") {
 			return
 		}
 	}
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
 		return
 	}
 
@@ -231,7 +231,7 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	stmt, err := tx.Prepare("insert into " + loggingTableName +
 		" (timeOfDoseStart, username, drugName, dose, doseUnits, drugRoute, cost, costCurrency) " +
 		"values(?, ?, ?, ?, ?, ?, ?, ?)")
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Prepare(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
 		return
 	}
 	defer stmt.Close()
@@ -249,13 +249,13 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	}
 
 	_, err = stmt.Exec(currTime, user, drug, dose, units, route, cost, costCur)
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "stmt.Exec(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec(): ") {
 		// release lock
 		synct.Lock.Unlock()
 		return
 	}
 	err = tx.Commit()
-	if handleErrRollback(err, tx, errChannel, tempErrInfo, printN, "tx.Commit(): ") {
+	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
 		// release lock
 		synct.Lock.Unlock()
 		return
