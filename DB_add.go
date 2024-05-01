@@ -106,16 +106,16 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 
 // AddToDoseTable adds a new logged dose to the local database.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // synct - pointer to SyncTimestamps struct used for synchronizing all AddToDoseTable() goroutines,
 // it makes sure no conflicts happen when new doses are added
+// (set to nil if function doesn't need to be concurrent)
 //
 // user - the username to log, if the same timestamps for the same username are chosen,
 // the function will increment them all with 1 second to avoid conflicts
@@ -142,7 +142,7 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel chan<- ErrorInfo,
 	synct *SyncTimestamps, user string, drug string, route string,
 	dose float32, units string, perc float32, cost float32, costCur string,
-	printit bool) {
+	printit bool) ErrorInfo {
 
 	const printN string = "AddToDoseTable()"
 
@@ -161,8 +161,10 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 		err, dose, units = cfg.ConvertUnits(db, ctx, drug, dose, perc)
 		if err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 	}
 
@@ -177,8 +179,10 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 				" ; Route: %q"+
 				" ; Units: %q",
 				drug, route, units))
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	var count uint32
@@ -189,12 +193,16 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 	count = gotLogCountErr.LogCount
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
-	// get lock
-	synct.Lock.Lock()
+	if errChannel != nil && synct != nil {
+		// get lock
+		synct.Lock.Lock()
+	}
 
 	if MaxLogsPerUserSize(count) >= cfg.MaxLogsPerUser {
 		diff := count - uint32(cfg.MaxLogsPerUser)
@@ -202,46 +210,58 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 			gotErrInfo := cfg.RemoveLogs(db, ctx, nil, user, int(diff+1), true, 0, "none", "")
 			if gotErrInfo.Err != nil {
 				tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErrInfo.Err)
-				errChannel <- tempErrInfo
-				// release lock
-				synct.Lock.Unlock()
-				return
+				if errChannel != nil && synct != nil {
+					errChannel <- tempErrInfo
+					// release lock
+					synct.Lock.Unlock()
+				}
+				return tempErrInfo
 			}
 		} else {
 			tempErrInfo.Err = fmt.Errorf("%s: %w: %q ; Not logging", sprintName(printN, "User:", user),
 				MaxLogsPerUserError, cfg.MaxLogsPerUser)
-			errChannel <- tempErrInfo
-			// release lock
-			synct.Lock.Unlock()
-			return
+			if errChannel != nil && synct != nil {
+				errChannel <- tempErrInfo
+				// release lock
+				synct.Lock.Unlock()
+			}
+			return tempErrInfo
 		}
 	}
 
-	// release lock
-	synct.Lock.Unlock()
+	if errChannel != nil && synct != nil {
+		// release lock
+		synct.Lock.Unlock()
+	}
 
 	// Add to log db
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%s: %w", sprintName(printN), "db.BeginTx()", err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	stmt, err := tx.Prepare("insert into " + loggingTableName +
 		" (timeOfDoseStart, username, drugName, dose, doseUnits, drugRoute, cost, costCurrency) " +
 		"values(?, ?, ?, ?, ?, ?, ?, ?)")
 	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
-		return
+		return tempErrInfo
 	}
 	defer stmt.Close()
 
-	// get lock
-	synct.Lock.Lock()
+	if errChannel != nil && synct != nil {
+		// get lock
+		synct.Lock.Lock()
+	}
 
 	currTime := time.Now().Unix()
-	if currTime <= synct.LastTimestamp && user == synct.LastUser {
-		currTime = synct.LastTimestamp + 1
+	if errChannel != nil && synct != nil {
+		if currTime <= synct.LastTimestamp && user == synct.LastUser {
+			currTime = synct.LastTimestamp + 1
+		}
 	}
 
 	if costCur == "" && cost != 0 {
@@ -250,22 +270,30 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 
 	_, err = stmt.Exec(currTime, user, drug, dose, units, route, cost, costCur)
 	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec(): ") {
-		// release lock
-		synct.Lock.Unlock()
-		return
+		if errChannel != nil && synct != nil {
+			// release lock
+			synct.Lock.Unlock()
+		}
+		return tempErrInfo
 	}
 	err = tx.Commit()
 	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
-		// release lock
-		synct.Lock.Unlock()
-		return
+		if errChannel != nil && synct != nil {
+			// release lock
+			synct.Lock.Unlock()
+		}
+		return tempErrInfo
 	}
 
-	synct.LastTimestamp = currTime
-	synct.LastUser = user
+	if errChannel != nil && synct != nil {
+		synct.LastTimestamp = currTime
+		synct.LastUser = user
+	}
 
-	// release lock
-	synct.Lock.Unlock()
+	if errChannel != nil && synct != nil {
+		// release lock
+		synct.Lock.Unlock()
+	}
 
 	if printit {
 		printNameF(printN, "Logged: drug: %q ; dose: %g ; units: %q ; route: %q ; username: %q "+
@@ -273,7 +301,10 @@ func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel cha
 			drug, dose, units, route, user, cost, costCur)
 	}
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
 
 var ComboInputError error = errors.New("combo of input parameters not in database")
