@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"sync"
 
 	"github.com/psybits/gopsydose"
 )
@@ -337,36 +336,12 @@ func printCLIVerbose(verbose bool, str ...any) {
 	}
 }
 
-func countExec(execCount *uint8) bool {
-	if *execCount > 0 {
-		*execCount -= 1
-	}
-	if *execCount <= 0 {
-		return false
-	}
-	return true
-}
-
 func printErrInfo(errInfo drugdose.ErrorInfo) {
 	if errInfo.Err != nil {
 		printCLI(errInfo.Err)
 	} else if errInfo.Action != "" {
 		printCLI(errInfo.Action)
 	}
-}
-
-// Count how many times a goroutine that uses the struct ErrorInfo has started
-// and remove 1 from the total count every time data has been sent from the
-// goroutine. When it reaches 0, stop the handler so that wg.Wait()
-// at the end can stop. The reason for this counting is so that we know how
-// many flags have been used and if we need to wait for them.
-// It wasn't needed to use a handler for this program, but it's a good way
-// of testing if it works properly and as a demo. Other programs don't have
-// to count if they don't need to, every project has unique requirements and
-// should take care of them in their own way.
-func handleErrInfo(errInfo drugdose.ErrorInfo, a ...any) bool {
-	printErrInfo(errInfo);
-	return countExec(a[0].(*uint8))
 }
 
 func main() {
@@ -411,10 +386,6 @@ func main() {
 	}
 
 	errInfoChan := make(chan drugdose.ErrorInfo)
-
-	var execCount uint8 = 1
-	var wg sync.WaitGroup
-	errInfoChanHandled := drugdose.AddChannelHandler(&wg, handleErrInfo, &execCount)
 	///////////////////////////////////////////////////////////////////////
 
 	setType := ""
@@ -619,12 +590,9 @@ func main() {
 	}
 
 	if *changeLog {
-		execCount++
-		go gotsetcfg.ChangeUserLog(db, ctx, errInfoChanHandled, setType, *forID, *forUser, setValue)
+		errInfo := gotsetcfg.ChangeUserLog(db, ctx, nil, setType, *forID, *forUser, setValue)
+		printErrInfo(errInfo)
 	}
-
-	errInfoChanHandled <- drugdose.ErrorInfo{}
-	wg.Wait()
 
 	if *dontLog == false && *remember == true {
 		go gotsetcfg.RememberDosing(db, ctx, errInfoChan, *forUser, *forID)

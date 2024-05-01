@@ -433,13 +433,12 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 
 // ChangeUserLog can be used to modify log data of a single log.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // set - what log data to change, if name is invalid, InvalidColInput
 // error will be send through userLogsErrorChannel
@@ -451,7 +450,7 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 //
 // setValue - the new value to set
 func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan<- ErrorInfo,
-	set string, id int64, username string, setValue string) {
+	set string, id int64, username string, setValue string) ErrorInfo {
 	const printN string = "ChangeUserLog()"
 
 	tempErrInfo := ErrorInfo{
@@ -463,8 +462,10 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	err := checkColIsInvalid(validLogCols(), set, printN)
 	if err != nil {
 		tempErrInfo.Err = err
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	if setValue == "now" && set == LogStartTimeCol || setValue == "now" && set == LogEndTimeCol {
@@ -474,16 +475,20 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	if set == LogStartTimeCol || set == LogEndTimeCol {
 		if _, err := strconv.ParseInt(setValue, 10, 64); err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "strconv.ParseInt(): "), err)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 	}
 
 	if set == "dose" {
 		if _, err := strconv.ParseFloat(setValue, 64); err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "strconv.ParseFloat(): "), err)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 	}
 
@@ -496,8 +501,10 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	gotErr = gotUserLogsErr.Err
 	if gotErr != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErr)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	gotLogs = gotUserLogsErr.UserLogs
@@ -507,27 +514,32 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "db.Begin(): "), err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	stmt, err := tx.Prepare(stmtStr)
 	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
-		return
+		return tempErrInfo
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(setValue, id)
 	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec(): ") {
-		return
+		return tempErrInfo
 	}
 
 	err = tx.Commit()
 	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
-		return
+		return tempErrInfo
 	}
 
 	printName(printN, "entry:", id, "; changed:", set, "; to value:", setValue, "; for user:", username)
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
