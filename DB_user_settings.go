@@ -222,19 +222,18 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 // This allows input of the dose only then drug, route, units will be reused
 // according to the ID set to recall.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // username - the user to use for remembering a dosing
 //
 // forID - the ID to use for remembering a dosing
 func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
-	errChannel chan<- ErrorInfo, username string, forID int64) {
+	errChannel chan<- ErrorInfo, username string, forID int64) ErrorInfo {
 	const printN string = "RememberDosing()"
 
 	tempErrInfo := ErrorInfo{
@@ -250,8 +249,10 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 		gotLogs := <-userLogsErrChan
 		if gotLogs.Err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotLogs.Err)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 		forIDStr = strconv.FormatInt(gotLogs.UserLogs[0].StartTime, 10)
 	}
@@ -259,11 +260,16 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 	gotErrInfo := cfg.SetUserSettings(db, ctx, nil, settingTypeID, username, forIDStr)
 	if gotErrInfo.Err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErrInfo.Err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
 
 // RecallDosing gives the data for the last configured dosing using the ID.

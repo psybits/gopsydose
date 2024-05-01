@@ -384,8 +384,6 @@ func main() {
 		printCLI(err)
 		os.Exit(1)
 	}
-
-	errInfoChan := make(chan drugdose.ErrorInfo)
 	///////////////////////////////////////////////////////////////////////
 
 	setType := ""
@@ -595,13 +593,8 @@ func main() {
 	}
 
 	if *dontLog == false && *remember == true {
-		go gotsetcfg.RememberDosing(db, ctx, errInfoChan, *forUser, *forID)
-		gotErrInfo := <-errInfoChan
-		if gotErrInfo.Err != nil {
-			printCLI(err)
-		} else if gotErrInfo.Err == nil && gotErrInfo.Action != "" {
-			printCLI(gotErrInfo.Action)
-		}
+		errInfo := gotsetcfg.RememberDosing(db, ctx, nil, *forUser, *forID)
+		printErrInfo(errInfo)
 	}
 
 	// All functions which modify data have finished.
