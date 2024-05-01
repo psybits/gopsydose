@@ -67,12 +67,11 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 		return
 	}
 
-	userLogsErrorChannel := make(chan UserLogsError)
+	var gotUserLogsErr UserLogsError
 	for i := 0; i < len(uniqueDrugNames); i++ {
-		go cfg.GetLogs(db, ctx, userLogsErrorChannel, 0, 0, username,
+		gotUserLogsErr = cfg.GetLogs(db, ctx, nil, 0, 0, username,
 			true, uniqueDrugNames[i], LogDrugNameCol)
-		gotUserLogsChannel := <-userLogsErrorChannel
-		err := gotUserLogsChannel.Err
+		err = gotUserLogsErr.Err
 		if err != nil {
 			tempCostsErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
 			costsErrChan <- tempCostsErr
@@ -88,11 +87,11 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 			tempCostsErr.Costs = append(tempCostsErr.Costs, tempCost)
 		}
 
-		for o := 0; o < len(gotUserLogsChannel.UserLogs); o++ {
+		for o := 0; o < len(gotUserLogsErr.UserLogs); o++ {
 			for p := 0; p < len(tempCostsErr.Costs); p++ {
-				if gotUserLogsChannel.UserLogs[o].CostCurrency == tempCostsErr.Costs[p].CostCurrency &&
-					gotUserLogsChannel.UserLogs[o].DrugName == tempCostsErr.Costs[p].Substance {
-					tempCostsErr.Costs[p].TotalCost += gotUserLogsChannel.UserLogs[o].Cost
+				if gotUserLogsErr.UserLogs[o].CostCurrency == tempCostsErr.Costs[p].CostCurrency &&
+					gotUserLogsErr.UserLogs[o].DrugName == tempCostsErr.Costs[p].Substance {
+					tempCostsErr.Costs[p].TotalCost += gotUserLogsErr.UserLogs[o].Cost
 				}
 			}
 		}

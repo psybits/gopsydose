@@ -187,14 +187,13 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
 // the error must be checked before reading the logs. Every log is a separate
 // element of the UserLogs slice.
 //
-// This function is meant to be run concurrently.
-//
 // db - an open database connection
 //
 // ctx - context that will be passed to the sql query function
 //
 // userLogsErrorChannel - the goroutine channel used to return the logs and
 // the error
+// (set to nil if function doesn't need to be concurrent)
 //
 // num - amount of logs to return (limit), if 0 returns all logs (without limit)
 //
@@ -211,10 +210,10 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
 //
 // getExact - if not empty, choose which column to search for and changes
 // the search behavior to exact matching, if name is invalid, InvalidColInput
-// error will be send through userLogsErrorChannel
+// error will be send through userLogsErrorChannel or returned
 func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	userLogsErrorChannel chan<- UserLogsError, num int, id int64,
-	user string, desc bool, search string, getExact string) {
+	user string, desc bool, search string, getExact string) UserLogsError {
 
 	printN := "GetLogs()"
 
@@ -243,8 +242,10 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 		err := checkColIsInvalid(validLogCols(), getExact, printN)
 		if err != nil {
 			tempUserLogsError.Err = err
-			userLogsErrorChannel <- tempUserLogsError
-			return
+			if userLogsErrorChannel != nil {
+				userLogsErrorChannel <- tempUserLogsError
+			}
+			return tempUserLogsError
 		}
 	}
 
@@ -279,8 +280,10 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	stmt, err := db.PrepareContext(ctx, mainQuery)
 	if err != nil {
 		tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.PrepareContext()"), err)
-		userLogsErrorChannel <- tempUserLogsError
-		return
+		if userLogsErrorChannel != nil {
+			userLogsErrorChannel <- tempUserLogsError
+		}
+		return tempUserLogsError
 	}
 	var rows *sql.Rows
 	if id == 0 {
@@ -290,17 +293,22 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 			rows, err = stmt.QueryContext(ctx, searchArr...)
 		}
 	} else {
-		stmt, err = db.PrepareContext(ctx, "select * from "+loggingTableName+" where username = ? and timeOfDoseStart = ?")
+		stmt, err = db.PrepareContext(ctx,
+			"select * from "+loggingTableName+" where username = ? and timeOfDoseStart = ?")
 		if err != nil {
 			tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.PrepareContext()"), err)
-			userLogsErrorChannel <- tempUserLogsError
-			return
+			if userLogsErrorChannel != nil {
+				userLogsErrorChannel <- tempUserLogsError
+			}
+			return tempUserLogsError
 		}
 		rows, err = stmt.QueryContext(ctx, user, id)
 		if err != nil {
 			tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.QueryContext()"), err)
-			userLogsErrorChannel <- tempUserLogsError
-			return
+			if userLogsErrorChannel != nil {
+				userLogsErrorChannel <- tempUserLogsError
+			}
+			return tempUserLogsError
 		}
 	}
 	defer rows.Close()
@@ -312,8 +320,10 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 		if err != nil {
 			tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "rows.Scan()"), err)
 			tempUserLogsError.UserLogs = userlogs
-			userLogsErrorChannel <- tempUserLogsError
-			return
+			if userLogsErrorChannel != nil {
+				userLogsErrorChannel <- tempUserLogsError
+			}
+			return tempUserLogsError
 		}
 
 		userlogs = append(userlogs, tempul)
@@ -322,19 +332,26 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 	if err != nil {
 		tempUserLogsError.Err = fmt.Errorf("%s: %w", sprintName(printN, "rows.Err()"), err)
 		tempUserLogsError.UserLogs = userlogs
-		userLogsErrorChannel <- tempUserLogsError
-		return
+		if userLogsErrorChannel != nil {
+			userLogsErrorChannel <- tempUserLogsError
+		}
+		return tempUserLogsError
 	}
 	if len(userlogs) == 0 {
 		tempUserLogsError.Err = fmt.Errorf("%s%w: %s", sprintName(printN), NoLogsError, user)
 		tempUserLogsError.UserLogs = userlogs
-		userLogsErrorChannel <- tempUserLogsError
-		return
+		if userLogsErrorChannel != nil {
+			userLogsErrorChannel <- tempUserLogsError
+		}
+		return tempUserLogsError
 	}
 
 	tempUserLogsError.Err = nil
 	tempUserLogsError.UserLogs = userlogs
-	userLogsErrorChannel <- tempUserLogsError
+	if userLogsErrorChannel != nil {
+		userLogsErrorChannel <- tempUserLogsError
+	}
+	return tempUserLogsError
 }
 
 // PrintLogs writes all logs present in userLogs to console.

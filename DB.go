@@ -441,7 +441,7 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 // (set to nil if function doesn't need to be concurrent)
 //
 // set - what log data to change, if name is invalid, InvalidColInput
-// error will be send through userLogsErrorChannel
+// error will be send through userLogsErrorChannel or returned
 //
 // id - if 0 will change the newest log, else it will change the log with
 // the given id
@@ -492,12 +492,10 @@ func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan
 		}
 	}
 
-	userLogsErrChan := make(chan UserLogsError)
 	var gotLogs []UserLog
 	var gotErr error
 
-	go cfg.GetLogs(db, ctx, userLogsErrChan, 1, id, username, true, "", "")
-	gotUserLogsErr := <-userLogsErrChan
+	gotUserLogsErr := cfg.GetLogs(db, ctx, nil, 1, id, username, true, "", "")
 	gotErr = gotUserLogsErr.Err
 	if gotErr != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotErr)

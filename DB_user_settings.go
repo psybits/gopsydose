@@ -244,9 +244,7 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 
 	forIDStr := strconv.FormatInt(forID, 10)
 	if forIDStr == "0" {
-		userLogsErrChan := make(chan UserLogsError)
-		go cfg.GetLogs(db, ctx, userLogsErrChan, 1, 0, username, true, "none", "")
-		gotLogs := <-userLogsErrChan
+		gotLogs := cfg.GetLogs(db, ctx, nil, 1, 0, username, true, "none", "")
 		if gotLogs.Err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), gotLogs.Err)
 			if errChannel != nil {
@@ -322,9 +320,7 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 		return tempUserLogsError
 	}
 
-	userLogsErrChan2 := make(chan UserLogsError)
-	go cfg.GetLogs(db, ctx, userLogsErrChan2, 1, gotInt, username, false, "", "")
-	tempUserLogsError = <-userLogsErrChan2
+	tempUserLogsError = cfg.GetLogs(db, ctx, nil, 1, gotInt, username, false, "", "")
 	err = tempUserLogsError.Err
 	if err != nil {
 		err = fmt.Errorf("%s%w", sprintName(printN), err)

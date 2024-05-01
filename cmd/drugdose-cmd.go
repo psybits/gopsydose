@@ -599,32 +599,31 @@ func main() {
 
 	// All functions which modify data have finished.
 
-	userLogsErrChan := make(chan drugdose.UserLogsError)
 	var gettingLogs bool = false
 	var logsLimit bool = false
+	var gotUserLogsErr drugdose.UserLogsError
 
 	if *getLogs {
 		if *noGetLimit {
-			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 0, *forID,
+			gotUserLogsErr = gotsetcfg.GetLogs(db, ctx, nil, 0, *forID,
 				*forUser, false, *searchStr, getExact)
 		} else {
-			go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, 100, *forID,
+			gotUserLogsErr = gotsetcfg.GetLogs(db, ctx, nil, 100, *forID,
 				*forUser, false, *searchStr, getExact)
 			logsLimit = true
 		}
 		gettingLogs = true
 	} else if *getNewLogs != 0 {
-		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getNewLogs, 0,
+		gotUserLogsErr = gotsetcfg.GetLogs(db, ctx, nil, *getNewLogs, 0,
 			*forUser, true, *searchStr, getExact)
 		gettingLogs = true
 	} else if *getOldLogs != 0 {
-		go gotsetcfg.GetLogs(db, ctx, userLogsErrChan, *getOldLogs, 0,
+		gotUserLogsErr = gotsetcfg.GetLogs(db, ctx, nil, *getOldLogs, 0,
 			*forUser, false, *searchStr, getExact)
 		gettingLogs = true
 	}
 
 	if gettingLogs == true {
-		gotUserLogsErr := <-userLogsErrChan
 		retLogs := gotUserLogsErr.UserLogs
 		gotErr := gotUserLogsErr.Err
 		if logsLimit == true {
