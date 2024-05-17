@@ -150,7 +150,7 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
 // logCountErrChan - the goroutine channel used to return the log count and
 // the error
 func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
-	logCountErrChan chan<- LogCountError) {
+	logCountErrChan chan<- LogCountError) LogCountError {
 	const printN string = "GetLogsCount()"
 
 	tempLogCountErr := LogCountError{
@@ -165,20 +165,27 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
 		"select count(*) from "+loggingTableName+" where username = ?")
 	if err != nil {
 		tempLogCountErr.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.PrepareContext()"), err)
-		logCountErrChan <- tempLogCountErr
-		return
+		if logCountErrChan != nil {
+			logCountErrChan <- tempLogCountErr
+		}
+		return tempLogCountErr
 	}
 
 	row := stmt.QueryRowContext(ctx, user)
 	err = row.Scan(&count)
 	if err != nil {
 		tempLogCountErr.Err = fmt.Errorf("%s: %w", sprintName(printN, "row.Scan()"), err)
-		logCountErrChan <- tempLogCountErr
-		return
+		if logCountErrChan != nil {
+			logCountErrChan <- tempLogCountErr
+		}
+		return tempLogCountErr
 	}
 
 	tempLogCountErr.LogCount = count
-	logCountErrChan <- tempLogCountErr
+	if logCountErrChan != nil {
+		logCountErrChan <- tempLogCountErr
+	}
+	return tempLogCountErr
 }
 
 // GetLogs returns all logs for a given username in the drug log table.

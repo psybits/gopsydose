@@ -642,9 +642,7 @@ func main() {
 	}
 
 	if *getLogsCount {
-		logCountErrChan := make(chan drugdose.LogCountError)
-		go gotsetcfg.GetLogsCount(db, ctx, *forUser, logCountErrChan)
-		gotLogCountErr := <-logCountErrChan
+		gotLogCountErr := gotsetcfg.GetLogsCount(db, ctx, *forUser, nil)
 		err := gotLogCountErr.Err
 		if err != nil {
 			printCLI(err)
