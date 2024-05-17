@@ -425,7 +425,7 @@ func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
 //
 // username - the user requesting the local info
 func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
-	drugInfoErrChan chan<- DrugInfoError, drug string, username string) {
+	drugInfoErrChan chan<- DrugInfoError, drug string, username string) DrugInfoError {
 	printN := "GerLocalInfo()"
 
 	drug = cfg.MatchAndReplace(db, ctx, drug, NameTypeSubstance)
@@ -445,15 +445,19 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 		drug)
 	if !ret {
 		tempDrugInfoErr.Err = fmt.Errorf("%s%w: %s", sprintName(printN), NoDrugInfoTable, drug)
-		drugInfoErrChan <- tempDrugInfoErr
-		return
+		if drugInfoErrChan != nil {
+			drugInfoErrChan <- tempDrugInfoErr
+		}
+		return tempDrugInfoErr
 	}
 
 	rows, err := db.QueryContext(ctx, "select * from "+cfg.UseSource+" where drugName = ?", drug)
 	if err != nil {
 		tempDrugInfoErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		drugInfoErrChan <- tempDrugInfoErr
-		return
+		if drugInfoErrChan != nil {
+			drugInfoErrChan <- tempDrugInfoErr
+		}
+		return tempDrugInfoErr
 	}
 	defer rows.Close()
 	infoDrug := []DrugInfo{}
@@ -471,8 +475,10 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 			&tempdrinfo.TotalDurUnits, &tempdrinfo.TimeOfFetch)
 		if err != nil {
 			tempDrugInfoErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-			drugInfoErrChan <- tempDrugInfoErr
-			return
+			if drugInfoErrChan != nil {
+				drugInfoErrChan <- tempDrugInfoErr
+			}
+			return tempDrugInfoErr
 		}
 
 		infoDrug = append(infoDrug, tempdrinfo)
@@ -480,12 +486,17 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 	err = rows.Err()
 	if err != nil {
 		tempDrugInfoErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		drugInfoErrChan <- tempDrugInfoErr
-		return
+		if drugInfoErrChan != nil {
+			drugInfoErrChan <- tempDrugInfoErr
+		}
+		return tempDrugInfoErr
 	}
 
 	tempDrugInfoErr.DrugI = infoDrug
-	drugInfoErrChan <- tempDrugInfoErr
+	if drugInfoErrChan != nil {
+		drugInfoErrChan <- tempDrugInfoErr
+	}
+	return tempDrugInfoErr
 }
 
 // PrintLocalInfo prints the information gotten from the source, present in the

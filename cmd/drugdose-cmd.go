@@ -759,9 +759,7 @@ func main() {
 	}
 
 	if *getLocalInfoDrug != "none" {
-		drugInfoErrChan := make(chan drugdose.DrugInfoError)
-		go gotsetcfg.GetLocalInfo(db, ctx, drugInfoErrChan, *getLocalInfoDrug, *forUser)
-		gotDrugInfoErr := <-drugInfoErrChan
+		gotDrugInfoErr := gotsetcfg.GetLocalInfo(db, ctx, nil, *getLocalInfoDrug, *forUser)
 		locinfo := gotDrugInfoErr.DrugI
 		err = gotDrugInfoErr.Err
 		if err != nil {

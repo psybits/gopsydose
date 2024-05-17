@@ -138,9 +138,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 
 	useLog := gotLogs.UserLogs[0]
 
-	drugInfoErrChan := make(chan DrugInfoError)
-	go cfg.GetLocalInfo(db, ctx, drugInfoErrChan, useLog.DrugName, username)
-	gotDrugInfoErr := <-drugInfoErrChan
+	gotDrugInfoErr := cfg.GetLocalInfo(db, ctx, nil, useLog.DrugName, username)
 	gotInfo := gotDrugInfoErr.DrugI
 	err := gotDrugInfoErr.Err
 	if err != nil {
