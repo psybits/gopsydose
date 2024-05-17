@@ -677,9 +677,7 @@ func main() {
 	}
 
 	if *getUsers {
-		allUsersErrChan := make(chan drugdose.AllUsersError)
-		go gotsetcfg.GetUsers(db, ctx, allUsersErrChan, *forUser)
-		gotAllUsersErr := <-allUsersErrChan
+		gotAllUsersErr := gotsetcfg.GetUsers(db, ctx, nil, *forUser)
 		err = gotAllUsersErr.Err
 		ret := gotAllUsersErr.AllUsers
 		if err != nil {

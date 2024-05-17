@@ -97,7 +97,7 @@ func (cfg Config) GetDBSize() int64 {
 //
 // username - user to get unique usernames for
 func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
-	allUsersErrChan chan<- AllUsersError, username string) {
+	allUsersErrChan chan<- AllUsersError, username string) AllUsersError {
 	const printN string = "GetUsers()"
 
 	var allUsers []string
@@ -112,28 +112,37 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
 	rows, err := db.QueryContext(ctx, "select distinct username from "+loggingTableName)
 	if err != nil {
 		tempAllUsersErr.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.QueryContext()"), err)
-		allUsersErrChan <- tempAllUsersErr
-		return
+		if allUsersErrChan != nil {
+			allUsersErrChan <- tempAllUsersErr
+		}
+		return tempAllUsersErr
 	}
 
 	for rows.Next() {
 		err = rows.Scan(&tempUser)
 		if err != nil {
 			tempAllUsersErr.Err = fmt.Errorf("%s: %w", sprintName(printN, "rows.Scan()"), err)
-			allUsersErrChan <- tempAllUsersErr
-			return
+			if allUsersErrChan != nil {
+				allUsersErrChan <- tempAllUsersErr
+			}
+			return tempAllUsersErr
 		}
 		allUsers = append(allUsers, tempUser)
 	}
 
 	if len(allUsers) == 0 {
 		tempAllUsersErr.Err = fmt.Errorf("%s%w", sprintName(printN), NoUsersReturned)
-		allUsersErrChan <- tempAllUsersErr
-		return
+		if allUsersErrChan != nil {
+			allUsersErrChan <- tempAllUsersErr
+		}
+		return tempAllUsersErr
 	}
 
 	tempAllUsersErr.AllUsers = allUsers
-	allUsersErrChan <- tempAllUsersErr
+	if allUsersErrChan != nil {
+		allUsersErrChan <- tempAllUsersErr
+	}
+	return tempAllUsersErr
 }
 
 // GetLogsCount returns total amount of logs in
