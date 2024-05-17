@@ -26,14 +26,13 @@ type CostsError struct {
 // GetTotalCosts returns a slice containing all costs about all drugs in all
 // currencies.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // costsErrChan - the goroutine channel used to return the slice containing
 // all costs
+// (set to nil if function doesn't need to be concurrent)
 //
 // username - the user for which to return the costs
 func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,

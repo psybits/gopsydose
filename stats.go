@@ -104,14 +104,13 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 // The points are defined in the TimeTill struct. PrintTimeTill() can be used
 // to output the information gathered in this function to the terminal.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // timeTillErrChan - the goroutine channel which returns the TimeTill struct
 // and an error
+// (set to nil if function doesn't need to be concurrent)
 //
 // username - the user for which to get the information
 //

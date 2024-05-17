@@ -86,14 +86,13 @@ func (cfg Config) GetDBSize() int64 {
 // GetUsers returns all unique usernames
 // currently present in the dose log table.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // allUsersErrChan - the goroutine channel used to return all unique usernames
 // and the error
+// (set to nil if function doesn't need to be concurrent)
 //
 // username - user to get unique usernames for
 func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
@@ -148,8 +147,6 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
 // GetLogsCount returns total amount of logs in
 // the dose log table for username set in user parameter.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
@@ -158,6 +155,7 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
 //
 // logCountErrChan - the goroutine channel used to return the log count and
 // the error
+// (set to nil if function doesn't need to be concurrent)
 func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
 	logCountErrChan chan<- LogCountError) LogCountError {
 	const printN string = "GetLogsCount()"
@@ -412,14 +410,13 @@ func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
 
 // GetLocalInfo returns a slice containing all information about a drug.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // drugInfoErrChan - the goroutine channel used to return the slice containing
 // information about all routes for a drug and the error
+// (set to nil if function doesn't need to be concurrent)
 //
 // drug - drug to get information about
 //
@@ -559,14 +556,13 @@ func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 // GetLoggedNames returns a slice containing all unique names of drugs
 // present in the local info table or log table.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // drugNamesErrorChannel - the goroutine channel used to return the list of
 // drug names and the error
+// (set to nil if function doesn't need to be concurrent)
 //
 // info - if true will get names from local info table, if false from log table
 //
