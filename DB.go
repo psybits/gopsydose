@@ -405,9 +405,7 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 		printN, "Got API URL from sources.toml:", gotsrcData[cfg.UseSource].API_ADDRESS)
 
 	if cfg.UseSource == "psychonautwiki" {
-		errChannel2 := make(chan ErrorInfo)
-		go cfg.FetchPsyWiki(db, ctx, errChannel2, drugname, xtraNeeded[0].(graphql.Client), username)
-		gotErrInfo := <-errChannel2
+		gotErrInfo := cfg.FetchPsyWiki(db, ctx, nil, drugname, xtraNeeded[0].(graphql.Client), username)
 		if gotErrInfo.Err != nil {
 			tempErrInfo.Err = fmt.Errorf("%s%w",
 				sprintName(printN, "While fetching from: ", cfg.UseSource, " ; error: "),

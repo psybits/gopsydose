@@ -124,13 +124,12 @@ func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 // source chosen in the Config struct. The name of the table is the same as the
 // name of the source, in this case "psychonautwiki".
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // drugname - the substance to get information about
 //
@@ -140,7 +139,7 @@ func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 // username - the user that requested the fetch request
 func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, drugname string, client graphql.Client,
-	username string) {
+	username string) ErrorInfo {
 	const printN string = "FetchPsyWiki()"
 
 	tempErrInfo := ErrorInfo{
@@ -151,8 +150,10 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 
 	if !cfg.AutoFetch {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Automatic fetching is disabled, returning.")
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	drugname = cfg.MatchAndReplace(db, ctx, drugname, NameTypeSubstance)
@@ -166,8 +167,10 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 		drugname)
 	if ret {
 		printNameVerbose(cfg.VerbosePrinting, printN, "Drug already in DB, returning. No need to fetch anything from Psychonautwiki.")
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	xtraTxt := ""
@@ -192,8 +195,10 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 	err := client.Query(ctx, &query, variables)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN, "client.Query(): "), err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	InfoDrug := []DrugInfo{}
@@ -238,8 +243,10 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 				}
 			} else {
 				tempErrInfo.Err = fmt.Errorf("%s%w: %+v", sprintName(printN), NoROAForSubs, subs[i])
-				errChannel <- tempErrInfo
-				return
+				if errChannel != nil {
+					errChannel <- tempErrInfo
+				}
+				return tempErrInfo
 			}
 		}
 
@@ -250,21 +257,30 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 			err := errInfo.Err
 			if err != nil {
 				tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-				errChannel <- tempErrInfo
-				return
+				if errChannel != nil {
+					errChannel <- tempErrInfo
+				}
+				return tempErrInfo
 			}
 		} else {
 			tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), StructSliceEmpty)
-			errChannel <- tempErrInfo
-			return
+			if errChannel != nil {
+				errChannel <- tempErrInfo
+			}
+			return tempErrInfo
 		}
 	} else {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), PsychonautwikiEmptyResp)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
 
 // NoROAForSubs is the error returned when no routes of administration is
