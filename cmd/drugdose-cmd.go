@@ -652,9 +652,7 @@ func main() {
 	}
 
 	if *getTotalCosts {
-		costsErrChan := make(chan drugdose.CostsError)
-		go gotsetcfg.GetTotalCosts(db, ctx, costsErrChan, *forUser)
-		gotCostsErr := <-costsErrChan
+		gotCostsErr := gotsetcfg.GetTotalCosts(db, ctx, nil, *forUser)
 		err := gotCostsErr.Err
 		if err != nil {
 			printCLI(err)

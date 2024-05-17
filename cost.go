@@ -37,7 +37,7 @@ type CostsError struct {
 //
 // username - the user for which to return the costs
 func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
-	costsErrChan chan<- CostsError, username string) {
+	costsErrChan chan<- CostsError, username string) CostsError {
 
 	const printN string = "GetTotalCosts()"
 
@@ -53,8 +53,10 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 	uniqueDrugNames := gotDrugNamesErr.DrugNames
 	if err != nil {
 		tempCostsErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		costsErrChan <- tempCostsErr
-		return
+		if costsErrChan != nil {
+			costsErrChan <- tempCostsErr
+		}
+		return tempCostsErr
 	}
 
 	go cfg.GetLoggedNames(db, ctx, drugNamesErrChan, false, username, LogCostCurrencyCol)
@@ -63,8 +65,10 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 	uniqueCurrencyNames := gotDrugNamesErr.DrugNames
 	if err != nil {
 		tempCostsErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		costsErrChan <- tempCostsErr
-		return
+		if costsErrChan != nil {
+			costsErrChan <- tempCostsErr
+		}
+		return tempCostsErr
 	}
 
 	var gotUserLogsErr UserLogsError
@@ -74,8 +78,10 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 		err = gotUserLogsErr.Err
 		if err != nil {
 			tempCostsErr.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-			costsErrChan <- tempCostsErr
-			return
+			if costsErrChan != nil {
+				costsErrChan <- tempCostsErr
+			}
+			return tempCostsErr
 		}
 
 		for o := 0; o < len(uniqueCurrencyNames); o++ {
@@ -91,13 +97,17 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 			for p := 0; p < len(tempCostsErr.Costs); p++ {
 				if gotUserLogsErr.UserLogs[o].CostCurrency == tempCostsErr.Costs[p].CostCurrency &&
 					gotUserLogsErr.UserLogs[o].DrugName == tempCostsErr.Costs[p].Substance {
+
 					tempCostsErr.Costs[p].TotalCost += gotUserLogsErr.UserLogs[o].Cost
 				}
 			}
 		}
 	}
 
-	costsErrChan <- tempCostsErr
+	if costsErrChan != nil {
+		costsErrChan <- tempCostsErr
+	}
+	return tempCostsErr
 }
 
 // PrintTotalCosts writes all costs for all currencies to console.
@@ -113,15 +123,20 @@ func PrintTotalCosts(costs []Cost, prefix bool) {
 	} else {
 		printN = ""
 	}
+	noCosts := true
 
 	for i := 0; i < len(costs); i++ {
 		if costs[i].TotalCost == 0 {
 			continue
 		}
+		noCosts = false
 		printNameF(printN, "Substance:\t%q\n", costs[i].Substance)
 		printNameF(printN, "Total Cost:\t%g\n", costs[i].TotalCost)
 		printNameF(printN, "Cost Currency:\t%q\n", costs[i].CostCurrency)
 		printName(printN, "====================")
+	}
+	if noCosts == true {
+		printNameF(printN, "No logged costs.\n")
 	}
 }
 
