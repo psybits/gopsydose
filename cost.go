@@ -46,9 +46,7 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 		Err:   nil,
 	}
 
-	drugNamesErrChan := make(chan DrugNamesError)
-	go cfg.GetLoggedNames(db, ctx, drugNamesErrChan, false, username, LogDrugNameCol)
-	gotDrugNamesErr := <-drugNamesErrChan
+	gotDrugNamesErr := cfg.GetLoggedNames(db, ctx, nil, false, username, LogDrugNameCol)
 	err := gotDrugNamesErr.Err
 	uniqueDrugNames := gotDrugNamesErr.DrugNames
 	if err != nil {
@@ -59,8 +57,7 @@ func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 		return tempCostsErr
 	}
 
-	go cfg.GetLoggedNames(db, ctx, drugNamesErrChan, false, username, LogCostCurrencyCol)
-	gotDrugNamesErr = <-drugNamesErrChan
+	gotDrugNamesErr = cfg.GetLoggedNames(db, ctx, nil, false, username, LogCostCurrencyCol)
 	err = gotDrugNamesErr.Err
 	uniqueCurrencyNames := gotDrugNamesErr.DrugNames
 	if err != nil {

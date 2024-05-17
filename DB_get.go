@@ -563,7 +563,7 @@ func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 // InvalidColInput error will be send through userLogsErrorChannel
 func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	drugNamesErrorChannel chan<- DrugNamesError, info bool,
-	username string, getExact string) {
+	username string, getExact string) DrugNamesError {
 	const printN string = "GetLoggedNames()"
 
 	tempDrugNamesError := DrugNamesError{
@@ -585,16 +585,20 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	err := checkColIsInvalid(logCols, getExact, printN)
 	if err != nil {
 		tempDrugNamesError.Err = err
-		drugNamesErrorChannel <- tempDrugNamesError
-		return
+		if drugNamesErrorChannel != nil {
+			drugNamesErrorChannel <- tempDrugNamesError
+		}
+		return tempDrugNamesError
 	}
 
 	mainStmt := "select distinct " + getExact + " from " + useTable + addToStmt
 	stmt, err := db.PrepareContext(ctx, mainStmt)
 	if err != nil {
 		tempDrugNamesError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.PreapeContext()"), err)
-		drugNamesErrorChannel <- tempDrugNamesError
-		return
+		if drugNamesErrorChannel != nil {
+			drugNamesErrorChannel <- tempDrugNamesError
+		}
+		return tempDrugNamesError
 	}
 
 	var rows *sql.Rows
@@ -605,8 +609,10 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	}
 	if err != nil {
 		tempDrugNamesError.Err = fmt.Errorf("%s: %w", sprintName(printN, "db.QueryContext()"), err)
-		drugNamesErrorChannel <- tempDrugNamesError
-		return
+		if drugNamesErrorChannel != nil {
+			drugNamesErrorChannel <- tempDrugNamesError
+		}
+		return tempDrugNamesError
 	}
 	defer rows.Close()
 
@@ -616,8 +622,10 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 		err := rows.Scan(&holdName)
 		if err != nil {
 			tempDrugNamesError.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-			drugNamesErrorChannel <- tempDrugNamesError
-			return
+			if drugNamesErrorChannel != nil {
+				drugNamesErrorChannel <- tempDrugNamesError
+			}
+			return tempDrugNamesError
 		}
 
 		drugList = append(drugList, holdName)
@@ -625,8 +633,10 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	err = rows.Err()
 	if err != nil {
 		tempDrugNamesError.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		drugNamesErrorChannel <- tempDrugNamesError
-		return
+		if drugNamesErrorChannel != nil {
+			drugNamesErrorChannel <- tempDrugNamesError
+		}
+		return tempDrugNamesError
 	}
 
 	if len(drugList) == 0 {
@@ -634,5 +644,8 @@ func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	}
 
 	tempDrugNamesError.DrugNames = drugList
-	drugNamesErrorChannel <- tempDrugNamesError
+	if drugNamesErrorChannel != nil {
+		drugNamesErrorChannel <- tempDrugNamesError
+	}
+	return tempDrugNamesError
 }

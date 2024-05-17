@@ -735,9 +735,7 @@ func main() {
 	}
 
 	if getUniqueNames == true {
-		drugNamesErrChan := make(chan drugdose.DrugNamesError)
-		go gotsetcfg.GetLoggedNames(db, ctx, drugNamesErrChan, *&getInfoNames, *forUser, useCol)
-		gotDrugNamesErr := <-drugNamesErrChan
+		gotDrugNamesErr := gotsetcfg.GetLoggedNames(db, ctx, nil, *&getInfoNames, *forUser, useCol)
 		err = gotDrugNamesErr.Err
 		locinfolist := gotDrugNamesErr.DrugNames
 		if err != nil {
