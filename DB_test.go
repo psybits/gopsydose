@@ -47,7 +47,7 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	gotsetcfg := InitAllSettings("test", DefaultDBDir, DefaultDBName,
 		DefaultMySQLAccess, false, false, true, "test")
 
-	if (dbDriver == "") {
+	if dbDriver == "" {
 		return nil, nil, gotsetcfg
 	}
 

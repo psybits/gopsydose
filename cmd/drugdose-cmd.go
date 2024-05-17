@@ -571,7 +571,7 @@ func main() {
 			errInfo := gotsetcfg.AddToDoseTable(db, ctx, nil, nil, *forUser, *drugname, *drugroute,
 				float32(*drugargdose), *drugunits, float32(*drugperc),
 				float32(*drugcost), *costCur, true)
-			printErrInfo(errInfo);
+			printErrInfo(errInfo)
 		} else if *dontLog == true {
 			err, convOutput, convUnit := gotsetcfg.ConvertUnits(db, ctx, *drugname,
 				float32(*drugargdose), float32(*drugperc))

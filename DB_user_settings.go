@@ -289,7 +289,7 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 	tempUserLogsError := UserLogsError{
 		UserLogs: nil,
 		Username: username,
-		Err: nil,
+		Err:      nil,
 	}
 	gotUserSetErr := cfg.GetUserSettings(db, ctx, nil, "useIDForRemember", username)
 	err := gotUserSetErr.Err
