@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// Set environment variable GPDNOMARIA to "1" in order to
+// skip running all MariaDB tests.
+
 const test_drug string = "test_drug"
 const test_route string = "test_route"
 const test_units string = "test_units"
@@ -18,6 +21,9 @@ const test_user string = "test_user"
 const test_source string = "test"
 
 func testWithDrivers() [2]string {
+	if os.Getenv("GPDNOMARIA") == "1" {
+		return [2]string{SqliteDriver, ""}
+	}
 	return [2]string{SqliteDriver, MysqlDriver}
 }
 
@@ -40,6 +46,10 @@ func useUser(i int, o int) int {
 func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	gotsetcfg := InitAllSettings("test", DefaultDBDir, DefaultDBName,
 		DefaultMySQLAccess, false, false, true, "test")
+
+	if (dbDriver == "") {
+		return nil, nil, gotsetcfg
+	}
 
 	gotsetcfg.AutoFetch = false
 	gotsetcfg.AutoRemove = false
@@ -132,6 +142,9 @@ func TestConcurrentGetLogs(t *testing.T) {
 	fmt.Println("\t---Starting TestConcurrentGetLogs()")
 	for _, v := range testWithDrivers() {
 		db, ctx, cfg := initForTests(v)
+		if db == nil {
+			return
+		}
 		defer db.Close()
 
 		temp_doses := genLogDoses()
@@ -215,6 +228,9 @@ func TestConcurrentAddToDoseTable(t *testing.T) {
 	fmt.Println("\t---Starting TestConcurrentAddToDoseTable()")
 	for _, v := range testWithDrivers() {
 		db, ctx, cfg := initForTests(v)
+		if db == nil {
+			return
+		}
 		defer db.Close()
 
 		temp_doses := genLogDoses()
@@ -296,6 +312,9 @@ func TestConcurrentAddToDoseTable(t *testing.T) {
 func TestUseConfigTimeout(t *testing.T) {
 	fmt.Println("\t---Starting TestUseConfigTimeout()")
 	db, ctx, cfg := initForTests(SqliteDriver)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	cfg.Timeout = "1s"
@@ -334,6 +353,9 @@ func TestForcedRollback(t *testing.T) {
 	fmt.Println("\t---Starting TestForcedRollback()")
 	for _, v := range testWithDrivers() {
 		db, ctx, cfg := initForTests(v)
+		if db == nil {
+			return
+		}
 		defer db.Close()
 
 		tx, err := db.BeginTx(ctx, nil)
