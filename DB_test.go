@@ -68,9 +68,7 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	}
 	testsub = append(testsub, tempsub)
 
-	errChannel := make(chan ErrorInfo)
-	go gotsetcfg.AddToInfoTable(db, ctx, errChannel, testsub, "")
-	errInfo := <-errChannel
+	errInfo := gotsetcfg.AddToInfoTable(db, ctx, nil, testsub, "")
 	err = errInfo.Err
 	if err != nil {
 		fmt.Println(err)

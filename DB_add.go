@@ -17,19 +17,18 @@ import (
 // in the database. subs[] has to be filled prior to calling the function.
 // This is usually achieved by fetching data from a source using it's API.
 //
-// This function is meant to be run concurrently.
-//
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
 //
 // errChannel - the gorouting channel which returns the errors
+// (set to nil if function doesn't need to be concurrent)
 //
 // subs - all substances of type DrugInfo to go through to add to source table
 //
 // username - user requesting addition
 func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
-	errChannel chan<- ErrorInfo, subs []DrugInfo, username string) {
+	errChannel chan<- ErrorInfo, subs []DrugInfo, username string) ErrorInfo {
 	const printN string = "AddToInfoTable()"
 
 	tempErrInfo := ErrorInfo{
@@ -41,8 +40,10 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
-		errChannel <- tempErrInfo
-		return
+		if errChannel != nil {
+			errChannel <- tempErrInfo
+		}
+		return tempErrInfo
 	}
 
 	stmt, err := tx.Prepare("insert into " + cfg.UseSource +
@@ -60,7 +61,7 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 		"timeOfFetch) " +
 		"values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Prepare(): ") {
-		return
+		return tempErrInfo
 	}
 
 	defer stmt.Close()
@@ -93,15 +94,18 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 			subs[i].TotalDurUnits,
 			time.Now().Unix())
 		if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "stmt.Exec(): ") {
-			return
+			return tempErrInfo
 		}
 	}
 	err = tx.Commit()
 	if handleErrRollback(err, tx, errChannel, &tempErrInfo, printN, "tx.Commit(): ") {
-		return
+		return tempErrInfo
 	}
 
-	errChannel <- tempErrInfo
+	if errChannel != nil {
+		errChannel <- tempErrInfo
+	}
+	return tempErrInfo
 }
 
 // AddToDoseTable adds a new logged dose to the local database.

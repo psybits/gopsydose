@@ -251,9 +251,7 @@ func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 		}
 
 		if len(InfoDrug) != 0 {
-			errChannel2 := make(chan ErrorInfo)
-			go cfg.AddToInfoTable(db, ctx, errChannel2, InfoDrug, username)
-			errInfo := <-errChannel2
+			errInfo := cfg.AddToInfoTable(db, ctx, nil, InfoDrug, username)
 			err := errInfo.Err
 			if err != nil {
 				tempErrInfo.Err = fmt.Errorf("%s%w", sprintName(printN), err)
