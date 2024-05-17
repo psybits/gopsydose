@@ -118,7 +118,7 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 // getid - if 0 gives information about the last log, a specific ID can be
 // passed to get the times for that log
 func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
-	timeTillErrChan chan<- TimeTillError, username string, getid int64) {
+	timeTillErrChan chan<- TimeTillError, username string, getid int64) TimeTillError {
 	const printN string = "GetTimes()"
 
 	tempTimeTillErr := TimeTillError{
@@ -130,8 +130,10 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	gotLogs := cfg.GetLogs(db, ctx, nil, 1, getid, username, true, "none", "")
 	if gotLogs.Err != nil {
 		tempTimeTillErr.Err = fmt.Errorf("%s%w", sprintName(printN), gotLogs.Err)
-		timeTillErrChan <- tempTimeTillErr
-		return
+		if timeTillErrChan != nil {
+			timeTillErrChan <- tempTimeTillErr
+		}
+		return tempTimeTillErr
 	}
 
 	useLog := gotLogs.UserLogs[0]
@@ -144,8 +146,10 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	if err != nil {
 		err = fmt.Errorf("%s%w", sprintName(printN), err)
 		tempTimeTillErr.Err = err
-		timeTillErrChan <- tempTimeTillErr
-		return
+		if timeTillErrChan != nil {
+			timeTillErrChan <- tempTimeTillErr
+		}
+		return tempTimeTillErr
 	}
 
 	gotInfoNum := -1
@@ -158,8 +162,10 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 
 	if gotInfoNum == -1 {
 		tempTimeTillErr.Err = fmt.Errorf("%s%w", sprintName(printN), LoggedRouteInfoError)
-		timeTillErrChan <- tempTimeTillErr
-		return
+		if timeTillErrChan != nil {
+			timeTillErrChan <- tempTimeTillErr
+		}
+		return tempTimeTillErr
 	}
 
 	gotInfoProper := gotInfo[gotInfoNum]
@@ -168,8 +174,10 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 		tempTimeTillErr.Err = fmt.Errorf("%s%w: %s ; info table units: %s",
 			sprintName(printN), LoggedUnitsInfoError,
 			useLog.DoseUnits, gotInfoProper.DoseUnits)
-		timeTillErrChan <- tempTimeTillErr
-		return
+		if timeTillErrChan != nil {
+			timeTillErrChan <- tempTimeTillErr
+		}
+		return tempTimeTillErr
 	}
 
 	// No need to do further calculation, because if the source is correct,
@@ -177,8 +185,10 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	if gotInfoProper.Threshold != 0 && useLog.Dose < gotInfoProper.Threshold {
 		tempTimeTillErr.Err = fmt.Errorf("%s%w: %s", sprintName(printN),
 			DoseBelowThresholdError, "will not calculate times")
-		timeTillErrChan <- tempTimeTillErr
-		return
+		if timeTillErrChan != nil {
+			timeTillErrChan <- tempTimeTillErr
+		}
+		return tempTimeTillErr
 	}
 
 	cfg.convertToSeconds(db, ctx,
@@ -305,7 +315,10 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 	tempTimeTillErr.offsetAvg = offsetAvg
 	tempTimeTillErr.totalAvg = totalAvg
 	tempTimeTillErr.gotInfoProper = gotInfoProper
-	timeTillErrChan <- tempTimeTillErr
+	if timeTillErrChan != nil {
+		timeTillErrChan <- tempTimeTillErr
+	}
+	return tempTimeTillErr
 }
 
 // PrintTimeTill prints the information gotten using GetTimes() to the terminal.

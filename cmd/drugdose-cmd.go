@@ -662,9 +662,7 @@ func main() {
 	}
 
 	if *getTimes {
-		timeTillErrChan := make(chan drugdose.TimeTillError)
-		go gotsetcfg.GetTimes(db, ctx, timeTillErrChan, *forUser, *forID)
-		gotTimeTillErr := <-timeTillErrChan
+		gotTimeTillErr := gotsetcfg.GetTimes(db, ctx, nil, *forUser, *forID)
 		err := gotTimeTillErr.Err
 		if err != nil {
 			printCLI("Times couldn't be retrieved because of an error:", err)
