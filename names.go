@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
-	"github.com/powerjungle/goalconvert"
 
 	"database/sql"
 
@@ -460,11 +459,7 @@ func (cfg *Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 // input 1 - the percentage
 // output - pure substance calculated using the percentage
 func convPerc2Pure(substance string, unitInputs ...float32) (error, float32) {
-	av := alconvert.NewAV()
-	av.UserSet.Milliliters = unitInputs[0]
-	av.UserSet.Percent = unitInputs[1]
-	av.CalcPureAmount()
-	return nil, av.GotPure()
+	return nil, (unitInputs[0] * (unitInputs[1] / 100))
 }
 
 // Converts pure amount to grams.

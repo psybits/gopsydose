@@ -7,7 +7,6 @@ require (
 	github.com/hasura/go-graphql-client v0.10.0
 	github.com/otiai10/copy v1.12.0
 	github.com/pelletier/go-toml/v2 v2.1.0
-	github.com/powerjungle/goalconvert v1.1.1
 	modernc.org/sqlite v1.25.0
 )
 
