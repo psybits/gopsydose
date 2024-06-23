@@ -21,16 +21,16 @@ import (
 func (cfg *Config) InitDBFileStructure() {
 	const printN string = "InitDBFileStructure()"
 
-	if cfg.DBDriver != SqliteDriver {
-		printName(printN, "Database file can only be created for sqlite.")
-		exitProgram(printN)
-	}
-
 	dbFileLocat := cfg.DBSettings[cfg.DBDriver].Path
 	_, err := os.Stat(dbFileLocat)
 	if err == nil {
 		printNameVerbose(cfg.VerbosePrinting, printN, dbFileLocat+" exists.")
 		return
+	}
+
+	if cfg.DBDriver != SqliteDriver {
+		printName(printN, "Database file can only be created for sqlite.")
+		exitProgram(printN)
 	}
 
 	if errors.Is(err, os.ErrNotExist) == false {
