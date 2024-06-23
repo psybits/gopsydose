@@ -312,14 +312,14 @@ func GetSourceData() map[string]SourceConfig {
 //
 // mysqlaccess - the path for connecting to MySQL/MariaDB, example
 // user:password@tcp(127.0.0.1:3306)/database
-func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) (error, Config) {
+func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) (error) {
 	const printN string = "InitDBSettings()"
 
 	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			err = fmt.Errorf("%s%w", sprintName(printN), err)
-			return err, *initcfg
+			return err
 		}
 
 		path := home + "/.local/share"
@@ -330,7 +330,7 @@ func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess s
 		} else if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				err = fmt.Errorf("%s%w", sprintName(printN), err)
-				return err, *initcfg
+				return err
 			}
 		}
 
@@ -350,7 +350,7 @@ func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess s
 
 	initcfg.DBSettings = dbSettings
 
-	return nil, *initcfg
+	return nil
 }
 
 // InitSettingsFile creates and fills the main global config file which
@@ -362,7 +362,7 @@ func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess s
 // currently passed Config struct data
 //
 // verbose - whether to print verbose information
-func (initconf *Config) InitSettingsFile(recreate bool, verbose bool) {
+func InitSettingsFile(recreate bool, verbose bool, sourcecfg string, dbDir string, dbName string, mysqlAccess string) {
 	const printN string = "InitSettingsFile()"
 
 	err, setdir := InitSettingsDir()
@@ -375,6 +375,14 @@ func (initconf *Config) InitSettingsFile(recreate bool, verbose bool) {
 	_, err = os.Stat(path)
 	if err != nil || recreate {
 		if errors.Is(err, os.ErrNotExist) || recreate {
+			initconf := InitConfigStruct(sourcecfg)
+
+			err := initconf.InitDBSettings(dbDir, dbName, mysqlAccess)
+			if err != nil {
+				printName(printN, err)
+				exitProgram(printN)
+			}
+
 			mcfg, err := toml.Marshal(initconf)
 			if err != nil {
 				printName(printN, err)
@@ -519,15 +527,7 @@ func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess 
 	recreateSettings bool, recreateSources bool, verbose bool, apiAddress string) Config {
 	const printN string = "InitAllSettings()"
 
-	setcfg := InitConfigStruct(sourcecfg)
-
-	err, setcfg := setcfg.InitDBSettings(dbDir, dbName, mysqlAccess)
-	if err != nil {
-		printName(printN, err)
-		exitProgram(printN)
-	}
-
-	setcfg.InitSettingsFile(recreateSettings, verbose)
+	InitSettingsFile(recreateSettings, verbose, sourcecfg, dbDir, dbName, mysqlAccess)
 
 	gotsetcfg := GetSettings()
 
@@ -537,7 +537,7 @@ func InitAllSettings(sourcecfg string, dbDir string, dbName string, mysqlAccess 
 
 	gotsrc := gotsetcfg.InitSourceMap(apiAddress)
 
-	err = gotsetcfg.InitSourceSettings(gotsrc, recreateSources)
+	err := gotsetcfg.InitSourceSettings(gotsrc, recreateSources)
 	if err != nil {
 		printName(printN, "The sources file wasn't initialised: ", err)
 		exitProgram(printN)
