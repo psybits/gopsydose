@@ -227,11 +227,6 @@ func InitSettingsDir() (error, string) {
 func (cfg *Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bool) error {
 	const printN string = "InitSourceSettings()"
 
-	mcfg, err := toml.Marshal(newcfg)
-	if err != nil {
-		return fmt.Errorf("%s%w", sprintName(printN), err)
-	}
-
 	err, setdir := InitSettingsDir()
 	if err != nil {
 		return fmt.Errorf("%s%w", sprintName(printN), err)
@@ -250,6 +245,11 @@ func (cfg *Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate b
 			err = file.Chmod(0600)
 			if err != nil {
 				errorCantChmodConfig(path, err, printN)
+			}
+
+			mcfg, err := toml.Marshal(newcfg)
+			if err != nil {
+				return fmt.Errorf("%s%w", sprintName(printN), err)
 			}
 
 			_, err = file.WriteString(string(mcfg))
