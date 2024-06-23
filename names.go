@@ -139,7 +139,7 @@ func namesFiles(nameType string) (error, string) {
 // NameTypeSubstance, NameTypeRoute, NameTypeUnits or NameTypeConvertUnits
 //
 // sourceNames - if true, will add data to the source specific config tables
-func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
+func (cfg *Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 	nameType string, sourceNames bool) error {
 	const printN string = "AddToNamesTable()"
 
@@ -224,7 +224,7 @@ func (cfg Config) AddToNamesTable(db *sql.DB, ctx context.Context,
 // overwrite - force overwrite of tables, it will not remove
 // the old config files, that must be done manually, if they're not removed
 // it will use their data for the database
-func (cfg Config) AddToAllNamesTables(db *sql.DB, ctx context.Context,
+func (cfg *Config) AddToAllNamesTables(db *sql.DB, ctx context.Context,
 	overwrite bool) error {
 
 	const printN string = "AddToAllNamesTables()"
@@ -281,7 +281,7 @@ func (cfg Config) AddToAllNamesTables(db *sql.DB, ctx context.Context,
 // meaning the names specific for the source
 //
 // Returns the local name for a given alternative name.
-func (cfg Config) MatchName(db *sql.DB, ctx context.Context,
+func (cfg *Config) MatchName(db *sql.DB, ctx context.Context,
 	inputName string, nameType string, sourceNames bool) string {
 	const printN string = "MatchName()"
 
@@ -331,7 +331,7 @@ func (cfg Config) MatchName(db *sql.DB, ctx context.Context,
 //
 // nameType - choose type to replace, between exported constants: NameTypeSubstance,
 // NameTypeRoute, NameTypeUnits or NameTypeConvertUnits
-func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
+func (cfg *Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 	inputName string, nameType string) string {
 	ret := cfg.MatchName(db, ctx, inputName, nameType, false)
 	ret = cfg.MatchName(db, ctx, ret, nameType, true)
@@ -348,7 +348,7 @@ func (cfg Config) MatchAndReplace(db *sql.DB, ctx context.Context,
 // ctx - context to passed to sql query function
 //
 // inputName - single string to match all alt names for
-func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context,
+func (cfg *Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context,
 	inputName string) string {
 
 	allNameTypes := []string{NameTypeSubstance, NameTypeRoute,
@@ -383,7 +383,7 @@ func (cfg Config) MatchAndReplaceAll(db *sql.DB, ctx context.Context,
 // sourceNames - use source specific names instead of global ones
 //
 // username - the user requesting the alt names
-func (cfg Config) GetAllAltNames(db *sql.DB, ctx context.Context,
+func (cfg *Config) GetAllAltNames(db *sql.DB, ctx context.Context,
 	namesErrChan chan<- DrugNamesError, inputName string,
 	nameType string, sourceNames bool, username string) DrugNamesError {
 	const printN string = "GetAllAltNames()"
@@ -547,7 +547,7 @@ func unitsFunctionsOutput(inputName string, substance string, unitInputs ...floa
 //
 // unitInputs - the inputs to use for the conversions, for example
 // milliliters and percentage
-func (cfg Config) ConvertUnits(db *sql.DB, ctx context.Context,
+func (cfg *Config) ConvertUnits(db *sql.DB, ctx context.Context,
 	substance string, unitInputs ...float32) (error, float32, string) {
 
 	const printN string = "ConvertUnits()"

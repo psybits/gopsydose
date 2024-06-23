@@ -79,7 +79,7 @@ type PsychonautwikiSubstance []struct {
 // the drugdose Config struct.
 //
 // returns the GraphQL struct used with github.com/hasura/go-graphql-client
-func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
+func (cfg *Config) InitGraphqlClient() (error, graphql.Client) {
 	const printN string = "InitGraphqlClient()"
 
 	client := graphql.Client{}
@@ -137,7 +137,7 @@ func (cfg Config) InitGraphqlClient() (error, graphql.Client) {
 // best done using InitGraphqlClient(), but can be done manually if needed
 //
 // username - the user that requested the fetch request
-func (cfg Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
+func (cfg *Config) FetchPsyWiki(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, drugname string, client graphql.Client,
 	username string) ErrorInfo {
 	const printN string = "FetchPsyWiki()"

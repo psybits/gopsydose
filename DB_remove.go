@@ -22,7 +22,7 @@ import (
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
+func (cfg *Config) CleanDB(db *sql.DB, ctx context.Context) error {
 	const printN string = "CleanDB()"
 
 	queryStr := cfg.getTableNamesQuery("")
@@ -80,7 +80,7 @@ func (cfg Config) CleanDB(db *sql.DB, ctx context.Context) error {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) CleanInfoTable(db *sql.DB, ctx context.Context) error {
+func (cfg *Config) CleanInfoTable(db *sql.DB, ctx context.Context) error {
 	const printN string = "CleanInfoTable()"
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -117,7 +117,7 @@ func (cfg Config) CleanInfoTable(db *sql.DB, ctx context.Context) error {
 //
 // replaceOnly - if true, remove only replace tables (source specific),
 // keep the global ones intact
-func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly bool) error {
+func (cfg *Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly bool) error {
 	const printN string = "CleanNamesTables()"
 
 	tableSuffix := "_" + cfg.UseSource
@@ -184,7 +184,7 @@ func (cfg Config) CleanNamesTables(db *sql.DB, ctx context.Context, replaceOnly 
 // remID - if not 0, remove a specific log using it's start timestamp (ID)
 //
 // search - remove logs only matching this string
-func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
+func (cfg *Config) RemoveLogs(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, username string, amount int, reverse bool,
 	remID int64, search string, getExact string) ErrorInfo {
 
@@ -297,7 +297,7 @@ func (cfg Config) RemoveLogs(db *sql.DB, ctx context.Context,
 // drug - name of drug to be removed from source table
 //
 // username - the user which requested the drug removal
-func (cfg Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
+func (cfg *Config) RemoveSingleDrugInfo(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, drug string, username string) ErrorInfo {
 	const printN string = "RemoveSingleDrugInfo()"
 

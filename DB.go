@@ -253,7 +253,7 @@ func checkIfExistsDB(db *sql.DB, ctx context.Context,
 // Uses the value of Timeout from the settings file to create a WithTimeout
 // context. If no errors are found, it then returns the context to be used
 // where it's needed.
-func (cfg Config) UseConfigTimeout() (context.Context, context.CancelFunc, error) {
+func (cfg *Config) UseConfigTimeout() (context.Context, context.CancelFunc, error) {
 	const printN string = "UseConfigTimeout()"
 
 	if cfg.Timeout == "" || cfg.Timeout == "none" {
@@ -276,7 +276,7 @@ func (cfg Config) UseConfigTimeout() (context.Context, context.CancelFunc, error
 // db being the name of the returned *sql.DB variable
 //
 // ctx - context to be passed to PingDB(), first passing through WithTimeout()
-func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
+func (cfg *Config) OpenDBConnection(ctx context.Context) *sql.DB {
 	const printN string = "OpenDBConnection()"
 
 	finalPath := cfg.DBSettings[cfg.DBDriver].Path
@@ -299,7 +299,7 @@ func (cfg Config) OpenDBConnection(ctx context.Context) *sql.DB {
 // db - open database connection
 //
 // ctx - context to be passed to PingContext()
-func (cfg Config) PingDB(db *sql.DB, ctx context.Context) {
+func (cfg *Config) PingDB(db *sql.DB, ctx context.Context) {
 	const printN string = "PingDB()"
 
 	err := db.PingContext(ctx)
@@ -312,7 +312,7 @@ func (cfg Config) PingDB(db *sql.DB, ctx context.Context) {
 // names in the database.
 // If tableName is empty, query returns all tables in the database.
 // If tableName is not empty, query returns a specific table if it exists.
-func (cfg Config) getTableNamesQuery(tableName string) string {
+func (cfg *Config) getTableNamesQuery(tableName string) string {
 	var queryStr string
 	andTable := ""
 	if cfg.DBDriver == SqliteDriver {
@@ -340,7 +340,7 @@ func (cfg Config) getTableNamesQuery(tableName string) string {
 // ctx - context to be passed to sql queries
 //
 // tableName - name of table to check if it exists
-func (cfg Config) CheckTables(db *sql.DB, ctx context.Context, tableName string) bool {
+func (cfg *Config) CheckTables(db *sql.DB, ctx context.Context, tableName string) bool {
 	const printN string = "CheckTables()"
 
 	queryStr := cfg.getTableNamesQuery(tableName)
@@ -386,7 +386,7 @@ func (cfg Config) CheckTables(db *sql.DB, ctx context.Context, tableName string)
 //
 // for psychonautwiki: the initialised structure for the graphql client,
 // best done using InitGraphqlClient(), but can be done manually if needed
-func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
+func (cfg *Config) FetchFromSource(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, drugname string, username string,
 	xtraNeeded ...any) ErrorInfo {
 
@@ -447,7 +447,7 @@ func (cfg Config) FetchFromSource(db *sql.DB, ctx context.Context,
 // username - the user who's log we're changing
 //
 // setValue - the new value to set
-func (cfg Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan<- ErrorInfo,
+func (cfg *Config) ChangeUserLog(db *sql.DB, ctx context.Context, errChannel chan<- ErrorInfo,
 	set string, id int64, username string, setValue string) ErrorInfo {
 	const printN string = "ChangeUserLog()"
 

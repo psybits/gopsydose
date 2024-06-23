@@ -31,7 +31,7 @@ var NoDrugInfoTable error = errors.New("no such drug in info table")
 var InvalidColInput error = errors.New("an invalid column name has been given")
 
 // GetDBSize returns the total size of the database in bytes (int64).
-func (cfg Config) GetDBSize() int64 {
+func (cfg *Config) GetDBSize() int64 {
 	const printN string = "GetDBSize()"
 
 	if cfg.DBDriver == SqliteDriver {
@@ -95,7 +95,7 @@ func (cfg Config) GetDBSize() int64 {
 // (set to nil if function doesn't need to be concurrent)
 //
 // username - user to get unique usernames for
-func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
+func (cfg *Config) GetUsers(db *sql.DB, ctx context.Context,
 	allUsersErrChan chan<- AllUsersError, username string) AllUsersError {
 	const printN string = "GetUsers()"
 
@@ -156,7 +156,7 @@ func (cfg Config) GetUsers(db *sql.DB, ctx context.Context,
 // logCountErrChan - the goroutine channel used to return the log count and
 // the error
 // (set to nil if function doesn't need to be concurrent)
-func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
+func (cfg *Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
 	logCountErrChan chan<- LogCountError) LogCountError {
 	const printN string = "GetLogsCount()"
 
@@ -225,7 +225,7 @@ func (cfg Config) GetLogsCount(db *sql.DB, ctx context.Context, user string,
 // getExact - if not empty, choose which column to search for and changes
 // the search behavior to exact matching, if name is invalid, InvalidColInput
 // error will be send through userLogsErrorChannel or returned
-func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
+func (cfg *Config) GetLogs(db *sql.DB, ctx context.Context,
 	userLogsErrorChannel chan<- UserLogsError, num int, id int64,
 	user string, desc bool, search string, getExact string) UserLogsError {
 
@@ -374,7 +374,7 @@ func (cfg Config) GetLogs(db *sql.DB, ctx context.Context,
 //
 // prefix - if true the name of the function should be shown
 // when writing to console
-func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
+func (cfg *Config) PrintLogs(userLogs []UserLog, prefix bool) {
 	var printN string
 	if prefix == true {
 		printN = "GetLogs()"
@@ -421,7 +421,7 @@ func (cfg Config) PrintLogs(userLogs []UserLog, prefix bool) {
 // drug - drug to get information about
 //
 // username - the user requesting the local info
-func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
+func (cfg *Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 	drugInfoErrChan chan<- DrugInfoError, drug string, username string) DrugInfoError {
 	printN := "GetLocalInfo()"
 
@@ -502,7 +502,7 @@ func (cfg Config) GetLocalInfo(db *sql.DB, ctx context.Context,
 // drugInfo - slice returned from GetLocalInfo()
 //
 // prefix - whether to add the function name to console output
-func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
+func (cfg *Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 	var printN string
 	if prefix == true {
 		printN = "GetLocalInfo()"
@@ -568,7 +568,7 @@ func (cfg Config) PrintLocalInfo(drugInfo []DrugInfo, prefix bool) {
 //
 // getExact - choose which column to get unique names for, if name is invalid,
 // InvalidColInput error will be send through userLogsErrorChannel
-func (cfg Config) GetLoggedNames(db *sql.DB, ctx context.Context,
+func (cfg *Config) GetLoggedNames(db *sql.DB, ctx context.Context,
 	drugNamesErrorChannel chan<- DrugNamesError, info bool,
 	username string, getExact string) DrugNamesError {
 	const printN string = "GetLoggedNames()"

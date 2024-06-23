@@ -63,7 +63,7 @@ type TimeTillError struct {
 	gotInfoProper DrugInfo
 }
 
-func (cfg Config) convertToSeconds(db *sql.DB, ctx context.Context,
+func (cfg *Config) convertToSeconds(db *sql.DB, ctx context.Context,
 	units string, values ...*float32) {
 	const printN string = "convertToSeconds()"
 
@@ -116,7 +116,7 @@ func calcTimeTill(timetill *int64, diff int64, average ...float32) {
 //
 // getid - if 0 gives information about the last log, a specific ID can be
 // passed to get the times for that log
-func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
+func (cfg *Config) GetTimes(db *sql.DB, ctx context.Context,
 	timeTillErrChan chan<- TimeTillError, username string, getid int64) TimeTillError {
 	const printN string = "GetTimes()"
 
@@ -323,7 +323,7 @@ func (cfg Config) GetTimes(db *sql.DB, ctx context.Context,
 // timeTillErr - the struct returned from GetTimes()
 //
 // prefix - if true, adds the function name to every print
-func (cfg Config) PrintTimeTill(timeTillErr TimeTillError, prefix bool) error {
+func (cfg *Config) PrintTimeTill(timeTillErr TimeTillError, prefix bool) error {
 	var printN string
 	if prefix == true {
 		printN = "GetTimes()"

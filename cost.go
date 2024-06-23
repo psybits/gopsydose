@@ -35,7 +35,7 @@ type CostsError struct {
 // (set to nil if function doesn't need to be concurrent)
 //
 // username - the user for which to return the costs
-func (cfg Config) GetTotalCosts(db *sql.DB, ctx context.Context,
+func (cfg *Config) GetTotalCosts(db *sql.DB, ctx context.Context,
 	costsErrChan chan<- CostsError, username string) CostsError {
 
 	const printN string = "GetTotalCosts()"

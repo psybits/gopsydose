@@ -18,7 +18,7 @@ import (
 // This should be run only once!
 // This is currently only useful for sqlite.
 // If Config.DBDriver is not set to "sqlite" it will exit the program.
-func (cfg Config) InitDBFileStructure() {
+func (cfg *Config) InitDBFileStructure() {
 	const printN string = "InitDBFileStructure()"
 
 	if cfg.DBDriver != SqliteDriver {
@@ -69,7 +69,7 @@ func (cfg Config) InitDBFileStructure() {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitInfoTable(db *sql.DB, ctx context.Context) error {
+func (cfg *Config) InitInfoTable(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitInfoTable()"
 
 	ret := cfg.CheckTables(db, ctx, cfg.UseSource)
@@ -158,7 +158,7 @@ func validInfoCols() []string {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitLogsTable(db *sql.DB, ctx context.Context) error {
+func (cfg *Config) InitLogsTable(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitLogsTable()"
 
 	ret := cfg.CheckTables(db, ctx, loggingTableName)
@@ -209,7 +209,7 @@ func (cfg Config) InitLogsTable(db *sql.DB, ctx context.Context) error {
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitUserSetTable(db *sql.DB, ctx context.Context) error {
+func (cfg *Config) InitUserSetTable(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitUserSetTable()"
 
 	ret := cfg.CheckTables(db, ctx, userSetTableName)
@@ -254,7 +254,7 @@ func (cfg Config) InitUserSetTable(db *sql.DB, ctx context.Context) error {
 //
 // replace - if true, creates the tables for the currently configured source
 // only, meaning for alt names specific to the source
-func (cfg Config) InitNamesAltTables(db *sql.DB, ctx context.Context, replace bool) error {
+func (cfg *Config) InitNamesAltTables(db *sql.DB, ctx context.Context, replace bool) error {
 	const printN string = "InitNamesAltTables()"
 
 	tableSuffix := ""
@@ -379,7 +379,7 @@ func (cfg Config) InitNamesAltTables(db *sql.DB, ctx context.Context, replace bo
 // db - open database connection
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
+func (cfg *Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
 	const printN string = "InitAllDBTables()"
 
 	err := cfg.InitInfoTable(db, ctx)
@@ -416,7 +416,7 @@ func (cfg Config) InitAllDBTables(db *sql.DB, ctx context.Context) error {
 // It will stop the program if it encounters an error.
 //
 // ctx - context to be passed to sql queries
-func (cfg Config) InitAllDB(ctx context.Context) {
+func (cfg *Config) InitAllDB(ctx context.Context) {
 	const printN string = "InitAllDB()"
 
 	if cfg.DBDriver != MysqlDriver && cfg.DBDriver != SqliteDriver {

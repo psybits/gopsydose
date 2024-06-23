@@ -180,7 +180,7 @@ func InitConfigStruct(sourcecfg string) Config {
 // an URL and etc.
 //
 // apiAddress - the address to map to the source name from the Config struct
-func (cfg Config) InitSourceMap(apiAddress string) map[string]SourceConfig {
+func (cfg *Config) InitSourceMap(apiAddress string) map[string]SourceConfig {
 	srcmap := map[string]SourceConfig{
 		cfg.UseSource: {
 			API_ADDRESS: apiAddress,
@@ -224,7 +224,7 @@ func InitSettingsDir() (error, string) {
 // newcfg - the source api name to api address map
 //
 // recreate - overwrite the current file if it exists with a new map
-func (cfg Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bool) error {
+func (cfg *Config) InitSourceSettings(newcfg map[string]SourceConfig, recreate bool) error {
 	const printN string = "InitSourceSettings()"
 
 	mcfg, err := toml.Marshal(newcfg)
@@ -312,14 +312,14 @@ func GetSourceData() map[string]SourceConfig {
 //
 // mysqlaccess - the path for connecting to MySQL/MariaDB, example
 // user:password@tcp(127.0.0.1:3306)/database
-func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) (error, Config) {
+func (initcfg *Config) InitDBSettings(dbdir string, dbname string, mysqlaccess string) (error, Config) {
 	const printN string = "InitDBSettings()"
 
 	if dbdir == DefaultDBDir {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			err = fmt.Errorf("%s%w", sprintName(printN), err)
-			return err, initcfg
+			return err, *initcfg
 		}
 
 		path := home + "/.local/share"
@@ -330,7 +330,7 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 		} else if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				err = fmt.Errorf("%s%w", sprintName(printN), err)
-				return err, initcfg
+				return err, *initcfg
 			}
 		}
 
@@ -350,7 +350,7 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 
 	initcfg.DBSettings = dbSettings
 
-	return nil, initcfg
+	return nil, *initcfg
 }
 
 // InitSettingsFile creates and fills the main global config file which
@@ -362,7 +362,7 @@ func (initcfg Config) InitDBSettings(dbdir string, dbname string, mysqlaccess st
 // currently passed Config struct data
 //
 // verbose - whether to print verbose information
-func (initconf Config) InitSettingsFile(recreate bool, verbose bool) {
+func (initconf *Config) InitSettingsFile(recreate bool, verbose bool) {
 	const printN string = "InitSettingsFile()"
 
 	err, setdir := InitSettingsDir()
@@ -413,7 +413,7 @@ func (initconf Config) InitSettingsFile(recreate bool, verbose bool) {
 // the config directory, the code checks if it's present in the current working
 // directory. If it is, it's copied over to the OS config directory and used
 // later to fill in the database.
-func (cfg Config) InitNamesFiles() error {
+func (cfg *Config) InitNamesFiles() error {
 	const printN string = "InitNamesFiles()"
 
 	err, setdir := InitSettingsDir()

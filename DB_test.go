@@ -88,7 +88,7 @@ func initForTests(dbDriver string) (*sql.DB, context.Context, Config) {
 	return db, ctx, gotsetcfg
 }
 
-func (cfg Config) cleanAfterTest(db *sql.DB, ctx context.Context) {
+func (cfg *Config) cleanAfterTest(db *sql.DB, ctx context.Context) {
 	err := cfg.CleanInfoTable(db, ctx)
 	if err != nil {
 		fmt.Println(err)

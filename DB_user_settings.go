@@ -38,7 +38,7 @@ func settingsTables(settingType string) (error, string) {
 // ctx - context to be passed to sql queries
 //
 // username - the user to create default settings for
-func (cfg Config) InitUserSettings(db *sql.DB, ctx context.Context, username string) error {
+func (cfg *Config) InitUserSettings(db *sql.DB, ctx context.Context, username string) error {
 	const printN string = "InitUserSettings()"
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -90,7 +90,7 @@ func returnSetUserSetStmt(set string) string {
 // username - the user the setting is changed for
 //
 // setValue - the value the setting is changed to
-func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
+func (cfg *Config) SetUserSettings(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, set string, username string, setValue string) ErrorInfo {
 
 	const printN string = "SetUserSettings()"
@@ -175,7 +175,7 @@ func (cfg Config) SetUserSettings(db *sql.DB, ctx context.Context,
 // set - the name of the setting to get the value of
 //
 // username - the user for which to get the setting
-func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
+func (cfg *Config) GetUserSettings(db *sql.DB, ctx context.Context,
 	userSetErrChannel chan<- UserSettingError, set string, username string) UserSettingError {
 
 	const printN string = "GetUserSettings()"
@@ -232,7 +232,7 @@ func (cfg Config) GetUserSettings(db *sql.DB, ctx context.Context,
 // username - the user to use for remembering a dosing
 //
 // forID - the ID to use for remembering a dosing
-func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
+func (cfg *Config) RememberDosing(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, username string, forID int64) ErrorInfo {
 	const printN string = "RememberDosing()"
 
@@ -282,7 +282,7 @@ func (cfg Config) RememberDosing(db *sql.DB, ctx context.Context,
 // (set to nil if function doesn't need to be concurrent)
 //
 // username - the user to recall the logs for
-func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
+func (cfg *Config) RecallDosing(db *sql.DB, ctx context.Context,
 	userLogsErrorChannel chan<- UserLogsError, username string) UserLogsError {
 	const printN string = "RememberConfig()"
 
@@ -344,7 +344,7 @@ func (cfg Config) RecallDosing(db *sql.DB, ctx context.Context,
 // (set to nil if function doesn't need to be concurrent)
 //
 // username - the user for which to forget the dosing
-func (cfg Config) ForgetDosing(db *sql.DB, ctx context.Context,
+func (cfg *Config) ForgetDosing(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, username string) ErrorInfo {
 	const printN string = "ForgetConfig()"
 

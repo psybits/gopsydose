@@ -27,7 +27,7 @@ import (
 // subs - all substances of type DrugInfo to go through to add to source table
 //
 // username - user requesting addition
-func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
+func (cfg *Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 	errChannel chan<- ErrorInfo, subs []DrugInfo, username string) ErrorInfo {
 	const printN string = "AddToInfoTable()"
 
@@ -143,7 +143,7 @@ func (cfg Config) AddToInfoTable(db *sql.DB, ctx context.Context,
 // costCur - the currency the cost is in
 //
 // printit - when true, prints what has been added to the database in the terminal
-func (cfg Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel chan<- ErrorInfo,
+func (cfg *Config) AddToDoseTable(db *sql.DB, ctx context.Context, errChannel chan<- ErrorInfo,
 	synct *SyncTimestamps, user string, drug string, route string,
 	dose float32, units string, perc float32, cost float32, costCur string,
 	printit bool) ErrorInfo {
